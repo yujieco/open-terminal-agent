@@ -121,6 +121,20 @@ pub struct AgentRunSummary {
     pub finished_at: Option<i64>,
 }
 
+/// One pinned SSH host key.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnownHost {
+    /// Hostname or IP address.
+    pub host: String,
+    /// Port the key belongs to.
+    pub port: u16,
+    /// SHA-256 fingerprint that was pinned.
+    pub fingerprint: String,
+    /// Milliseconds since the Unix epoch.
+    pub first_seen: i64,
+}
+
 /// Values needed to persist a finished run.
 #[derive(Debug, Clone)]
 pub struct NewAgentRun {
@@ -491,6 +505,37 @@ impl Store {
         Ok(fingerprint)
     }
 
+    /// Lists every pinned host key, oldest first.
+    pub fn list_known_hosts(&self) -> Result<Vec<KnownHost>, StoreError> {
+        let connection = self.lock()?;
+        let mut statement = connection.prepare(
+            "SELECT host, port, fingerprint, first_seen FROM known_hosts ORDER BY host, port",
+        )?;
+        let rows = statement.query_map([], |row| {
+            Ok(KnownHost {
+                host: row.get(0)?,
+                port: row.get::<_, i64>(1)? as u16,
+                fingerprint: row.get(2)?,
+                first_seen: row.get(3)?,
+            })
+        })?;
+
+        let mut hosts = Vec::new();
+        for row in rows {
+            hosts.push(row?);
+        }
+        Ok(hosts)
+    }
+
+    /// Forgets a pinned host key, returning whether one existed.
+    pub fn forget_host_key(&self, host: &str, port: u16) -> Result<bool, StoreError> {
+        let removed = self.lock()?.execute(
+            "DELETE FROM known_hosts WHERE host = ?1 AND port = ?2",
+            params![host, i64::from(port)],
+        )?;
+        Ok(removed > 0)
+    }
+
     /// Pins a host key, replacing a previous entry for the same host and port.
     pub fn remember_host_key(
         &self,
@@ -578,6 +623,30 @@ mod tests {
         );
         // Ports are part of the identity.
         assert!(store.host_key("10.0.0.12", 2222).expect("lookup").is_none());
+    }
+
+    #[test]
+    fn lists_and_forgets_pinned_hosts() {
+        let store = Store::open_in_memory().expect("store");
+        store
+            .remember_host_key("10.0.0.12", 22, "SHA256:a")
+            .expect("pin");
+        store
+            .remember_host_key("10.0.0.9", 2222, "SHA256:b")
+            .expect("pin");
+
+        let hosts = store.list_known_hosts().expect("list");
+        assert_eq!(hosts.len(), 2);
+        assert_eq!(hosts[0].host, "10.0.0.12");
+        assert_eq!(hosts[1].port, 2222);
+
+        assert!(store.forget_host_key("10.0.0.12", 22).expect("forget"));
+        assert!(
+            !store
+                .forget_host_key("10.0.0.12", 22)
+                .expect("forget again")
+        );
+        assert_eq!(store.list_known_hosts().expect("list").len(), 1);
     }
 
     #[test]

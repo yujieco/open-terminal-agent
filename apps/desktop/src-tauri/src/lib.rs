@@ -65,6 +65,8 @@ pub fn run() {
             commands::save_llm_config,
             commands::discover_models,
             commands::suggest_command,
+            commands::list_known_hosts,
+            commands::forget_host_key,
             commands::agent_run,
             commands::agent_cancel,
             commands::agent_approve,

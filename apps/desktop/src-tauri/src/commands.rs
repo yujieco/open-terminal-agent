@@ -31,7 +31,9 @@ use crate::error::ApiError;
 use crate::locale::LocaleInfo;
 use crate::secrets::{SecretStore, ssh_secret_account};
 use crate::state::{SessionHandle, SessionKind, SessionRegistry, SftpRegistry};
-use crate::store::{AgentRunRecord, AgentRunSummary, NewSavedSession, SavedSession, Store};
+use crate::store::{
+    AgentRunRecord, AgentRunSummary, KnownHost, NewSavedSession, SavedSession, Store,
+};
 use crate::{TERMINAL_EXIT_EVENT, TERMINAL_OUTPUT_EVENT};
 
 /// Identifier for a row in the saved-session table.
@@ -1286,4 +1288,16 @@ fn clean_command(raw: &str) -> String {
         .collect();
     let first = lines.drain(..).next().unwrap_or_default();
     first.trim_start_matches("$ ").trim().to_owned()
+}
+
+/// Lists pinned SSH host keys for review.
+#[tauri::command]
+pub fn list_known_hosts(store: State<'_, Store>) -> Result<Vec<KnownHost>, ApiError> {
+    Ok(store.list_known_hosts()?)
+}
+
+/// Forgets one pinned host key, so the next connection trusts it again.
+#[tauri::command]
+pub fn forget_host_key(store: State<'_, Store>, host: String, port: u16) -> Result<bool, ApiError> {
+    Ok(store.forget_host_key(&host, port)?)
 }
