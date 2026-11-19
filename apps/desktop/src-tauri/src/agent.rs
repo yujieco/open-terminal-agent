@@ -19,7 +19,7 @@ use tauri::{AppHandle, Emitter};
 use term_agent::llm::OpenAiCompatibleClient;
 use term_agent::{
     AgentError, AgentEvent, AgentRuntime, AgentRuntimeConfig, AgentTerminal, ApprovalRequest,
-    Approver, CommandOutcome, ControlSignal, LlmProviderConfig, PermissionMode,
+    Approver, CommandOutcome, ControlSignal, LlmClient, LlmProviderConfig, PermissionMode,
     Result as AgentResult,
 };
 use term_core::{ShadowScreen, TerminalTransport};
@@ -31,6 +31,8 @@ use crate::state::SessionKind;
 pub const AGENT_EVENT: &str = "agent://event";
 /// Event asking the user to approve one command.
 pub const AGENT_APPROVAL: &str = "agent://approval";
+/// Event emitted when human input takes the terminal back mid-run.
+pub const AGENT_INTERRUPTED: &str = "agent://interrupted";
 
 /// Marker prefix used to detect command completion on an echoing transport.
 static COMMAND_SEQUENCE: AtomicU64 = AtomicU64::new(1);
@@ -261,22 +263,51 @@ impl AgentControl {
         }
     }
 
+    /// Whether a run is currently in flight for `session_id`.
+    pub fn is_running(&self, session_id: &str) -> bool {
+        self.cancel
+            .lock()
+            .map(|cancel| cancel.contains_key(session_id))
+            .unwrap_or(false)
+    }
+
+    /// Human keystroke arbitration: whoever types takes the terminal back.
+    ///
+    /// Returns `true` when an agent run was actually interrupted, so the caller
+    /// can tell the UI what just happened.
+    pub fn interrupt_for_human(&self, session_id: &str) -> bool {
+        let flag = self
+            .cancel
+            .lock()
+            .ok()
+            .and_then(|cancel| cancel.get(session_id).cloned());
+
+        match flag {
+            Some(flag) => {
+                flag.store(true, Ordering::SeqCst);
+                self.reject_all();
+                true
+            }
+            None => false,
+        }
+    }
+
     /// Requests cancellation of the run for `session_id`.
     pub fn cancel(&self, session_id: &str) {
-        if let Ok(cancel) = self.cancel.lock() {
-            if let Some(flag) = cancel.get(session_id) {
-                flag.store(true, Ordering::SeqCst);
-            }
+        if let Ok(cancel) = self.cancel.lock()
+            && let Some(flag) = cancel.get(session_id)
+        {
+            flag.store(true, Ordering::SeqCst);
         }
         self.reject_all();
     }
 
     /// Resolves one approval question.
     pub fn resolve(&self, call_id: &str, approved: bool) {
-        if let Ok(mut pending) = self.pending.lock() {
-            if let Some(sender) = pending.remove(call_id) {
-                let _ = sender.send(approved);
-            }
+        if let Ok(mut pending) = self.pending.lock()
+            && let Some(sender) = pending.remove(call_id)
+        {
+            let _ = sender.send(approved);
         }
     }
 
@@ -296,23 +327,27 @@ pub fn build_client(api_key: Option<String>) -> AgentResult<Arc<OpenAiCompatible
     Ok(Arc::new(OpenAiCompatibleClient::new(config, api_key)?))
 }
 
-/// Forwards runtime events to the WebView until the run ends.
+/// Forwards runtime events to the WebView, collecting them for the run record.
 pub fn forward_events(
     app: AppHandle,
     session_id: String,
     mut events: tokio::sync::mpsc::UnboundedReceiver<AgentEvent>,
-) {
+) -> tokio::task::JoinHandle<Vec<AgentEvent>> {
     tokio::spawn(async move {
+        let mut collected = Vec::new();
         while let Some(event) = events.recv().await {
             let payload = AgentEventPayload {
                 session_id: session_id.clone(),
-                event,
+                event: event.clone(),
             };
+            collected.push(event);
             if app.emit(AGENT_EVENT, payload).is_err() {
-                break;
+                // The window is gone; keep draining so the record stays complete.
+                continue;
             }
         }
-    });
+        collected
+    })
 }
 
 /// Configures a runtime with the limits this app uses.
@@ -324,10 +359,11 @@ pub fn runtime_config() -> AgentRuntimeConfig {
     }
 }
 
-/// Runs one task and returns when the loop stops.
+/// Runs one task, records it, and returns when the loop stops.
 #[allow(clippy::too_many_arguments)]
 pub async fn run_task(
     app: AppHandle,
+    store: crate::store::Store,
     session_id: String,
     terminal: SessionTerminal,
     api_key: Option<String>,
@@ -337,8 +373,11 @@ pub async fn run_task(
     task: String,
 ) -> AgentResult<()> {
     let client = build_client(api_key)?;
+    let model = client.model().to_owned();
+    let started_at = now_millis();
+
     let (events_tx, events_rx) = tokio::sync::mpsc::unbounded_channel();
-    forward_events(app.clone(), session_id.clone(), events_rx);
+    let collector = forward_events(app.clone(), session_id.clone(), events_rx);
 
     let runtime = AgentRuntime::new(
         client,
@@ -346,7 +385,7 @@ pub async fn run_task(
         mode,
         Arc::new(EventApprover {
             app,
-            session_id,
+            session_id: session_id.clone(),
             pending,
         }),
         events_tx,
@@ -354,5 +393,57 @@ pub async fn run_task(
     )
     .with_config(runtime_config());
 
-    runtime.run(&task).await
+    let outcome = runtime.run(&task).await;
+
+    // Persist before returning so a crash cannot lose what the user just watched.
+    let events = collector.await.unwrap_or_default();
+    let status = outcome_status(&events, outcome.is_err());
+    let commands = events
+        .iter()
+        .filter(|event| matches!(event, AgentEvent::ToolFinished { .. }))
+        .count() as u32;
+    let mode_label = match mode {
+        PermissionMode::Ask => "ask",
+        PermissionMode::Supervised => "supervised",
+        PermissionMode::Autonomous => "autonomous",
+    };
+
+    let events_json = serde_json::to_value(&events).unwrap_or(serde_json::Value::Null);
+    if let Err(error) = store.save_agent_run(crate::store::NewAgentRun {
+        session_id,
+        task,
+        mode: mode_label.to_owned(),
+        model,
+        status,
+        commands,
+        started_at,
+        finished_at: now_millis(),
+        events: events_json,
+    }) {
+        tracing::warn!(%error, "could not persist the agent run");
+    }
+
+    outcome
+}
+
+/// Derives the stored status label from the event stream.
+fn outcome_status(events: &[AgentEvent], failed: bool) -> String {
+    if failed
+        || events
+            .iter()
+            .any(|event| matches!(event, AgentEvent::Failed { .. }))
+    {
+        return String::from("failed");
+    }
+    match events.last() {
+        Some(AgentEvent::RunFinished { reason, .. }) => format!("{reason:?}"),
+        _ => String::from("unknown"),
+    }
+}
+
+fn now_millis() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_millis() as i64)
+        .unwrap_or_default()
 }

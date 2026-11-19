@@ -25,12 +25,12 @@ use term_core::{
 };
 use tokio::sync::{Mutex as AsyncMutex, broadcast::error::RecvError};
 
-use crate::agent::{AGENT_APPROVAL, AGENT_EVENT, AgentControl, SessionTerminal};
+use crate::agent::{AGENT_APPROVAL, AGENT_EVENT, AGENT_INTERRUPTED, AgentControl, SessionTerminal};
 use crate::error::ApiError;
 use crate::locale::LocaleInfo;
 use crate::secrets::{SecretStore, ssh_secret_account};
 use crate::state::{SessionHandle, SessionKind, SessionRegistry, SftpRegistry};
-use crate::store::{NewSavedSession, SavedSession, Store};
+use crate::store::{AgentRunRecord, AgentRunSummary, NewSavedSession, SavedSession, Store};
 use crate::{TERMINAL_EXIT_EVENT, TERMINAL_OUTPUT_EVENT};
 
 /// Identifier for a row in the saved-session table.
@@ -274,7 +274,7 @@ pub async fn spawn_session(
     let label = transport.shell().to_owned();
     let transport: Arc<dyn TerminalTransport> = Arc::new(transport);
 
-    Ok(register_session(
+    register_session(
         app,
         &registry,
         transport,
@@ -283,7 +283,7 @@ pub async fn spawn_session(
         cols,
         rows,
         output,
-    )?)
+    )
 }
 
 /// Connects to a remote host over SSH and opens an interactive shell.
@@ -313,7 +313,7 @@ pub async fn connect_ssh(
     let label = format!("{username}@{host}");
     let transport: Arc<dyn TerminalTransport> = Arc::new(transport);
 
-    Ok(register_session(
+    register_session(
         app,
         &registry,
         transport,
@@ -322,7 +322,7 @@ pub async fn connect_ssh(
         cols,
         rows,
         output,
-    )?)
+    )
 }
 
 /// Opens a serial console.
@@ -355,7 +355,7 @@ pub async fn open_serial(
     );
     let transport: Arc<dyn TerminalTransport> = Arc::new(transport);
 
-    Ok(register_session(
+    register_session(
         app,
         &registry,
         transport,
@@ -364,7 +364,7 @@ pub async fn open_serial(
         cols,
         rows,
         output,
-    )?)
+    )
 }
 
 /// Shared registration: one shadow screen, one forwarder, one registry entry.
@@ -747,11 +747,11 @@ pub fn delete_saved_session(
     id: String,
 ) -> Result<bool, ApiError> {
     let existing = store.get(&id)?;
-    if let Some(saved) = &existing {
-        if let Some(account) = &saved.secret_ref {
-            // A missing entry is fine; the row is what matters.
-            secrets.delete(account)?;
-        }
+    if let Some(saved) = &existing
+        && let Some(account) = &saved.secret_ref
+    {
+        // A missing entry is fine; the row is what matters.
+        secrets.delete(account)?;
     }
     Ok(store.delete(&id)?)
 }
@@ -941,8 +941,15 @@ pub fn agent_run(
     registry: State<'_, SessionRegistry>,
     secrets: State<'_, SecretStore>,
     control: State<'_, Arc<AgentControl>>,
+    store: State<'_, Store>,
     request: AgentRunRequest,
 ) -> Result<(), ApiError> {
+    if control.is_running(&request.session_id) {
+        return Err(ApiError::InvalidRequest(String::from(
+            "a run is already in progress for this session",
+        )));
+    }
+
     let handle = registry.require(&request.session_id)?;
     let api_key = secrets.get(LLM_KEY_ACCOUNT)?.ok_or_else(|| {
         ApiError::InvalidRequest(String::from(
@@ -960,10 +967,12 @@ pub fn agent_run(
     let control = Arc::clone(&control);
     let session_id = request.session_id.clone();
     let mode = request.mode.unwrap_or_default();
+    let store: Store = (*store).clone();
 
     tauri::async_runtime::spawn(async move {
         let outcome = crate::agent::run_task(
             app,
+            store,
             session_id.clone(),
             terminal,
             Some(api_key),
@@ -1007,4 +1016,46 @@ pub fn agent_approve(
 #[tauri::command]
 pub fn agent_event_names() -> (String, String) {
     (AGENT_EVENT.to_owned(), AGENT_APPROVAL.to_owned())
+}
+
+/// Human keystroke path: takes the terminal back from a running agent.
+///
+/// The terminal pane always goes through this command, so "whoever types wins"
+/// needs no cooperation from the model or the runtime.
+#[tauri::command]
+pub async fn write_keystrokes(
+    app: AppHandle,
+    registry: State<'_, SessionRegistry>,
+    control: State<'_, Arc<AgentControl>>,
+    session_id: String,
+    data: String,
+) -> Result<(), ApiError> {
+    if control.interrupt_for_human(&session_id) {
+        let _ = app.emit(
+            AGENT_INTERRUPTED,
+            serde_json::json!({ "sessionId": session_id }),
+        );
+    }
+    let handle = registry.require(&session_id)?;
+    handle.transport.write_bytes(data.as_bytes()).await?;
+    Ok(())
+}
+
+/// Lists recent agent runs, newest first.
+#[tauri::command]
+pub fn list_agent_runs(
+    store: State<'_, Store>,
+    session_id: Option<String>,
+    limit: Option<usize>,
+) -> Result<Vec<AgentRunSummary>, ApiError> {
+    Ok(store.list_agent_runs(session_id.as_deref(), limit.unwrap_or(20))?)
+}
+
+/// Loads one stored run with its event sequence, used to replay the timeline.
+#[tauri::command]
+pub fn get_agent_run(
+    store: State<'_, Store>,
+    id: String,
+) -> Result<Option<AgentRunRecord>, ApiError> {
+    Ok(store.get_agent_run(&id)?)
 }

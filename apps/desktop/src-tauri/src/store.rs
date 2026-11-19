@@ -7,7 +7,7 @@
 //! OS keyring entry, so a stolen database file leaks no credentials.
 
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::{Connection, OptionalExtension, params};
@@ -71,9 +71,83 @@ pub struct NewSavedSession {
     pub secret_ref: Option<String>,
 }
 
-/// Handle to the local database.
+/// One finished (or aborted) agent run, used to replay the timeline.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRunRecord {
+    /// Stable identifier.
+    pub id: String,
+    /// Session the run belonged to.
+    pub session_id: String,
+    /// Task typed by the user.
+    pub task: String,
+    /// Autonomy mode in force.
+    pub mode: String,
+    /// Model that answered.
+    pub model: String,
+    /// `completed`, `stepBudget`, `cancelled` or `failed`.
+    pub status: String,
+    /// Number of commands that actually ran.
+    pub commands: u32,
+    /// Milliseconds since the Unix epoch.
+    pub started_at: i64,
+    /// Milliseconds since the Unix epoch, when the run ended.
+    pub finished_at: Option<i64>,
+    /// Serialized `AgentEvent` sequence, replayed by the panel.
+    pub events: Value,
+}
+
+/// Compact row used by the run history list.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRunSummary {
+    /// Stable identifier.
+    pub id: String,
+    /// Session the run belonged to.
+    pub session_id: String,
+    /// Task typed by the user.
+    pub task: String,
+    /// Autonomy mode in force.
+    pub mode: String,
+    /// Model that answered.
+    pub model: String,
+    /// Outcome label.
+    pub status: String,
+    /// Number of commands that actually ran.
+    pub commands: u32,
+    /// Milliseconds since the Unix epoch.
+    pub started_at: i64,
+    /// Milliseconds since the Unix epoch, when the run ended.
+    pub finished_at: Option<i64>,
+}
+
+/// Values needed to persist a finished run.
+#[derive(Debug, Clone)]
+pub struct NewAgentRun {
+    /// Session the run belonged to.
+    pub session_id: String,
+    /// Task typed by the user.
+    pub task: String,
+    /// Autonomy mode in force.
+    pub mode: String,
+    /// Model that answered.
+    pub model: String,
+    /// Outcome label.
+    pub status: String,
+    /// Number of commands that actually ran.
+    pub commands: u32,
+    /// Run start, milliseconds since the Unix epoch.
+    pub started_at: i64,
+    /// Run end, milliseconds since the Unix epoch.
+    pub finished_at: i64,
+    /// Serialized `AgentEvent` sequence.
+    pub events: Value,
+}
+
+/// Handle to the local database. Cloning is cheap and keeps the same file.
+#[derive(Clone)]
 pub struct Store {
-    connection: Mutex<Connection>,
+    connection: Arc<Mutex<Connection>>,
 }
 
 impl Store {
@@ -95,7 +169,7 @@ impl Store {
 
     fn from_connection(connection: Connection) -> Result<Self, StoreError> {
         let store = Self {
-            connection: Mutex::new(connection),
+            connection: Arc::new(Mutex::new(connection)),
         };
         store.migrate()?;
         Ok(store)
@@ -122,7 +196,21 @@ impl Store {
                  first_seen INTEGER NOT NULL,
                  PRIMARY KEY (host, port)
              );
-             PRAGMA user_version = 1;",
+             CREATE TABLE IF NOT EXISTS agent_runs (
+                 id TEXT PRIMARY KEY,
+                 session_id TEXT NOT NULL,
+                 task TEXT NOT NULL,
+                 mode TEXT NOT NULL,
+                 model TEXT NOT NULL,
+                 status TEXT NOT NULL,
+                 commands INTEGER NOT NULL DEFAULT 0,
+                 started_at INTEGER NOT NULL,
+                 finished_at INTEGER,
+                 events TEXT NOT NULL
+             );
+             CREATE INDEX IF NOT EXISTS agent_runs_by_session
+                 ON agent_runs (session_id, started_at DESC);
+             PRAGMA user_version = 2;",
         )?;
         Ok(())
     }
@@ -237,6 +325,133 @@ impl Store {
         Ok(removed > 0)
     }
 
+    /// Persists one finished run so the timeline can be replayed later.
+    pub fn save_agent_run(&self, draft: NewAgentRun) -> Result<AgentRunRecord, StoreError> {
+        let id = term_core::generate_session_id("run").into_string();
+        let events = serde_json::to_string(&draft.events)?;
+
+        self.lock()?.execute(
+            "INSERT INTO agent_runs
+                 (id, session_id, task, mode, model, status, commands, started_at, finished_at, events)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![
+                id,
+                draft.session_id,
+                draft.task,
+                draft.mode,
+                draft.model,
+                draft.status,
+                draft.commands,
+                draft.started_at,
+                draft.finished_at,
+                events
+            ],
+        )?;
+
+        Ok(AgentRunRecord {
+            id,
+            session_id: draft.session_id,
+            task: draft.task,
+            mode: draft.mode,
+            model: draft.model,
+            status: draft.status,
+            commands: draft.commands,
+            started_at: draft.started_at,
+            finished_at: Some(draft.finished_at),
+            events: draft.events,
+        })
+    }
+
+    /// Lists recent runs, newest first, optionally filtered by session.
+    pub fn list_agent_runs(
+        &self,
+        session_id: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<AgentRunSummary>, StoreError> {
+        let connection = self.lock()?;
+        let limit = limit.clamp(1, 200) as i64;
+
+        let sql =
+            "SELECT id, session_id, task, mode, model, status, commands, started_at, finished_at
+                   FROM agent_runs
+                   WHERE (?1 IS NULL OR session_id = ?1)
+                   ORDER BY started_at DESC
+                   LIMIT ?2";
+        let mut statement = connection.prepare(sql)?;
+        let rows = statement.query_map(params![session_id, limit], |row| {
+            Ok(AgentRunSummary {
+                id: row.get(0)?,
+                session_id: row.get(1)?,
+                task: row.get(2)?,
+                mode: row.get(3)?,
+                model: row.get(4)?,
+                status: row.get(5)?,
+                commands: row.get(6)?,
+                started_at: row.get(7)?,
+                finished_at: row.get(8)?,
+            })
+        })?;
+
+        let mut runs = Vec::new();
+        for row in rows {
+            runs.push(row?);
+        }
+        Ok(runs)
+    }
+
+    /// Loads one run with its full event sequence.
+    pub fn get_agent_run(&self, id: &str) -> Result<Option<AgentRunRecord>, StoreError> {
+        let connection = self.lock()?;
+        let row = connection
+            .query_row(
+                "SELECT id, session_id, task, mode, model, status, commands, started_at, finished_at, events
+                 FROM agent_runs WHERE id = ?1",
+                params![id],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, String>(4)?,
+                        row.get::<_, String>(5)?,
+                        row.get::<_, u32>(6)?,
+                        row.get::<_, i64>(7)?,
+                        row.get::<_, Option<i64>>(8)?,
+                        row.get::<_, String>(9)?,
+                    ))
+                },
+            )
+            .optional()?;
+
+        match row {
+            None => Ok(None),
+            Some((
+                id,
+                session_id,
+                task,
+                mode,
+                model,
+                status,
+                commands,
+                started_at,
+                finished_at,
+                events,
+            )) => Ok(Some(AgentRunRecord {
+                id,
+                session_id,
+                task,
+                mode,
+                model,
+                status,
+                commands,
+                started_at,
+                finished_at,
+                events: serde_json::from_str(&events)?,
+            })),
+        }
+    }
+
     /// Returns the pinned fingerprint for a host, if any.
     pub fn host_key(&self, host: &str, port: u16) -> Result<Option<String>, StoreError> {
         let connection = self.lock()?;
@@ -337,6 +552,43 @@ mod tests {
         );
         // Ports are part of the identity.
         assert!(store.host_key("10.0.0.12", 2222).expect("lookup").is_none());
+    }
+
+    #[test]
+    fn stores_and_replays_agent_runs() {
+        let store = Store::open_in_memory().expect("store");
+        let draft = NewAgentRun {
+            session_id: String::from("local-0001"),
+            task: String::from("看看目录"),
+            mode: String::from("supervised"),
+            model: String::from("deepseek-flash"),
+            status: String::from("completed"),
+            commands: 2,
+            started_at: 1,
+            finished_at: 2,
+            events: json!([{ "type": "runStarted" }]),
+        };
+        let saved = store.save_agent_run(draft).expect("save run");
+
+        let listed = store
+            .list_agent_runs(Some("local-0001"), 10)
+            .expect("list runs");
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].commands, 2);
+        assert_eq!(listed[0].status, "completed");
+        assert!(
+            store
+                .list_agent_runs(Some("ssh-0002"), 10)
+                .expect("other session")
+                .is_empty()
+        );
+
+        let loaded = store
+            .get_agent_run(&saved.id)
+            .expect("get")
+            .expect("exists");
+        assert_eq!(loaded.events[0]["type"], "runStarted");
+        assert_eq!(loaded.task, "看看目录");
     }
 
     #[test]

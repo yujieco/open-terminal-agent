@@ -65,6 +65,9 @@ pub fn run() {
             commands::agent_cancel,
             commands::agent_approve,
             commands::agent_event_names,
+            commands::write_keystrokes,
+            commands::list_agent_runs,
+            commands::get_agent_run,
         ]);
 
     if let Err(error) = builder.run(tauri::generate_context!()) {
