@@ -94,7 +94,20 @@
     "language": "Interface language",
     "languageHint": "Selected from the OS locale on launch; switch any time.",
     "close": "Close",
-    "phase": "LLM providers, credentials and the session store arrive in phase 2."
+    "phase": "LLM providers, credentials and the session store arrive in phase 2.",
+    "model": "Model & provider",
+    "modelHint": "Cloud presets are deepseek-flash and deepseek-v4-pro; Ollama and LM Studio are probed locally. Keys go to the OS keyring.",
+    "provider": "Provider",
+    "modelId": "Model",
+    "baseUrl": "Base URL",
+    "apiKey": "API key",
+    "keyStored": "stored",
+    "save": "Save",
+    "saved": "Saved",
+    "discover": "Probe local models",
+    "discovered": "Probe finished",
+    "noneDiscovered": "No local server found",
+    "noLocal": "Type a model id"
   },
   "common": {
     "phase2": "Phase 2",

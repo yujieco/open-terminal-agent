@@ -58,6 +58,18 @@ export interface ApprovalPayload {
   risk: string;
 }
 
+export interface LlmConfigInput {
+  provider: string;
+  baseUrl: string;
+  model: string;
+  apiKey?: string;
+}
+
+export interface LocalModel {
+  provider: "ollama" | "lmstudio";
+  id: string;
+}
+
 export interface LlmStatus {
   configured: boolean;
   provider: string;
@@ -79,6 +91,14 @@ export const agentIpc = {
 
   saveKey(apiKey: string): Promise<void> {
     return invoke<void>("save_llm_key", { apiKey });
+  },
+
+  saveConfig(input: LlmConfigInput): Promise<void> {
+    return invoke<void>("save_llm_config", { ...input });
+  },
+
+  discover(): Promise<LocalModel[]> {
+    return invoke<LocalModel[]>("discover_models");
   },
 
   run(input: AgentRunInput): Promise<void> {

@@ -94,7 +94,20 @@
     "language": "表示言語",
     "languageHint": "起動時にシステム言語から自動選択され、いつでも切り替えられます。",
     "close": "閉じる",
-    "phase": "LLM プロバイダー、認証情報、セッションストアはフェーズ 2 で提供されます。"
+    "phase": "LLM プロバイダー、認証情報、セッションストアはフェーズ 2 で提供されます。",
+    "model": "モデルとプロバイダー",
+    "modelHint": "クラウドは deepseek-flash / deepseek-v4-pro、ローカルは Ollama と LM Studio を検出します。キーは OS キーチェーンに保存されます。",
+    "provider": "プロバイダー",
+    "modelId": "モデル",
+    "baseUrl": "Base URL",
+    "apiKey": "API キー",
+    "keyStored": "保存済み",
+    "save": "保存",
+    "saved": "保存しました",
+    "discover": "ローカルモデルを検出",
+    "discovered": "検出完了",
+    "noneDiscovered": "ローカルサーバーが見つかりません",
+    "noLocal": "モデル id を入力"
   },
   "common": {
     "phase2": "フェーズ 2",

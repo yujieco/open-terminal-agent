@@ -94,7 +94,20 @@
     "language": "介面語言",
     "languageHint": "啟動時依系統語言自動選擇，可隨時手動切換。",
     "close": "關閉",
-    "phase": "更多設定（LLM、金鑰、工作階段資料庫）將於第二階段提供。"
+    "phase": "更多設定（LLM、金鑰、工作階段資料庫）將於第二階段提供。",
+    "model": "模型與 Provider",
+    "modelHint": "雲端可選 deepseek-flash / deepseek-v4-pro；本地可探測 Ollama 與 LM Studio。金鑰存入系統鑰匙圈。",
+    "provider": "Provider",
+    "modelId": "模型",
+    "baseUrl": "Base URL",
+    "apiKey": "API Key",
+    "keyStored": "已儲存",
+    "save": "儲存",
+    "saved": "已儲存",
+    "discover": "探測本機模型",
+    "discovered": "探測完成",
+    "noneDiscovered": "未發現本機服務",
+    "noLocal": "輸入模型 id"
   },
   "common": {
     "phase2": "第二階段",

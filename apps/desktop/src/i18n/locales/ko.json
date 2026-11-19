@@ -94,7 +94,20 @@
     "language": "인터페이스 언어",
     "languageHint": "시작 시 시스템 언어로 자동 선택되며 언제든 직접 바꿀 수 있습니다.",
     "close": "닫기",
-    "phase": "LLM 공급자, 자격 증명, 세션 저장소는 2단계에서 제공됩니다."
+    "phase": "LLM 공급자, 자격 증명, 세션 저장소는 2단계에서 제공됩니다.",
+    "model": "모델 및 공급자",
+    "modelHint": "클라우드는 deepseek-flash / deepseek-v4-pro, 로컬은 Ollama 와 LM Studio 를 탐색합니다. 키는 OS 키체인에 저장됩니다.",
+    "provider": "공급자",
+    "modelId": "모델",
+    "baseUrl": "Base URL",
+    "apiKey": "API 키",
+    "keyStored": "저장됨",
+    "save": "저장",
+    "saved": "저장됨",
+    "discover": "로컬 모델 탐색",
+    "discovered": "탐색 완료",
+    "noneDiscovered": "로컬 서버를 찾지 못했습니다",
+    "noLocal": "모델 id 입력"
   },
   "common": {
     "phase2": "2단계",
