@@ -58,6 +58,7 @@ This swaps the PTY backend for a local echo shell — the header shows a "Browse
 - **Human input wins**: typing in a terminal while the agent runs aborts the loop, rejects pending approvals and returns the write lock, with a global `Esc` take-over. The status bar always shows who owns the terminal.
 - **Run history**: every run is stored in SQLite with its full event stream, so the timeline can be replayed and audited after the fact instead of vanishing when you switch tabs.
 - **Step-through mode**: toggle it and every command — including `ls` — waits for approval, for when you want to watch each move rather than the whole plan.
+- **`Ctrl+K` command palette**: describe a task in one sentence, review the generated command, and only then write it to the terminal — it is inserted without a newline, so pressing Enter stays your decision.
 - **Bounded context**: tool output handed to the model is capped (8k characters, head and tail kept), so a noisy build log cannot crowd out the actual task.
 - **Provider switching**: Settings picks deepseek-flash, deepseek-v4-pro, or a model hosted by a locally probed Ollama / LM Studio server; the choice lives in SQLite and each provider's key in the OS keyring.
 - **16 ms output batching.** Transport reads are coalesced into one frame per tick (capped at 256 KB) and shipped to the WebView as base64, then decoded with a streaming `TextDecoder` so multi-byte CJK characters survive frame boundaries.
