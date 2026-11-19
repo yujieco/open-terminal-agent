@@ -1,0 +1,29 @@
+[package]
+name = "open-terminal-agent"
+description = "AI-native terminal emulator and autonomous terminal agent desktop shell"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+default-run = "open-terminal-agent"
+
+[lib]
+name = "open_terminal_agent_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+base64.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sys-locale.workspace = true
+tauri.workspace = true
+term-agent.workspace = true
+term-core.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
