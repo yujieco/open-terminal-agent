@@ -49,7 +49,7 @@ npm run dev
 - **本地 PTY 会话**：经 `portable-pty` 在 macOS、Windows、Linux 上启动，随标签页关闭而终止。
 - **SSH Shell 标签页**：基于 `russh`，支持密码与私钥（Ed25519 / RSA）认证、真实 PTY 请求、随窗口变化发送 window-change，并在握手时记录服务器密钥指纹。
 - **串口控制台标签页**：基于 `serialport`，支持端口枚举（含 USB VID/PID 与产品字符串）、可配置波特率/数据位/停止位/校验位/流控，以及可选的带时间戳 HEX 原始日志落盘。
-- **SFTP 后端**：`sftp_connect`、`sftp_list_dir`、`sftp_upload`、`sftp_download`、`sftp_close`，上传下载采用流式传输而非整文件缓冲。侧栏浏览器界面仍待接入。
+- **SFTP 后端**：`sftp_connect`、`sftp_list_dir`、`sftp_upload`、`sftp_download`、`sftp_close`，上传下载采用流式传输而非整文件缓冲。侧栏浏览器可从已保存的 SSH 连接打开，支持目录导航与上传下载并回显字节数。
 - **已保存连接**：应用配置目录下的 SQLite（WAL）保存名称、类型与连接参数；密码与口令写入系统钥匙串，磁盘上只保留钥匙串条目名。侧栏一键重连。
 - **SSH 主机密钥固定**：首次接触记录指纹，之后每次连接都要求一致，不一致则握手失败，并在错误中同时给出已固定与实际收到的指纹。
 - **Agent Runtime + 可见步骤时间线**：模型负责规划，Runtime 在写入终端**之前**发出 `ToolRequested`（含完整命令行与风险等级），执行后发出 `ToolFinished`（含退出码、耗时与屏幕输出）；推理模型的思考增量实时流出。
@@ -107,7 +107,7 @@ npm run build                    # 类型检查 + vite 生产构建
 
 - 云端/本地模型切换的设置界面（目前固定 `deepseek-flash`，密钥存钥匙串）。
 - 跨任务的对话历史：每个任务从新会话开始（已运行的记录可回放，但不会作为上下文喂回模型）。
-- SFTP 文件浏览器界面、串口 HEX/UTF-8 双视图与串口快捷连接入口。
+- 串口 HEX/UTF-8 双视图、HEX 发送与串口快捷连接入口。
 - 真实 SSH / SFTP / 串口会话未在验证环境中对接真实硬件，仅通过编译与单元测试验证；钥匙串路径也只对账号命名做了单元测试，因为验证时写入真实 Keychain 会留下凭据。
 - Agent Runtime 已对真实模型端到端验证，但界面时间线本身只经过类型检查、生产构建与启动冒烟。
 - 打包（`npm run tauri build`）尚未执行，也没有发布任何二进制。

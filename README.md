@@ -49,7 +49,7 @@ This swaps the PTY backend for a local echo shell — the header shows a "Browse
 - **Local PTY sessions** on macOS, Windows and Linux through `portable-pty`, spawned per tab and killed when the tab closes.
 - **SSH shell tabs** over `russh` with password or private-key authentication (Ed25519 and RSA), a real PTY request, window-change on resize, and the server key fingerprint captured at handshake.
 - **Serial console tabs** over `serialport` with port enumeration including USB VID/PID and product strings, configurable baud rate, data bits, stop bits, parity and flow control, plus optional timestamped HEX logging to disk.
-- **SFTP backend**: `sftp_connect`, `sftp_list_dir`, `sftp_upload`, `sftp_download` and `sftp_close` stream files instead of buffering them. The sidebar browser UI is still pending.
+- **SFTP backend**: `sftp_connect`, `sftp_list_dir`, `sftp_upload`, `sftp_download` and `sftp_close` stream files instead of buffering them. The sidebar browser opens from a saved SSH profile, walks directories, and uploads or downloads files with byte counts.
 - **Saved connections**: SQLite (WAL) at the app config directory stores name, kind and connection parameters; passwords and passphrases go to the OS keyring and only the keyring account name is written to disk. The sidebar reopens them with one click.
 - **SSH host key pinning**: the fingerprint is recorded on first contact and every later connection must match, otherwise the handshake fails with the pinned and presented fingerprints in the error.
 - **Agent runtime with a visible step timeline**: the model plans, the runtime announces `ToolRequested` with the exact command and its risk *before* writing anything, then `ToolFinished` with exit code, duration and the captured screen. Reasoning deltas stream while the model thinks.
@@ -107,7 +107,7 @@ Commit messages follow the Conventional Commits rules in [AGENTS.md](AGENTS.md);
 
 - A settings UI for switching between cloud providers and local models (the provider is `deepseek-flash` for now, with the key in the keyring).
 - Conversation history across runs: each task starts a fresh transcript (stored runs are replayable, but their messages are not fed back to the model).
-- SFTP file-browser UI, serial HEX/UTF-8 dual display and serial quick-connect shortcuts.
+- Serial HEX/UTF-8 dual display, HEX sending and serial quick-connect shortcuts.
 - Live SSH, SFTP and serial sessions have not been exercised against real hardware in the verification environment; they are covered by compilation and unit tests only. The keyring path is likewise unit-tested through account naming only, because writing to the real Keychain during verification would leave credentials behind.
 - The agent runtime was verified end to end against a real model, but the GUI timeline itself was only verified by type checks, a production build and a launch smoke test.
 - Packaging (`npm run tauri build`) has not been run, and no binary is published.
