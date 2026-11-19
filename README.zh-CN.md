@@ -8,7 +8,7 @@ Open Terminal Agent 是一个跨平台桌面终端模拟器，既可以直接由
 
 核心为 Rust，外壳为 Tauri v2，界面为 React。UI 内置六种语言：`zh-CN`、`zh-TW`、`en`、`ru`、`ja`、`ko`。
 
-**状态：阶段一 —— 本地终端 MVP。** 本地 Shell 已端到端可用。SSH/SFTP、串口、会话持久化与 Agent 执行器属于阶段二；它们所挂接的接缝（传输 Trait、权限策略、工具目录、循环状态）已实现并有单元测试。
+**状态：阶段二进行中。** 本地 Shell、SSH Shell 与串口控制台都已能作为标签页打开，SFTP 的列目录/上传/下载也已作为命令可用。会话持久化与钥匙串凭据、流式 LLM 客户端、Agent 执行器属于后续切片；SFTP 文件浏览器界面与 HEX/UTF-8 双视图尚未实现。
 
 ## 环境要求
 
@@ -44,9 +44,12 @@ npm run dev
 
 此时 PTY 后端被替换为本地回显 Shell，顶栏会显示「浏览器演示」徽标，避免与真实模式混淆。
 
-## 本阶段已具备的能力
+## 已具备的能力
 
 - **本地 PTY 会话**：经 `portable-pty` 在 macOS、Windows、Linux 上启动，随标签页关闭而终止。
+- **SSH Shell 标签页**：基于 `russh`，支持密码与私钥（Ed25519 / RSA）认证、真实 PTY 请求、随窗口变化发送 window-change，并在握手时记录服务器密钥指纹。
+- **串口控制台标签页**：基于 `serialport`，支持端口枚举（含 USB VID/PID 与产品字符串）、可配置波特率/数据位/停止位/校验位/流控，以及可选的带时间戳 HEX 原始日志落盘。
+- **SFTP 后端**：`sftp_connect`、`sftp_list_dir`、`sftp_upload`、`sftp_download`、`sftp_close`，上传下载采用流式传输而非整文件缓冲。侧栏浏览器界面仍待接入。
 - **16ms 输出聚合**：传输读取按每拍合并为一帧（上限 256 KB），以 base64 送到 WebView，再用流式 `TextDecoder` 解码，保证跨帧被切开的多字节中文字符不损坏。
 - **影子屏幕**：每个会话维护一个 `vt100` 解析器，同步接收与窗格相同的字节，向 Agent 侧提供无 ANSI 噪声的纯文本、光标位置与历史滚动。
 - **xterm.js 6 + WebGL 渲染器**，创建上下文失败时自动降级为 DOM 渲染器（WebKitGTK 场景），并配置等宽字体栈使 CJK 双宽字符与西里尔单宽字符严格对齐。
@@ -58,7 +61,7 @@ npm run dev
 
 | 路径 | 职责 |
 | --- | --- |
-| `crates/term-core` | `TerminalTransport` Trait、16ms `StreamBatcher`、`vt100` 影子屏幕、本地 PTY 传输 |
+| `crates/term-core` | `TerminalTransport` Trait、16ms `StreamBatcher`、`vt100` 影子屏幕、本地 PTY、SSH Shell、SFTP 客户端与串口传输 |
 | `crates/term-agent` | 权限策略与命令风险分类、工具目录、带步数预算的「观察→推理→执行→校验」状态机、Provider/`LlmClient` 契约、本地端点表 |
 | `apps/desktop/src-tauri` | Tauri 命令、会话注册表、输出扇出到 WebView、语言探测 |
 | `apps/desktop/src` | React 19 + TypeScript 界面、xterm.js 窗格、i18next 资源 |
@@ -80,7 +83,7 @@ pub trait TerminalTransport: Send + Sync {
 
 ```bash
 cargo check --workspace          # 整个工作区的编译闸门
-cargo test --workspace           # 30 个测试，含真实 /bin/sh PTY 回环
+cargo test --workspace           # 38 个测试，含真实 /bin/sh PTY 回环
 cd apps/desktop
 npm run typecheck                # tsc --noEmit
 npm run build                    # 类型检查 + vite 生产构建
@@ -88,12 +91,13 @@ npm run build                    # 类型检查 + vite 生产构建
 
 提交信息遵循 [AGENTS.md](AGENTS.md) 中的 Conventional Commits 规范；按子模块拆成原子提交，且必须 `cargo check --workspace` 与 `npm run typecheck` 双零错误后才允许提交。
 
-## 本阶段不含
+## 尚未完成
 
-- SSH/SFTP 与跨平台串口传输。
-- SQLite 会话库与系统钥匙串凭据存储。
+- SQLite 会话库与系统钥匙串凭据存储；目前 SSH 密码按次输入，known_hosts 固定尚未强制。
 - 流式 LLM 客户端、本地模型探测（目前只有端点表）与 Agent 执行器。
-- 打包（`npm run tauri build`）尚未跑通，也没有发布任何二进制。
+- SFTP 文件浏览器界面、串口 HEX/UTF-8 双视图与串口快捷连接入口。
+- 真实 SSH / SFTP / 串口会话未在验证环境中对接真实硬件，仅通过编译与单元测试验证。
+- 打包（`npm run tauri build`）尚未执行，也没有发布任何二进制。
 
 ## 许可证
 
