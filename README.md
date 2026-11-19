@@ -111,7 +111,19 @@ Commit messages follow the Conventional Commits rules in [AGENTS.md](AGENTS.md);
 - Serial quick-connect shortcuts on the sidebar.
 - Live SSH, SFTP and serial sessions have not been exercised against real hardware in the verification environment; they are covered by compilation and unit tests only. The keyring path is likewise unit-tested through account naming only, because writing to the real Keychain during verification would leave credentials behind.
 - The agent runtime was verified end to end against a real model, but the GUI timeline itself was only verified by type checks, a production build and a launch smoke test.
-- Packaging (`npm run tauri build`) has not been run, and no binary is published.
+- No release is published: the `.app` is built locally, not signed or notarised.
+
+## Packaging
+
+```bash
+cd apps/desktop
+npm run tauri build -- --bundles app
+```
+
+Produces `target/release/bundle/macos/Open Terminal Agent.app` (11.9 MiB on
+macOS arm64). The bundled app was launched and confirmed to start a local shell,
+so the release build embeds the frontend assets and the IPC/PTY path works outside
+`tauri dev`. Windows and Linux bundles have not been built here.
 
 ## Continuous integration
 

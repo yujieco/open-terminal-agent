@@ -111,7 +111,18 @@ npm run build                    # 类型检查 + vite 生产构建
 - 串口快捷连接入口。
 - 真实 SSH / SFTP / 串口会话未在验证环境中对接真实硬件，仅通过编译与单元测试验证；钥匙串路径也只对账号命名做了单元测试，因为验证时写入真实 Keychain 会留下凭据。
 - Agent Runtime 已对真实模型端到端验证，但界面时间线本身只经过类型检查、生产构建与启动冒烟。
-- 打包（`npm run tauri build`）尚未执行，也没有发布任何二进制。
+- 尚未发布 release：`.app` 仅本地构建，未签名、未公证。
+
+## 打包
+
+```bash
+cd apps/desktop
+npm run tauri build -- --bundles app
+```
+
+产出 `target/release/bundle/macos/Open Terminal Agent.app`（macOS arm64 上 11.9 MiB）。
+已实际启动该 bundle 并确认能拉起本地 Shell，说明 release 构建内嵌了前端资源，
+`tauri dev` 之外的 IPC 与 PTY 路径同样成立。Windows 与 Linux 的 bundle 未在此构建。
 
 ## 持续集成
 
