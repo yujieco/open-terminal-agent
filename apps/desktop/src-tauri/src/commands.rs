@@ -1114,7 +1114,7 @@ pub async fn sftp_connect_saved(
             .unwrap_or_else(|| ssh_secret_account(&host, port, &username));
         let password = secrets
             .get(&account)?
-            .ok_or_else(|| ApiError::SecretMissing { account })?;
+            .ok_or(ApiError::SecretMissing { account })?;
         SshAuthRequest::Password { password }
     };
 
