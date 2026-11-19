@@ -1131,3 +1131,27 @@ pub async fn sftp_connect_saved(
     )
     .await
 }
+
+/// Human path for raw bytes: HEX input on a serial console.
+#[tauri::command]
+pub async fn write_session_bytes(
+    app: AppHandle,
+    registry: State<'_, SessionRegistry>,
+    control: State<'_, Arc<AgentControl>>,
+    session_id: String,
+    data_base64: String,
+) -> Result<(), ApiError> {
+    if control.interrupt_for_human(&session_id) {
+        let _ = app.emit(
+            AGENT_INTERRUPTED,
+            serde_json::json!({ "sessionId": session_id }),
+        );
+    }
+
+    let bytes = BASE64
+        .decode(data_base64)
+        .map_err(|error| ApiError::InvalidRequest(format!("invalid base64 payload: {error}")))?;
+    let handle = registry.require(&session_id)?;
+    handle.transport.write_bytes(&bytes).await?;
+    Ok(())
+}

@@ -67,6 +67,7 @@ pub fn run() {
             commands::agent_approve,
             commands::agent_event_names,
             commands::write_keystrokes,
+            commands::write_session_bytes,
             commands::list_agent_runs,
             commands::get_agent_run,
         ]);
