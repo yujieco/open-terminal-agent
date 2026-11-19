@@ -1,0 +1,55 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/term-core",
+    "crates/term-agent",
+    "apps/desktop/src-tauri",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.90"
+license = "Apache-2.0"
+authors = ["yujieco"]
+repository = "https://github.com/yujieco/open-terminal-agent"
+
+[workspace.dependencies]
+# Internal crates
+term-core = { path = "crates/term-core" }
+term-agent = { path = "crates/term-agent" }
+
+# Async runtime & primitives
+async-trait = "0.1.92"
+tokio = { version = "1.54", features = ["rt-multi-thread", "sync", "macros", "time", "io-util", "process"] }
+
+# Terminal transports & screen state
+portable-pty = "0.9"
+vt100 = "0.18"
+
+# Serialization & errors
+base64 = "0.22"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+
+# Observability
+tracing = "0.1"
+
+# Platform integration
+sys-locale = "0.3"
+
+# Desktop shell
+tauri = { version = "2.12", features = [] }
+tauri-build = { version = "2.7", features = [] }
+
+[profile.dev]
+incremental = true
+
+[profile.dev.package."*"]
+opt-level = 1
+
+[profile.release]
+codegen-units = 1
+lto = true
+strip = true

@@ -1,0 +1,43 @@
+# Rust / Cargo
+target/
+**/*.rs.bk
+
+# Node / frontend
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Tauri generated artifacts
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/target/
+
+# Local databases & secrets
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sqlite*
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+!**/icons/*.pem
+
+# Editor & agent caches
+.idea/
+.vscode/
+.pi/
+.grok/
+*.iml
+.history/
+
+# OS noise
+.DS_Store
+Thumbs.db
+*.log
