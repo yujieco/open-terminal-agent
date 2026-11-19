@@ -56,6 +56,9 @@ pub struct SshConfig {
     pub cols: u16,
     /// Initial row count.
     pub rows: u16,
+    /// Fingerprint pinned by a previous connection. When set, a server
+    /// presenting a different key is rejected instead of trusted.
+    pub known_host_fingerprint: Option<String>,
 }
 
 impl SshConfig {
@@ -73,6 +76,7 @@ impl SshConfig {
             auth,
             cols: 80,
             rows: 24,
+            known_host_fingerprint: None,
         }
     }
 
@@ -82,12 +86,25 @@ impl SshConfig {
         self.rows = rows.max(1);
         self
     }
+
+    /// Pins the expected server key fingerprint.
+    pub fn with_known_host_fingerprint(mut self, fingerprint: impl Into<String>) -> Self {
+        let fingerprint = fingerprint.into();
+        self.known_host_fingerprint = if fingerprint.is_empty() {
+            None
+        } else {
+            Some(fingerprint)
+        };
+        self
+    }
 }
 
 /// Client handler that records the server key fingerprint.
 #[derive(Debug, Clone)]
 pub(crate) struct SshClientHandler {
     pub(crate) fingerprint: Arc<Mutex<Option<String>>>,
+    expected: Option<String>,
+    mismatch: Arc<AtomicBool>,
 }
 
 impl client::Handler for SshClientHandler {
@@ -97,9 +114,9 @@ impl client::Handler for SshClientHandler {
         &mut self,
         server_public_key: &PublicKeyOrCertificate,
     ) -> Result<bool, Self::Error> {
-        // Milestone 2 trusts the first key it sees and records its fingerprint so
-        // the UI can display it. Known-hosts pinning arrives together with the
-        // keyring backed credential store.
+        // First contact records the fingerprint; later contacts must match it.
+        // The Tauri layer persists the value, so a swapped key fails the
+        // handshake instead of silently trusting a new host.
         let fingerprint = match server_public_key {
             PublicKeyOrCertificate::PublicKey { key, .. } => {
                 key.fingerprint(russh::keys::HashAlg::Sha256).to_string()
@@ -109,6 +126,16 @@ impl client::Handler for SshClientHandler {
                 .fingerprint(russh::keys::HashAlg::Sha256)
                 .to_string(),
         };
+        if let Some(expected) = &self.expected {
+            if expected != &fingerprint {
+                self.mismatch.store(true, Ordering::SeqCst);
+                if let Ok(mut slot) = self.fingerprint.lock() {
+                    *slot = Some(fingerprint);
+                }
+                return Ok(false);
+            }
+        }
+
         if let Ok(mut slot) = self.fingerprint.lock() {
             *slot = Some(fingerprint);
         }
@@ -121,8 +148,11 @@ pub(crate) async fn open_authenticated_session(
     config: &SshConfig,
 ) -> Result<(Handle<SshClientHandler>, Arc<Mutex<Option<String>>>)> {
     let fingerprint = Arc::new(Mutex::new(None));
+    let mismatch = Arc::new(AtomicBool::new(false));
     let handler = SshClientHandler {
         fingerprint: Arc::clone(&fingerprint),
+        expected: config.known_host_fingerprint.clone(),
+        mismatch: Arc::clone(&mismatch),
     };
 
     let mut handle = client::connect(
@@ -132,6 +162,18 @@ pub(crate) async fn open_authenticated_session(
     )
     .await
     .map_err(|error| {
+        if mismatch.load(Ordering::SeqCst) {
+            let actual = fingerprint
+                .lock()
+                .ok()
+                .and_then(|slot| slot.clone())
+                .unwrap_or_default();
+            return CoreError::SshHostKeyMismatch {
+                host: config.host.clone(),
+                expected: config.known_host_fingerprint.clone().unwrap_or_default(),
+                actual,
+            };
+        }
         CoreError::Ssh(format!(
             "handshake with {}:{} failed: {error}",
             config.host, config.port

@@ -31,6 +31,17 @@ pub enum CoreError {
     #[error("ssh failure: {0}")]
     Ssh(String),
 
+    /// The server presented a key that differs from the pinned fingerprint.
+    #[error("ssh host key mismatch for {host}: pinned {expected}, server sent {actual}")]
+    SshHostKeyMismatch {
+        /// Host that failed verification.
+        host: String,
+        /// Fingerprint previously pinned.
+        expected: String,
+        /// Fingerprint the server presented.
+        actual: String,
+    },
+
     /// The SSH server rejected the supplied credentials.
     #[error("ssh authentication rejected for `{username}`")]
     SshAuth {
