@@ -1,24 +1,40 @@
 // Copyright 2026 yujieco
 // SPDX-License-Identifier: Apache-2.0
 
-//! Session registry shared by every Tauri command.
+//! Registries shared by every Tauri command: live terminal sessions and open
+//! SFTP connections.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use term_core::{PtyTransport, ShadowScreen, TerminalTransport};
+use serde::Serialize;
+use term_core::{SftpClient, ShadowScreen, TerminalTransport};
 use tokio::sync::Mutex as AsyncMutex;
 
 use crate::error::ApiError;
 
+/// What kind of connection backs a session tab.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SessionKind {
+    /// Local shell through a PTY.
+    Local,
+    /// Remote shell over SSH.
+    Ssh,
+    /// Serial console.
+    Serial,
+}
+
 /// One live session: transport, mirrored screen and metadata used by the UI.
 pub struct SessionHandle {
-    /// Local PTY transport.
-    pub transport: Arc<PtyTransport>,
+    /// Transport, type-erased so every session kind behaves the same.
+    pub transport: Arc<dyn TerminalTransport>,
     /// Shadow screen fed by the same batched frames the UI receives.
     pub screen: Arc<AsyncMutex<ShadowScreen>>,
-    /// Shell binary that was started.
-    pub shell: String,
+    /// Session kind, used by the sidebar and the status bar.
+    pub kind: SessionKind,
+    /// Short label, e.g. `zsh`, `root@host` or `/dev/cu.usbserial`.
+    pub label: String,
     /// Column count the UI asked for.
     pub cols: u16,
     /// Row count the UI asked for.
@@ -39,7 +55,7 @@ pub struct SessionRegistry {
 }
 
 impl SessionRegistry {
-    /// Registers a freshly spawned session.
+    /// Registers a freshly created session.
     pub fn insert(&self, handle: Arc<SessionHandle>) -> Result<(), ApiError> {
         let mut sessions = self.sessions.lock().map_err(|_| ApiError::StatePoisoned)?;
         sessions.insert(handle.id(), handle);
@@ -70,5 +86,36 @@ impl SessionRegistry {
         let mut handles: Vec<Arc<SessionHandle>> = sessions.values().cloned().collect();
         handles.sort_by_key(|handle| handle.id());
         Ok(handles)
+    }
+}
+
+/// Thread-safe map of SFTP connection id to client.
+#[derive(Default)]
+pub struct SftpRegistry {
+    clients: Mutex<HashMap<String, Arc<SftpClient>>>,
+}
+
+impl SftpRegistry {
+    /// Registers a freshly connected SFTP client and returns its id.
+    pub fn insert(&self, client: Arc<SftpClient>) -> Result<String, ApiError> {
+        let id = term_core::generate_session_id("sftp").into_string();
+        let mut clients = self.clients.lock().map_err(|_| ApiError::StatePoisoned)?;
+        clients.insert(id.clone(), client);
+        Ok(id)
+    }
+
+    /// Returns the client for `id` or an error the UI can render.
+    pub fn require(&self, id: &str) -> Result<Arc<SftpClient>, ApiError> {
+        let clients = self.clients.lock().map_err(|_| ApiError::StatePoisoned)?;
+        clients
+            .get(id)
+            .cloned()
+            .ok_or_else(|| ApiError::UnknownSftpSession(id.to_owned()))
+    }
+
+    /// Removes and returns the client for `id`.
+    pub fn remove(&self, id: &str) -> Result<Option<Arc<SftpClient>>, ApiError> {
+        let mut clients = self.clients.lock().map_err(|_| ApiError::StatePoisoned)?;
+        Ok(clients.remove(id))
     }
 }

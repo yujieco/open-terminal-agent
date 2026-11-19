@@ -18,6 +18,10 @@ pub enum ApiError {
     #[error("unknown session `{0}`")]
     UnknownSession(String),
 
+    /// The frontend referenced an SFTP connection that no longer exists.
+    #[error("unknown sftp connection `{0}`")]
+    UnknownSftpSession(String),
+
     /// A mutex guarding the session registry was poisoned.
     #[error("session registry is unavailable")]
     StatePoisoned,
