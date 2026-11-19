@@ -14,14 +14,22 @@ pub mod error;
 pub mod llm;
 pub mod loop_engine;
 pub mod policy;
+pub mod runtime;
 pub mod tools;
 
 pub use discovery::{LOCAL_ENDPOINTS, LocalEndpoint, LocalModel, LocalProvider};
 pub use error::{AgentError, Result};
-pub use llm::{ChatMessage, ChatResponse, ChatRole, LlmClient, LlmProviderConfig, ToolCall};
+pub use llm::{
+    ChatMessage, ChatResponse, ChatRole, LlmClient, LlmProviderConfig, OpenAiCompatibleClient,
+    ToolCall,
+};
 pub use loop_engine::{AgentLoopState, LoopPhase, StepBudget};
 pub use policy::{
     CommandRisk, ControlState, PermissionMode, PolicyDecision, SessionPolicy, classify_command,
+};
+pub use runtime::{
+    AgentEvent, AgentRuntime, AgentRuntimeConfig, AgentTerminal, AlwaysApprove, AlwaysDeny,
+    ApprovalRequest, Approver, CommandOutcome, RunFinishReason, SYSTEM_PROMPT,
 };
 pub use tools::{
     ControlSignal, EXECUTE_COMMAND, READ_TERMINAL_SCREEN, SEND_CONTROL_SIGNAL, ToolCallRequest,
