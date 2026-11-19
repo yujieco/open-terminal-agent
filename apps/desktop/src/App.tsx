@@ -424,6 +424,7 @@ export default function App() {
         <main className="flex min-w-0 flex-1 flex-col">
           <TerminalWorkspace
             sessions={orderedSessions}
+            tabs={tabs}
             activeId={activeId}
             exitedLabel={t("terminal.exited")}
             emptyLabel={t("terminal.empty")}
