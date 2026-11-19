@@ -15,7 +15,7 @@ import { StatusBar } from "./components/StatusBar";
 import { TerminalWorkspace } from "./components/TerminalWorkspace";
 import { changeLanguage } from "./i18n";
 import { agentIpc } from "./lib/agent";
-import { leaf, remove, sessionIds } from "./lib/panes";
+import { leaf, remove, sessionIds, split } from "./lib/panes";
 import { createTerminalBackend, terminalBackendFor, type SessionSpec } from "./lib/backend";
 import {
   ipc,
@@ -54,10 +54,15 @@ export default function App() {
   const demo = useMemo(() => !isTauri(), []);
   const bootstrapped = useRef(false);
   const sessionsRef = useRef<SessionView[]>([]);
+  const tabsRef = useRef<TabView[]>([]);
 
   useEffect(() => {
     sessionsRef.current = sessions;
   }, [sessions]);
+
+  useEffect(() => {
+    tabsRef.current = tabs;
+  }, [tabs]);
 
   const registerView = useCallback(
     (view: SessionView) => {
@@ -237,6 +242,57 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [activeId, agentRunning]);
 
+  const splitActive = useCallback(
+    async (direction: "row" | "column") => {
+      const target = activeId;
+      if (!target) return;
+
+      setCreating(true);
+      setError(null);
+      try {
+        const backend = await createTerminalBackend({
+          kind: "local",
+          cols: DEFAULT_COLS,
+          rows: DEFAULT_ROWS,
+        });
+        const view: SessionView = {
+          id: backend.sessionId,
+          kind: backend.kind,
+          backend,
+          label: backend.label,
+          title: `${backend.label} · ${DEFAULT_COLS}×${DEFAULT_ROWS}`,
+          exited: false,
+          size: { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
+        };
+        setSessions((previous) => [...previous, view]);
+
+        // Pure placement: read the current trees, never mutate inside an updater.
+        let placed = false;
+        const nextTabs = tabsRef.current.map((tab) => {
+          if (placed) return tab;
+          const panes = split(tab.panes, target, view.id, direction);
+          if (panes === null) return tab;
+          placed = true;
+          return { ...tab, panes, activeSessionId: view.id };
+        });
+        if (!placed) {
+          nextTabs.push({
+            id: view.id,
+            panes: leaf(view.id),
+            activeSessionId: view.id,
+          });
+        }
+        setTabs(nextTabs);
+        setActiveId(view.id);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      } finally {
+        setCreating(false);
+      }
+    },
+    [activeId],
+  );
+
   const closeSession = useCallback((sessionId: string) => {
     const target = sessionsRef.current.find((session) => session.id === sessionId);
     target?.backend.dispose();
@@ -262,6 +318,26 @@ export default function App() {
       current === sessionId ? (remaining[0]?.id ?? null) : current,
     );
   }, []);
+
+  // Split and close shortcuts. ⌘D is taken by the WebView on macOS, so both the
+  // meta and control modifiers are accepted to keep one muscle memory.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const modifier = event.metaKey || event.ctrlKey;
+      if (!modifier) return;
+      const key = event.key.toLowerCase();
+
+      if (key === "d") {
+        event.preventDefault();
+        void splitActive(event.shiftKey ? "column" : "row");
+      } else if (key === "w" && activeId) {
+        event.preventDefault();
+        closeSession(activeId);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeId, closeSession, splitActive]);
 
   const markExited = useCallback((sessionId: string) => {
     setSessions((previous) =>
