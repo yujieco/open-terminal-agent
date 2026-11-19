@@ -321,9 +321,11 @@ impl AgentControl {
     }
 }
 
-/// Builds a DeepSeek flash client from the keyring-held API key.
-pub fn build_client(api_key: Option<String>) -> AgentResult<Arc<OpenAiCompatibleClient>> {
-    let config = LlmProviderConfig::deepseek_flash();
+/// Builds a client for the configured provider using the keyring-held key.
+pub fn build_client(
+    config: LlmProviderConfig,
+    api_key: Option<String>,
+) -> AgentResult<Arc<OpenAiCompatibleClient>> {
     Ok(Arc::new(OpenAiCompatibleClient::new(config, api_key)?))
 }
 
@@ -366,6 +368,7 @@ pub fn runtime_config(step_approval: bool) -> AgentRuntimeConfig {
 pub async fn run_task(
     app: AppHandle,
     store: crate::store::Store,
+    config: LlmProviderConfig,
     session_id: String,
     terminal: SessionTerminal,
     api_key: Option<String>,
@@ -375,7 +378,7 @@ pub async fn run_task(
     task: String,
     step_approval: bool,
 ) -> AgentResult<()> {
-    let client = build_client(api_key)?;
+    let client = build_client(config, api_key)?;
     let model = client.model().to_owned();
     let started_at = now_millis();
 

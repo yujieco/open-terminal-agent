@@ -210,7 +210,11 @@ impl Store {
              );
              CREATE INDEX IF NOT EXISTS agent_runs_by_session
                  ON agent_runs (session_id, started_at DESC);
-             PRAGMA user_version = 2;",
+             CREATE TABLE IF NOT EXISTS settings (
+                 key TEXT PRIMARY KEY,
+                 value TEXT NOT NULL
+             );
+             PRAGMA user_version = 3;",
         )?;
         Ok(())
     }
@@ -452,6 +456,28 @@ impl Store {
         }
     }
 
+    /// Reads one settings value.
+    pub fn setting(&self, key: &str) -> Result<Option<String>, StoreError> {
+        let connection = self.lock()?;
+        Ok(connection
+            .query_row(
+                "SELECT value FROM settings WHERE key = ?1",
+                params![key],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?)
+    }
+
+    /// Writes one settings value.
+    pub fn set_setting(&self, key: &str, value: &str) -> Result<(), StoreError> {
+        self.lock()?.execute(
+            "INSERT INTO settings (key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            params![key, value],
+        )?;
+        Ok(())
+    }
+
     /// Returns the pinned fingerprint for a host, if any.
     pub fn host_key(&self, host: &str, port: u16) -> Result<Option<String>, StoreError> {
         let connection = self.lock()?;
@@ -589,6 +615,22 @@ mod tests {
             .expect("exists");
         assert_eq!(loaded.events[0]["type"], "runStarted");
         assert_eq!(loaded.task, "看看目录");
+    }
+
+    #[test]
+    fn stores_settings_round_trip() {
+        let store = Store::open_in_memory().expect("store");
+        assert!(store.setting("llm.model").expect("read").is_none());
+        store
+            .set_setting("llm.model", "deepseek-flash")
+            .expect("write");
+        store
+            .set_setting("llm.model", "deepseek-v4-pro")
+            .expect("overwrite");
+        assert_eq!(
+            store.setting("llm.model").expect("read").as_deref(),
+            Some("deepseek-v4-pro")
+        );
     }
 
     #[test]

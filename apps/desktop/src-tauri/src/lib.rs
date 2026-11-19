@@ -62,6 +62,8 @@ pub fn run() {
             commands::connect_saved_session,
             commands::llm_status,
             commands::save_llm_key,
+            commands::save_llm_config,
+            commands::discover_models,
             commands::agent_run,
             commands::agent_cancel,
             commands::agent_approve,

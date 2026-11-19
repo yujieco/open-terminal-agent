@@ -882,8 +882,38 @@ fn string_field(payload: &Value, key: &str) -> Result<String, ApiError> {
         .ok_or_else(|| ApiError::InvalidRequest(format!("missing field `{key}`")))
 }
 
-/// Keyring account holding the LLM API key.
-pub const LLM_KEY_ACCOUNT: &str = "llm:deepseek";
+/// Settings keys for the persisted provider choice.
+const SETTING_PROVIDER: &str = "llm.provider";
+const SETTING_BASE_URL: &str = "llm.base_url";
+const SETTING_MODEL: &str = "llm.model";
+
+/// Provider config persisted in the database, defaults to DeepSeek flash.
+pub fn stored_llm_config(store: &Store) -> term_agent::LlmProviderConfig {
+    let defaults = term_agent::LlmProviderConfig::deepseek_flash();
+    term_agent::LlmProviderConfig {
+        provider: store
+            .setting(SETTING_PROVIDER)
+            .ok()
+            .flatten()
+            .unwrap_or(defaults.provider),
+        base_url: store
+            .setting(SETTING_BASE_URL)
+            .ok()
+            .flatten()
+            .unwrap_or(defaults.base_url),
+        model: store
+            .setting(SETTING_MODEL)
+            .ok()
+            .flatten()
+            .unwrap_or(defaults.model),
+        api_key_ref: None,
+    }
+}
+
+/// Keyring account for one provider.
+fn llm_key_account(provider: &str) -> String {
+    format!("llm:{provider}")
+}
 
 /// LLM configuration reported to the settings panel.
 #[derive(Debug, Clone, Serialize)]
@@ -901,24 +931,63 @@ pub struct LlmStatus {
 
 /// Reports the provider the runtime will use and whether a key is stored.
 #[tauri::command]
-pub fn llm_status(secrets: State<'_, SecretStore>) -> Result<LlmStatus, ApiError> {
-    let config = term_agent::LlmProviderConfig::deepseek_flash();
+pub fn llm_status(
+    store: State<'_, Store>,
+    secrets: State<'_, SecretStore>,
+) -> Result<LlmStatus, ApiError> {
+    let config = stored_llm_config(&store);
     Ok(LlmStatus {
-        configured: secrets.get(LLM_KEY_ACCOUNT)?.is_some(),
+        configured: secrets.get(&llm_key_account(&config.provider))?.is_some(),
         provider: config.provider,
         model: config.model,
         base_url: config.base_url,
     })
 }
 
+/// Persists the provider choice and, optionally, a new API key.
+#[tauri::command]
+pub fn save_llm_config(
+    store: State<'_, Store>,
+    secrets: State<'_, SecretStore>,
+    provider: String,
+    base_url: String,
+    model: String,
+    api_key: Option<String>,
+) -> Result<(), ApiError> {
+    store.set_setting(SETTING_PROVIDER, &provider)?;
+    store.set_setting(SETTING_BASE_URL, &base_url)?;
+    store.set_setting(SETTING_MODEL, &model)?;
+
+    if let Some(key) = api_key {
+        let trimmed = key.trim();
+        if !trimmed.is_empty() {
+            secrets.set(&llm_key_account(&provider), trimmed)?;
+        }
+    }
+    Ok(())
+}
+
+/// Probes local OpenAI-compatible servers and lists what they host.
+#[tauri::command]
+pub async fn discover_models() -> Result<Vec<term_agent::LocalModel>, ApiError> {
+    term_agent::discovery::discover_local_models(term_agent::discovery::PROBE_TIMEOUT)
+        .await
+        .map_err(|error| ApiError::InvalidRequest(error.to_string()))
+}
+
 /// Stores or clears the LLM API key in the OS keyring.
 #[tauri::command]
-pub fn save_llm_key(secrets: State<'_, SecretStore>, api_key: String) -> Result<(), ApiError> {
+pub fn save_llm_key(
+    store: State<'_, Store>,
+    secrets: State<'_, SecretStore>,
+    api_key: String,
+) -> Result<(), ApiError> {
+    let account = llm_key_account(&stored_llm_config(&store).provider);
     let trimmed = api_key.trim();
     if trimmed.is_empty() {
-        return secrets.delete(LLM_KEY_ACCOUNT);
+        return secrets.delete(&account);
     }
-    secrets.set(LLM_KEY_ACCOUNT, trimmed)
+    secrets.set(&account, trimmed)
 }
 
 /// Arguments for [`agent_run`].
@@ -954,11 +1023,14 @@ pub fn agent_run(
     }
 
     let handle = registry.require(&request.session_id)?;
-    let api_key = secrets.get(LLM_KEY_ACCOUNT)?.ok_or_else(|| {
-        ApiError::InvalidRequest(String::from(
-            "no LLM API key configured; open settings and paste a DeepSeek key",
-        ))
-    })?;
+    let config = stored_llm_config(&store);
+    let api_key = secrets
+        .get(&llm_key_account(&config.provider))?
+        .ok_or_else(|| {
+            ApiError::InvalidRequest(String::from(
+                "no LLM API key configured; open settings and paste a key for this provider",
+            ))
+        })?;
 
     let cancelled = control.begin(&request.session_id);
     let terminal = SessionTerminal {
@@ -976,6 +1048,7 @@ pub fn agent_run(
         let outcome = crate::agent::run_task(
             app,
             store,
+            config,
             session_id.clone(),
             terminal,
             Some(api_key),
