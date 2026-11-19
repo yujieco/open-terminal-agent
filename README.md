@@ -8,7 +8,7 @@ Open Terminal Agent is a cross-platform desktop terminal emulator built to be dr
 
 Rust core, Tauri v2 shell, React frontend. The UI ships in six languages: `zh-CN`, `zh-TW`, `en`, `ru`, `ja`, `ko`.
 
-**Status: phase 2 in progress.** Local shells, SSH shells and serial consoles all open as tabs, and SFTP list/upload/download work as commands. Persisted sessions with keyring credentials, the streaming LLM client and the agent executor are the next slices; the SFTP file-browser UI and HEX/UTF-8 dual view are not built yet.
+**Status: phase 2 in progress.** Local shells, SSH shells and serial consoles all open as tabs; SFTP list/upload/download work as commands; saved connections live in SQLite with SSH passwords in the OS keyring and host keys pinned on first contact. The agent runtime is live: ask in natural language and every command is announced *before* it runs, then shown with its exit code and output. The SFTP file-browser UI and HEX/UTF-8 dual view are still missing.
 
 ## Requirements
 
@@ -50,6 +50,11 @@ This swaps the PTY backend for a local echo shell — the header shows a "Browse
 - **SSH shell tabs** over `russh` with password or private-key authentication (Ed25519 and RSA), a real PTY request, window-change on resize, and the server key fingerprint captured at handshake.
 - **Serial console tabs** over `serialport` with port enumeration including USB VID/PID and product strings, configurable baud rate, data bits, stop bits, parity and flow control, plus optional timestamped HEX logging to disk.
 - **SFTP backend**: `sftp_connect`, `sftp_list_dir`, `sftp_upload`, `sftp_download` and `sftp_close` stream files instead of buffering them. The sidebar browser UI is still pending.
+- **Saved connections**: SQLite (WAL) at the app config directory stores name, kind and connection parameters; passwords and passphrases go to the OS keyring and only the keyring account name is written to disk. The sidebar reopens them with one click.
+- **SSH host key pinning**: the fingerprint is recorded on first contact and every later connection must match, otherwise the handshake fails with the pinned and presented fingerprints in the error.
+- **Agent runtime with a visible step timeline**: the model plans, the runtime announces `ToolRequested` with the exact command and its risk *before* writing anything, then `ToolFinished` with exit code, duration and the captured screen. Reasoning deltas stream while the model thinks.
+- **Approval gate wired to the UI**: Ask/Supervised/Autonomous run through the same policy as the rest of the app, so a gated command surfaces an Approve/Reject prompt and a rejected command never reaches the terminal.
+- **DeepSeek flash by default**: `deepseek-flash` over the OpenAI-compatible API, with the key held in the OS keyring. Local Ollama/LM Studio endpoints are probed concurrently and skipped when nothing is listening.
 - **16 ms output batching.** Transport reads are coalesced into one frame per tick (capped at 256 KB) and shipped to the WebView as base64, then decoded with a streaming `TextDecoder` so multi-byte CJK characters survive frame boundaries.
 - **Headless shadow screen.** A `vt100` parser per session mirrors the same bytes the pane receives and exposes clean text, cursor position and scrollback to the agent side — no ANSI noise.
 - **xterm.js 6 with a WebGL renderer** and automatic fallback to the DOM renderer when a context cannot be created (the WebKitGTK case), plus a monospace stack that keeps CJK wide glyphs and Cyrillic one-cell glyphs aligned.
@@ -62,7 +67,7 @@ This swaps the PTY backend for a local echo shell — the header shows a "Browse
 | Path | Responsibility |
 | --- | --- |
 | `crates/term-core` | `TerminalTransport` trait, 16 ms `StreamBatcher`, `vt100` shadow screen, local PTY, SSH shell, SFTP client and serial transports |
-| `crates/term-agent` | Permission policy and command risk, tool catalog, Observe→Reason→Act→Verify state machine with step budget, provider/LlmClient contract, local endpoint table |
+| `crates/term-agent` | Streaming OpenAI-compatible client, local discovery probes, permission policy and command risk, tool catalog, the `AgentRuntime` step loop, and the `AgentTerminal`/`Approver`/`StreamSink` ports that keep it free of Tauri and UI code |
 | `apps/desktop/src-tauri` | Tauri commands, session registry, output fan-out to the WebView, locale detection |
 | `apps/desktop/src` | React 19 + TypeScript UI, xterm.js panes, i18next resources |
 
@@ -83,7 +88,9 @@ pub trait TerminalTransport: Send + Sync {
 
 ```bash
 cargo check --workspace          # compile gate for the whole workspace
-cargo test --workspace           # 38 tests, including a real /bin/sh PTY round trip
+cargo test --workspace           # 50 tests, including a real /bin/sh PTY round trip
+DEEPSEEK_API_KEY=sk-... cargo test -p term-agent --test deepseek_runtime -- --ignored --nocapture
+                                 # real model + real PTY: creates and verifies a file
 cd apps/desktop
 npm run typecheck                # tsc --noEmit
 npm run build                    # typecheck + vite production build
@@ -93,10 +100,11 @@ Commit messages follow the Conventional Commits rules in [AGENTS.md](AGENTS.md);
 
 ## Not built yet
 
-- SQLite session store and OS keyring credential storage; SSH passwords are typed per connection today and known-hosts pinning is not enforced.
-- Streaming LLM client, local model discovery probes (only the endpoint table exists) and the agent executor.
+- A settings UI for switching between cloud providers and local models (the provider is `deepseek-flash` for now, with the key in the keyring).
+- Conversation history across runs: each task starts a fresh transcript.
 - SFTP file-browser UI, serial HEX/UTF-8 dual display and serial quick-connect shortcuts.
-- Live SSH, SFTP and serial sessions have not been exercised against real hardware in the verification environment; they are covered by compilation and unit tests only.
+- Live SSH, SFTP and serial sessions have not been exercised against real hardware in the verification environment; they are covered by compilation and unit tests only. The keyring path is likewise unit-tested through account naming only, because writing to the real Keychain during verification would leave credentials behind.
+- The agent runtime was verified end to end against a real model, but the GUI timeline itself was only verified by type checks, a production build and a launch smoke test.
 - Packaging (`npm run tauri build`) has not been run, and no binary is published.
 
 ## License

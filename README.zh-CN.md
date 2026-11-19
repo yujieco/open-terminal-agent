@@ -8,7 +8,7 @@ Open Terminal Agent 是一个跨平台桌面终端模拟器，既可以直接由
 
 核心为 Rust，外壳为 Tauri v2，界面为 React。UI 内置六种语言：`zh-CN`、`zh-TW`、`en`、`ru`、`ja`、`ko`。
 
-**状态：阶段二进行中。** 本地 Shell、SSH Shell 与串口控制台都已能作为标签页打开，SFTP 的列目录/上传/下载也已作为命令可用。会话持久化与钥匙串凭据、流式 LLM 客户端、Agent 执行器属于后续切片；SFTP 文件浏览器界面与 HEX/UTF-8 双视图尚未实现。
+**状态：阶段二进行中。** 本地 Shell、SSH Shell 与串口控制台都能作为标签页打开；SFTP 列目录/上传/下载已作为命令可用；已保存连接存于 SQLite，SSH 密码存于系统钥匙串，主机密钥首次接触即固定。Agent Runtime 已可用：用自然语言提出任务，每条命令在**执行前**先公布，执行后附退出码与输出。SFTP 文件浏览器界面与 HEX/UTF-8 双视图仍未实现。
 
 ## 环境要求
 
@@ -50,6 +50,11 @@ npm run dev
 - **SSH Shell 标签页**：基于 `russh`，支持密码与私钥（Ed25519 / RSA）认证、真实 PTY 请求、随窗口变化发送 window-change，并在握手时记录服务器密钥指纹。
 - **串口控制台标签页**：基于 `serialport`，支持端口枚举（含 USB VID/PID 与产品字符串）、可配置波特率/数据位/停止位/校验位/流控，以及可选的带时间戳 HEX 原始日志落盘。
 - **SFTP 后端**：`sftp_connect`、`sftp_list_dir`、`sftp_upload`、`sftp_download`、`sftp_close`，上传下载采用流式传输而非整文件缓冲。侧栏浏览器界面仍待接入。
+- **已保存连接**：应用配置目录下的 SQLite（WAL）保存名称、类型与连接参数；密码与口令写入系统钥匙串，磁盘上只保留钥匙串条目名。侧栏一键重连。
+- **SSH 主机密钥固定**：首次接触记录指纹，之后每次连接都要求一致，不一致则握手失败，并在错误中同时给出已固定与实际收到的指纹。
+- **Agent Runtime + 可见步骤时间线**：模型负责规划，Runtime 在写入终端**之前**发出 `ToolRequested`（含完整命令行与风险等级），执行后发出 `ToolFinished`（含退出码、耗时与屏幕输出）；推理模型的思考增量实时流出。
+- **审批闸门接到界面**：Ask/Supervised/Autonomous 与全局策略同源，被拦截的命令弹出批准/拒绝，拒绝的命令绝不写入终端。
+- **默认 deepseek-flash**：走 OpenAI 兼容协议，密钥存系统钥匙串；本地 Ollama / LM Studio 端点并发探测，未监听则直接跳过。
 - **16ms 输出聚合**：传输读取按每拍合并为一帧（上限 256 KB），以 base64 送到 WebView，再用流式 `TextDecoder` 解码，保证跨帧被切开的多字节中文字符不损坏。
 - **影子屏幕**：每个会话维护一个 `vt100` 解析器，同步接收与窗格相同的字节，向 Agent 侧提供无 ANSI 噪声的纯文本、光标位置与历史滚动。
 - **xterm.js 6 + WebGL 渲染器**，创建上下文失败时自动降级为 DOM 渲染器（WebKitGTK 场景），并配置等宽字体栈使 CJK 双宽字符与西里尔单宽字符严格对齐。
@@ -62,7 +67,7 @@ npm run dev
 | 路径 | 职责 |
 | --- | --- |
 | `crates/term-core` | `TerminalTransport` Trait、16ms `StreamBatcher`、`vt100` 影子屏幕、本地 PTY、SSH Shell、SFTP 客户端与串口传输 |
-| `crates/term-agent` | 权限策略与命令风险分类、工具目录、带步数预算的「观察→推理→执行→校验」状态机、Provider/`LlmClient` 契约、本地端点表 |
+| `crates/term-agent` | 流式 OpenAI 兼容客户端、本地端点探测、权限策略与命令风险、工具目录、`AgentRuntime` 步骤循环，以及把 Tauri 与 UI 挡在门外的 `AgentTerminal`/`Approver`/`StreamSink` 端口 |
 | `apps/desktop/src-tauri` | Tauri 命令、会话注册表、输出扇出到 WebView、语言探测 |
 | `apps/desktop/src` | React 19 + TypeScript 界面、xterm.js 窗格、i18next 资源 |
 
@@ -83,7 +88,9 @@ pub trait TerminalTransport: Send + Sync {
 
 ```bash
 cargo check --workspace          # 整个工作区的编译闸门
-cargo test --workspace           # 38 个测试，含真实 /bin/sh PTY 回环
+cargo test --workspace           # 50 个测试，含真实 /bin/sh PTY 回环
+DEEPSEEK_API_KEY=sk-... cargo test -p term-agent --test deepseek_runtime -- --ignored --nocapture
+                                 # 真实模型 + 真实 PTY：创建并校验文件
 cd apps/desktop
 npm run typecheck                # tsc --noEmit
 npm run build                    # 类型检查 + vite 生产构建
@@ -93,10 +100,11 @@ npm run build                    # 类型检查 + vite 生产构建
 
 ## 尚未完成
 
-- SQLite 会话库与系统钥匙串凭据存储；目前 SSH 密码按次输入，known_hosts 固定尚未强制。
-- 流式 LLM 客户端、本地模型探测（目前只有端点表）与 Agent 执行器。
+- 云端/本地模型切换的设置界面（目前固定 `deepseek-flash`，密钥存钥匙串）。
+- 跨任务的对话历史：每个任务从新会话开始。
 - SFTP 文件浏览器界面、串口 HEX/UTF-8 双视图与串口快捷连接入口。
-- 真实 SSH / SFTP / 串口会话未在验证环境中对接真实硬件，仅通过编译与单元测试验证。
+- 真实 SSH / SFTP / 串口会话未在验证环境中对接真实硬件，仅通过编译与单元测试验证；钥匙串路径也只对账号命名做了单元测试，因为验证时写入真实 Keychain 会留下凭据。
+- Agent Runtime 已对真实模型端到端验证，但界面时间线本身只经过类型检查、生产构建与启动冒烟。
 - 打包（`npm run tauri build`）尚未执行，也没有发布任何二进制。
 
 ## 许可证
