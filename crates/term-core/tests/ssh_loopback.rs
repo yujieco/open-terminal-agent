@@ -141,3 +141,34 @@ async fn a_wrong_password_is_rejected_by_the_server() {
         }
     }
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn sftp_connect_reports_a_refused_subsystem() {
+    // The echo server only speaks shell, so it rejects the `sftp` subsystem.
+    // A server without SFTP must produce a clear error instead of hanging.
+    let port = start_server().await;
+    let config = SshConfig::new(
+        "127.0.0.1",
+        port,
+        "tester",
+        SshAuth::Password("secret".into()),
+    );
+
+    let result = tokio::time::timeout(
+        Duration::from_secs(10),
+        term_core::SftpClient::connect(config),
+    )
+    .await
+    .expect("sftp connect must not hang");
+
+    match result {
+        Ok(_) => panic!("a server without the sftp subsystem must fail"),
+        Err(error) => {
+            let message = error.to_string();
+            assert!(
+                message.contains("sftp"),
+                "expected an sftp subsystem error, got {message:?}"
+            );
+        }
+    }
+}
