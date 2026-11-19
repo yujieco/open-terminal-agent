@@ -109,7 +109,7 @@ Commit messages follow the Conventional Commits rules in [AGENTS.md](AGENTS.md);
 - Per-provider key management UI beyond "paste a key for the selected provider" (delete/rotate lives in the keychain app for now).
 - Conversation history across runs: each task starts a fresh transcript (stored runs are replayable, but their messages are not fed back to the model).
 - Serial quick-connect shortcuts on the sidebar.
-- Live SSH, SFTP and serial sessions have not been exercised against real hardware in the verification environment; they are covered by compilation and unit tests only. The keyring path is likewise unit-tested through account naming only, because writing to the real Keychain during verification would leave credentials behind.
+- Live SSH, SFTP and serial sessions have not been exercised against real hardware in the verification environment. Failure paths (closed port, missing device, enumeration without hardware) are covered by tests; success paths still need a server and a serial pair. The keyring path is likewise unit-tested through account naming only, because writing to the real Keychain during verification would leave credentials behind.
 - The agent runtime was verified end to end against a real model, but the GUI timeline itself was only verified by type checks, a production build and a launch smoke test.
 - No release is published: the `.app` is built locally, not signed or notarised.
 
