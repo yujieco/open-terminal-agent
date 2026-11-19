@@ -107,7 +107,11 @@
     "discover": "ローカルモデルを検出",
     "discovered": "検出完了",
     "noneDiscovered": "ローカルサーバーが見つかりません",
-    "noLocal": "モデル id を入力"
+    "noLocal": "モデル id を入力",
+    "knownHosts": "SSH ホストキー",
+    "knownHostsHint": "初回接続時に記録し、以後は一致が必要です。忘れると次回接続で再び信頼します。",
+    "noKnownHosts": "ホストキーはまだありません",
+    "forget": "忘れる"
   },
   "common": {
     "phase2": "フェーズ 2",

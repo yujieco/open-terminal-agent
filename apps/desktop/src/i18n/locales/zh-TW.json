@@ -107,7 +107,11 @@
     "discover": "探測本機模型",
     "discovered": "探測完成",
     "noneDiscovered": "未發現本機服務",
-    "noLocal": "輸入模型 id"
+    "noLocal": "輸入模型 id",
+    "knownHosts": "SSH 主機金鑰",
+    "knownHostsHint": "首次連線時記錄，之後必須相符；忘記後下次連線會重新信任。",
+    "noKnownHosts": "尚未記錄任何主機金鑰",
+    "forget": "忘記"
   },
   "common": {
     "phase2": "第二階段",

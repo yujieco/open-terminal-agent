@@ -107,7 +107,11 @@
     "discover": "Probe local models",
     "discovered": "Probe finished",
     "noneDiscovered": "No local server found",
-    "noLocal": "Type a model id"
+    "noLocal": "Type a model id",
+    "knownHosts": "SSH host keys",
+    "knownHostsHint": "Pinned on first contact and required to match afterwards; forgetting one trusts it again on the next connection.",
+    "noKnownHosts": "No host key pinned yet",
+    "forget": "Forget"
   },
   "common": {
     "phase2": "Phase 2",

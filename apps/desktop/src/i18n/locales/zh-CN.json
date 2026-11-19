@@ -107,7 +107,11 @@
     "discover": "探测本地模型",
     "discovered": "探测完成",
     "noneDiscovered": "未发现本地服务",
-    "noLocal": "输入模型 id"
+    "noLocal": "输入模型 id",
+    "knownHosts": "SSH 主机密钥",
+    "knownHostsHint": "首次连接时记录，之后连接必须匹配；忘记后下次连接重新信任。",
+    "noKnownHosts": "尚未记录任何主机密钥",
+    "forget": "忘记"
   },
   "common": {
     "phase2": "第二阶段",

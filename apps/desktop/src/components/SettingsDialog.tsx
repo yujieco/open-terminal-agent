@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 
 import { changeLanguage } from "../i18n";
 import { LANGUAGE_LABELS, SUPPORTED_LANGUAGES, resolveLanguage } from "../lib/locale";
+import { KnownHosts } from "./KnownHosts";
 import { LlmSettings } from "./LlmSettings";
 
 interface SettingsDialogProps {
@@ -80,6 +81,8 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
         </div>
 
         <LlmSettings />
+
+        <KnownHosts />
 
         <footer className="flex items-center justify-between gap-3 border-t border-slate-800 px-4 py-2.5">
           <span className="text-[10px] leading-tight text-slate-600">{t("settings.phase")}</span>

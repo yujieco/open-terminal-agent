@@ -130,6 +130,13 @@ export interface AgentRunRecord extends AgentRunSummary {
   events: unknown[];
 }
 
+export interface KnownHost {
+  host: string;
+  port: number;
+  fingerprint: string;
+  firstSeen: number;
+}
+
 export interface SavedSession {
   id: string;
   name: string;
@@ -240,6 +247,14 @@ export const ipc = {
 
   connectSavedSession(id: string): Promise<SessionInfo> {
     return invoke<SessionInfo>("connect_saved_session", { id });
+  },
+
+  listKnownHosts(): Promise<KnownHost[]> {
+    return invoke<KnownHost[]>("list_known_hosts");
+  },
+
+  forgetHostKey(host: string, port: number): Promise<boolean> {
+    return invoke<boolean>("forget_host_key", { host, port });
   },
 
   listAgentRuns(sessionId?: string, limit?: number): Promise<AgentRunSummary[]> {
