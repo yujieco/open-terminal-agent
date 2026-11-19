@@ -5,12 +5,15 @@
 //!
 //! `term-core` owns everything that touches bytes and terminal state, with no
 //! knowledge of Tauri or React: the `TerminalTransport` trait, the 16ms output
-//! batcher, the `vt100` shadow screen and the local PTY implementation. SSH,
-//! SFTP and serial transports attach to the same trait in later milestones.
+//! batcher, the `vt100` shadow screen and one implementation per session kind
+//! (local PTY, SSH, serial). SFTP reuses the SSH session and lands beside it.
 
 pub mod error;
 pub mod pty;
 pub mod screen;
+pub mod serial;
+pub mod sftp;
+pub mod ssh;
 pub mod transport;
 
 pub use error::{CoreError, Result};
@@ -19,6 +22,12 @@ pub use screen::{
     CursorPosition, DEFAULT_SCROLLBACK_CAPACITY, SNAPSHOT_SCROLLBACK_LINES, ScreenSnapshot,
     ShadowScreen,
 };
+pub use serial::{
+    SerialConfig, SerialFlowControl, SerialParity, SerialPortDescriptor, SerialStopBits,
+    SerialTransport, hex_line, list_serial_ports, parse_hex,
+};
+pub use sftp::{SftpClient, SftpEntry};
+pub use ssh::{SshAuth, SshConfig, SshTransport};
 pub use transport::{
     CHUNK_CHANNEL_CAPACITY, OUTPUT_CHANNEL_CAPACITY, STREAM_BATCH_INTERVAL, STREAM_BATCH_MAX_BYTES,
     SessionId, StreamBatcher, TerminalOutput, TerminalTransport, TransportEvent,

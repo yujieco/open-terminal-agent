@@ -27,6 +27,29 @@ pub enum CoreError {
     #[error("pty io failure: {0}")]
     PtyIo(String),
 
+    /// The SSH handshake, authentication or channel setup failed.
+    #[error("ssh failure: {0}")]
+    Ssh(String),
+
+    /// The SSH server rejected the supplied credentials.
+    #[error("ssh authentication rejected for `{username}`")]
+    SshAuth {
+        /// User that was rejected.
+        username: String,
+    },
+
+    /// An SFTP operation failed.
+    #[error("sftp failure: {0}")]
+    Sftp(String),
+
+    /// Opening, configuring or reading a serial port failed.
+    #[error("serial failure: {0}")]
+    Serial(String),
+
+    /// The requested serial port is not present on this machine.
+    #[error("serial port `{0}` is not available")]
+    SerialPortMissing(String),
+
     /// A column or row count of zero reaches a terminal that requires >= 1.
     #[error("invalid terminal geometry: {cols}x{rows}")]
     InvalidGeometry {

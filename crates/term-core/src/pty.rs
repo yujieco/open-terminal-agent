@@ -240,7 +240,7 @@ impl TerminalTransport for PtyTransport {
             .map_err(|error| CoreError::PtyIo(error.to_string()))
     }
 
-    fn resize(&self, cols: u16, rows: u16) -> Result<()> {
+    async fn resize(&self, cols: u16, rows: u16) -> Result<()> {
         if cols == 0 || rows == 0 {
             return Err(CoreError::InvalidGeometry { cols, rows });
         }

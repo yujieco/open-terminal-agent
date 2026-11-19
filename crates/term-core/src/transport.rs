@@ -130,7 +130,7 @@ pub trait TerminalTransport: Send + Sync {
     async fn write_bytes(&self, data: &[u8]) -> Result<()>;
 
     /// Resizes the terminal grid.
-    fn resize(&self, cols: u16, rows: u16) -> Result<()>;
+    async fn resize(&self, cols: u16, rows: u16) -> Result<()>;
 
     /// Subscribes to batched output frames.
     fn subscribe_output(&self) -> broadcast::Receiver<TerminalOutput>;

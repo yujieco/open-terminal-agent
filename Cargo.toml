@@ -21,10 +21,13 @@ term-agent = { path = "crates/term-agent" }
 
 # Async runtime & primitives
 async-trait = "0.1.92"
-tokio = { version = "1.54", features = ["rt-multi-thread", "sync", "macros", "time", "io-util", "process"] }
+tokio = { version = "1.54", features = ["rt-multi-thread", "sync", "macros", "time", "io-util", "process", "fs"] }
 
 # Terminal transports & screen state
 portable-pty = "0.9"
+russh = { version = "0.65", default-features = false, features = ["ring", "rsa"] }
+russh-sftp = "3.0"
+serialport = "4.10"
 vt100 = "0.18"
 
 # Serialization & errors

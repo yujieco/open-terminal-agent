@@ -11,11 +11,15 @@ repository.workspace = true
 [dependencies]
 async-trait.workspace = true
 portable-pty.workspace = true
+russh = { workspace = true, default-features = false, features = ["ring", "rsa"] }
+russh-sftp.workspace = true
 serde.workspace = true
+serialport.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 vt100.workspace = true
 
 [dev-dependencies]
+serde_json.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
