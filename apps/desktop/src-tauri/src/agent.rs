@@ -453,3 +453,64 @@ fn now_millis() -> i64 {
         .map(|duration| duration.as_millis() as i64)
         .unwrap_or_default()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_run_is_visible_and_human_input_wins() {
+        let control = AgentControl::default();
+        assert!(!control.is_running("local-1"));
+
+        let flag = control.begin("local-1");
+        assert!(control.is_running("local-1"));
+        assert!(!flag.load(Ordering::SeqCst), "a fresh run is not cancelled");
+
+        // Typing in the terminal must cancel the run, not race with it.
+        assert!(control.interrupt_for_human("local-1"));
+        assert!(flag.load(Ordering::SeqCst));
+
+        // A session with no run reports "nothing to interrupt" instead of
+        // pretending it stopped something.
+        assert!(!control.interrupt_for_human("local-2"));
+
+        control.end("local-1");
+        assert!(!control.is_running("local-1"));
+    }
+
+    #[tokio::test]
+    async fn approve_sends_the_decision_to_the_waiting_runtime() {
+        let control = AgentControl::default();
+        let (sender, receiver) = oneshot::channel();
+        control
+            .pending
+            .lock()
+            .expect("pending")
+            .insert(String::from("call-1"), sender);
+
+        control.resolve("call-1", false);
+        assert!(!receiver.await.expect("decision"));
+        // A second answer for the same call is a no-op, not a panic.
+        control.resolve("call-1", true);
+    }
+
+    #[tokio::test]
+    async fn cancelling_rejects_every_pending_approval() {
+        let control = AgentControl::default();
+        let (first_tx, first_rx) = oneshot::channel();
+        let (second_tx, second_rx) = oneshot::channel();
+        {
+            let mut pending = control.pending.lock().expect("pending");
+            pending.insert(String::from("call-a"), first_tx);
+            pending.insert(String::from("call-b"), second_tx);
+        }
+        let _flag = control.begin("ssh-1");
+
+        control.cancel("ssh-1");
+
+        assert!(!first_rx.await.expect("first"));
+        assert!(!second_rx.await.expect("second"));
+        assert!(control.pending.lock().expect("pending").is_empty());
+    }
+}
