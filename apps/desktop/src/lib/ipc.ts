@@ -114,6 +114,22 @@ export interface AgentCapabilities {
   loopPhases: string[];
 }
 
+export interface AgentRunSummary {
+  id: string;
+  sessionId: string;
+  task: string;
+  mode: string;
+  model: string;
+  status: string;
+  commands: number;
+  startedAt: number;
+  finishedAt: number | null;
+}
+
+export interface AgentRunRecord extends AgentRunSummary {
+  events: unknown[];
+}
+
 export interface SavedSession {
   id: string;
   name: string;
@@ -170,6 +186,10 @@ export const ipc = {
     return invoke<SerialPortDescriptor[]>("serial_ports");
   },
 
+  writeKeystrokes(sessionId: string, data: string): Promise<void> {
+    return invoke<void>("write_keystrokes", { sessionId, data });
+  },
+
   writeSession(sessionId: string, data: string): Promise<void> {
     return invoke<void>("write_session", { sessionId, data });
   },
@@ -216,6 +236,14 @@ export const ipc = {
 
   connectSavedSession(id: string): Promise<SessionInfo> {
     return invoke<SessionInfo>("connect_saved_session", { id });
+  },
+
+  listAgentRuns(sessionId?: string, limit?: number): Promise<AgentRunSummary[]> {
+    return invoke<AgentRunSummary[]>("list_agent_runs", { sessionId, limit });
+  },
+
+  getAgentRun(id: string): Promise<AgentRunRecord | null> {
+    return invoke<AgentRunRecord | null>("get_agent_run", { id });
   },
 
   sftpConnect(input: SshConnectInput): Promise<SftpSessionInfo> {

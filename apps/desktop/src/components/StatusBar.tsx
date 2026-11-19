@@ -15,6 +15,7 @@ interface StatusBarProps {
   locale: string;
   sessionCount: number;
   demo: boolean;
+  agentRunning: boolean;
 }
 
 export function StatusBar({
@@ -26,6 +27,7 @@ export function StatusBar({
   locale,
   sessionCount,
   demo,
+  agentRunning,
 }: StatusBarProps) {
   const { t } = useTranslation();
 
@@ -51,6 +53,11 @@ export function StatusBar({
           <span className="text-slate-500">{t(`sidebar.kinds.${kind}`)}</span>
         </>
       ) : null}
+
+      <span className="text-slate-700">|</span>
+      <span className={agentRunning ? "text-cyan-300" : "text-slate-500"}>
+        {agentRunning ? t("status.agentControl") : t("status.humanControl")}
+      </span>
 
       <span className="text-slate-700">|</span>
       <span>

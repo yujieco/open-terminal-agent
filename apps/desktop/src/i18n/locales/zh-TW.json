@@ -64,7 +64,11 @@
       "readonly": "唯讀",
       "mutating": "變更狀態",
       "destructive": "破壞性"
-    }
+    },
+    "history": "歷史",
+    "noHistory": "尚無執行紀錄",
+    "replay": "回放",
+    "interrupted": "已由人工輸入接管，Agent 已停止"
   },
   "status": {
     "connection": "連線",
@@ -73,7 +77,9 @@
     "sessions": "工作階段",
     "ready": "就緒",
     "exited": "已結束",
-    "demo": "示範"
+    "demo": "示範",
+    "agentControl": "Agent 控制中 · Esc 接管",
+    "humanControl": "人工控制"
   },
   "settings": {
     "title": "設定",

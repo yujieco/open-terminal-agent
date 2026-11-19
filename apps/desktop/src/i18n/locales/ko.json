@@ -64,7 +64,11 @@
       "readonly": "읽기 전용",
       "mutating": "상태 변경",
       "destructive": "파괴적"
-    }
+    },
+    "history": "기록",
+    "noHistory": "실행 기록이 없습니다",
+    "replay": "재생",
+    "interrupted": "사람의 입력으로 제어권이 넘어가 에이전트가 중지되었습니다"
   },
   "status": {
     "connection": "연결",
@@ -73,7 +77,9 @@
     "sessions": "세션",
     "ready": "준비됨",
     "exited": "종료됨",
-    "demo": "데모"
+    "demo": "데모",
+    "agentControl": "Agent 제어 중 · Esc로 인수",
+    "humanControl": "사람 제어 중"
   },
   "settings": {
     "title": "설정",

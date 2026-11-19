@@ -64,7 +64,11 @@
       "readonly": "読み取り専用",
       "mutating": "状態変更",
       "destructive": "破壊的"
-    }
+    },
+    "history": "履歴",
+    "noHistory": "実行履歴はまだありません",
+    "replay": "再生",
+    "interrupted": "人手の入力により引き継がれ、エージェントは停止しました"
   },
   "status": {
     "connection": "接続",
@@ -73,7 +77,9 @@
     "sessions": "セッション",
     "ready": "準備完了",
     "exited": "終了",
-    "demo": "デモ"
+    "demo": "デモ",
+    "agentControl": "Agent が操作中 · Esc で引き継ぎ",
+    "humanControl": "人が操作中"
   },
   "settings": {
     "title": "設定",

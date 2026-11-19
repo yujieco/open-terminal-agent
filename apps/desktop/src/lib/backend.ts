@@ -141,7 +141,7 @@ export function terminalBackendFor(info: SessionInfo): TerminalBackend {
     kind: info.kind,
     label: info.label,
     write(data) {
-      void ipc.writeSession(info.sessionId, data).catch(console.error);
+      void ipc.writeKeystrokes(info.sessionId, data).catch(console.error);
     },
     resize(cols, rows) {
       void ipc.resizeSession(info.sessionId, cols, rows).catch(console.error);

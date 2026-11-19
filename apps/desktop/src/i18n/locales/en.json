@@ -64,7 +64,11 @@
       "readonly": "read-only",
       "mutating": "state change",
       "destructive": "destructive"
-    }
+    },
+    "history": "history",
+    "noHistory": "No runs recorded yet",
+    "replay": "Replay",
+    "interrupted": "Taken over by human input; the agent stopped"
   },
   "status": {
     "connection": "Connection",
@@ -73,7 +77,9 @@
     "sessions": "Sessions",
     "ready": "Ready",
     "exited": "Exited",
-    "demo": "Demo"
+    "demo": "Demo",
+    "agentControl": "agent in control · Esc to take over",
+    "humanControl": "human in control"
   },
   "settings": {
     "title": "Settings",

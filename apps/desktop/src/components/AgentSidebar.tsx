@@ -8,10 +8,12 @@ import {
   agentIpc,
   onAgentApproval,
   onAgentEvent,
+  onAgentInterrupted,
   type AgentEvent,
   type ApprovalPayload,
   type LlmStatus,
 } from "../lib/agent";
+import type { AgentRunSummary } from "../lib/ipc";
 import { isTauri } from "../lib/ipc";
 import type { PermissionMode } from "../types";
 
@@ -32,9 +34,16 @@ interface AgentSidebarProps {
   sessionId: string | null;
   mode: PermissionMode;
   onModeChange: (mode: PermissionMode) => void;
+  /** Tells the shell whether an agent owns this session, for Esc take-over. */
+  onRunningChange: (sessionId: string, running: boolean) => void;
 }
 
-export function AgentSidebar({ sessionId, mode, onModeChange }: AgentSidebarProps) {
+export function AgentSidebar({
+  sessionId,
+  mode,
+  onModeChange,
+  onRunningChange,
+}: AgentSidebarProps) {
   const { t } = useTranslation();
   const [task, setTask] = useState("");
   const [running, setRunning] = useState(false);
@@ -46,6 +55,9 @@ export function AgentSidebar({ sessionId, mode, onModeChange }: AgentSidebarProp
   const [failure, setFailure] = useState<string | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
   const [llm, setLlm] = useState<LlmStatus | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [runs, setRuns] = useState<AgentRunSummary[]>([]);
+  const [replaying, setReplaying] = useState<string | null>(null);
   const [keyDraft, setKeyDraft] = useState("");
   const sessionRef = useRef<string | null>(sessionId);
 
@@ -91,6 +103,15 @@ export function AgentSidebar({ sessionId, mode, onModeChange }: AgentSidebarProp
     void onAgentApproval((payload) => {
       if (disposed || payload.sessionId !== sessionRef.current) return;
       setApproval(payload);
+    }).then((stop) => (disposed ? stop() : stops.push(stop)));
+
+    // Whoever types takes the terminal back; the runtime aborts on its own side.
+    void onAgentInterrupted((payload) => {
+      if (disposed || payload.sessionId !== sessionRef.current) return;
+      setRunning(false);
+      setApproval(null);
+      setFailure(t("agent.interrupted"));
+      onRunningChange(payload.sessionId, false);
     }).then((stop) => (disposed ? stop() : stops.push(stop)));
 
     return () => {
@@ -155,10 +176,12 @@ export function AgentSidebar({ sessionId, mode, onModeChange }: AgentSidebarProp
         setRunning(false);
         setApproval(null);
         setSummary(`${event.reason} · ${event.steps}`);
+        if (sessionRef.current) onRunningChange(sessionRef.current, false);
         break;
       case "failed":
         setRunning(false);
         setFailure(event.message);
+        if (sessionRef.current) onRunningChange(sessionRef.current, false);
         break;
       default:
         break;
@@ -173,6 +196,8 @@ export function AgentSidebar({ sessionId, mode, onModeChange }: AgentSidebarProp
     setSummary(null);
     setFailure(null);
     setRunning(true);
+    setReplaying(null);
+    onRunningChange(sessionId, true);
     try {
       await agentIpc.run({ sessionId, task: task.trim(), mode });
       setTask("");
@@ -181,6 +206,40 @@ export function AgentSidebar({ sessionId, mode, onModeChange }: AgentSidebarProp
       setFailure(cause instanceof Error ? cause.message : String(cause));
     }
   }, [mode, sessionId, task]);
+
+  const loadHistory = useCallback(async () => {
+    if (!sessionId) return;
+    try {
+      setRuns(await agentIpc.runs(sessionId, 20));
+      setHistoryOpen(true);
+    } catch (cause) {
+      setFailure(cause instanceof Error ? cause.message : String(cause));
+    }
+  }, [sessionId]);
+
+  const replay = useCallback(
+    async (id: string) => {
+      try {
+        const record = await agentIpc.runDetail(id);
+        if (!record) return;
+        setAnswer("");
+        setThinking("");
+        setCards([]);
+        setApproval(null);
+        setFailure(null);
+        setSummary(`${record.status} · ${record.commands}`);
+        setRunning(false);
+        setReplaying(record.task);
+        setHistoryOpen(false);
+        for (const raw of record.events) {
+          apply(raw as AgentEvent);
+        }
+      } catch (cause) {
+        setFailure(cause instanceof Error ? cause.message : String(cause));
+      }
+    },
+    [apply],
+  );
 
   const decide = useCallback(
     async (approved: boolean) => {
@@ -212,9 +271,18 @@ export function AgentSidebar({ sessionId, mode, onModeChange }: AgentSidebarProp
           <h2 className="text-[11px] font-semibold tracking-widest text-slate-400 uppercase">
             {t("agent.title")}
           </h2>
-          <span className="font-mono text-[10px] text-slate-600">
-            {llm ? `${llm.provider}/${llm.model}` : t("agent.noProvider")}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[10px] text-slate-600">
+              {llm ? `${llm.provider}/${llm.model}` : t("agent.noProvider")}
+            </span>
+            <button
+              type="button"
+              onClick={() => (historyOpen ? setHistoryOpen(false) : void loadHistory())}
+              className="rounded px-1 py-0.5 text-[10px] text-slate-500 hover:bg-slate-800/70 hover:text-slate-200"
+            >
+              {t("agent.history")}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -267,7 +335,51 @@ export function AgentSidebar({ sessionId, mode, onModeChange }: AgentSidebarProp
         </section>
       ) : null}
 
+      {historyOpen ? (
+        <section className="max-h-48 space-y-1 overflow-y-auto border-b border-slate-800/60 px-3 py-2">
+          {runs.length === 0 ? (
+            <p className="text-[11px] text-slate-600">{t("agent.noHistory")}</p>
+          ) : (
+            runs.map((run) => (
+              <button
+                key={run.id}
+                type="button"
+                onClick={() => void replay(run.id)}
+                className="block w-full rounded px-1.5 py-1 text-left hover:bg-slate-800/60"
+              >
+                <span className="flex items-center gap-1.5 text-[11px] text-slate-300">
+                  <span className="rounded bg-slate-800/80 px-1 text-[9px] uppercase text-slate-400">
+                    {run.status}
+                  </span>
+                  <span className="truncate">{run.task}</span>
+                </span>
+                <span className="font-mono text-[10px] text-slate-600">
+                  {run.commands} cmds · {new Date(run.startedAt).toLocaleString()}
+                </span>
+              </button>
+            ))
+          )}
+        </section>
+      ) : null}
+
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-2">
+        {replaying ? (
+          <div className="flex items-start gap-2 rounded border border-sky-500/30 bg-sky-500/10 px-2 py-1">
+            <span className="text-[10px] text-sky-200">{t("agent.replay")}: {replaying}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setReplaying(null);
+                setCards([]);
+                setAnswer("");
+                setSummary(null);
+              }}
+              className="ml-auto text-[10px] text-sky-300/80 hover:text-sky-100"
+            >
+              ×
+            </button>
+          </div>
+        ) : null}
         {cards.length === 0 && answer.length === 0 && !running ? (
           <p className="text-xs leading-relaxed text-slate-500">{t("agent.empty")}</p>
         ) : null}

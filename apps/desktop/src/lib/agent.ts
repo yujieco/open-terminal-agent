@@ -11,6 +11,7 @@ import type { SessionInfo } from "./ipc";
 
 export const AGENT_EVENT = "agent://event";
 export const AGENT_APPROVAL = "agent://approval";
+export const AGENT_INTERRUPTED = "agent://interrupted";
 
 /** One runtime event, mirroring `term_agent::AgentEvent`. */
 export type AgentEvent =
@@ -44,6 +45,10 @@ export type AgentEvent =
 export interface AgentEventPayload {
   sessionId: string;
   event: AgentEvent;
+}
+
+export interface InterruptedPayload {
+  sessionId: string;
 }
 
 export interface ApprovalPayload {
@@ -86,12 +91,26 @@ export const agentIpc = {
   approve(callId: string, approved: boolean): Promise<void> {
     return invoke<void>("agent_approve", { callId, approved });
   },
+
+  runs(sessionId?: string, limit = 20) {
+    return invoke<import("./ipc").AgentRunSummary[]>("list_agent_runs", { sessionId, limit });
+  },
+
+  runDetail(id: string) {
+    return invoke<import("./ipc").AgentRunRecord | null>("get_agent_run", { id });
+  },
 };
 
 export function onAgentEvent(
   handler: (payload: AgentEventPayload) => void,
 ): Promise<UnlistenFn> {
   return listen<AgentEventPayload>(AGENT_EVENT, (event) => handler(event.payload));
+}
+
+export function onAgentInterrupted(
+  handler: (payload: InterruptedPayload) => void,
+): Promise<UnlistenFn> {
+  return listen<InterruptedPayload>(AGENT_INTERRUPTED, (event) => handler(event.payload));
 }
 
 export function onAgentApproval(

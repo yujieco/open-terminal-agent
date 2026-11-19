@@ -12,6 +12,7 @@ import { SshConnectDialog } from "./components/SshConnectDialog";
 import { StatusBar } from "./components/StatusBar";
 import { TerminalWorkspace } from "./components/TerminalWorkspace";
 import { changeLanguage } from "./i18n";
+import { agentIpc } from "./lib/agent";
 import { createTerminalBackend, terminalBackendFor, type SessionSpec } from "./lib/backend";
 import {
   ipc,
@@ -42,6 +43,7 @@ export default function App() {
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [agentRunning, setAgentRunning] = useState<Record<string, boolean>>({});
 
   const demo = useMemo(() => !isTauri(), []);
   const bootstrapped = useRef(false);
@@ -187,6 +189,31 @@ export default function App() {
     },
     [openSession],
   );
+
+  const handleAgentRunning = useCallback((sessionId: string, running: boolean) => {
+    setAgentRunning((previous) => {
+      if (Boolean(previous[sessionId]) === running) return previous;
+      const next = { ...previous };
+      if (running) {
+        next[sessionId] = true;
+      } else {
+        delete next[sessionId];
+      }
+      return next;
+    });
+  }, []);
+
+  // Global take-over: Esc hands the terminal back, no matter where focus is.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || !activeId) return;
+      if (!agentRunning[activeId]) return;
+      event.preventDefault();
+      void agentIpc.cancel(activeId);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeId, agentRunning]);
 
   const closeSession = useCallback((sessionId: string) => {
     const target = sessionsRef.current.find((session) => session.id === sessionId);
@@ -353,7 +380,12 @@ export default function App() {
         </main>
 
         {agentOpen ? (
-          <AgentSidebar sessionId={activeId} mode={mode} onModeChange={setMode} />
+          <AgentSidebar
+            sessionId={activeId}
+            mode={mode}
+            onModeChange={setMode}
+            onRunningChange={handleAgentRunning}
+          />
         ) : null}
       </div>
 
@@ -366,6 +398,7 @@ export default function App() {
         locale={i18n.language}
         sessionCount={sessions.length}
         demo={demo}
+        agentRunning={activeId ? Boolean(agentRunning[activeId]) : false}
       />
 
       {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
