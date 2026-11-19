@@ -59,7 +59,7 @@ This swaps the PTY backend for a local echo shell — the header shows a "Browse
 - **Run history**: every run is stored in SQLite with its full event stream, so the timeline can be replayed and audited after the fact instead of vanishing when you switch tabs.
 - **Step-through mode**: toggle it and every command — including `ls` — waits for approval, for when you want to watch each move rather than the whole plan.
 - **Bounded context**: tool output handed to the model is capped (8k characters, head and tail kept), so a noisy build log cannot crowd out the actual task.
-- **DeepSeek flash by default**: `deepseek-flash` over the OpenAI-compatible API, with the key held in the OS keyring. Local Ollama/LM Studio endpoints are probed concurrently and skipped when nothing is listening.
+- **Provider switching**: Settings picks deepseek-flash, deepseek-v4-pro, or a model hosted by a locally probed Ollama / LM Studio server; the choice lives in SQLite and each provider's key in the OS keyring.
 - **16 ms output batching.** Transport reads are coalesced into one frame per tick (capped at 256 KB) and shipped to the WebView as base64, then decoded with a streaming `TextDecoder` so multi-byte CJK characters survive frame boundaries.
 - **Headless shadow screen.** A `vt100` parser per session mirrors the same bytes the pane receives and exposes clean text, cursor position and scrollback to the agent side — no ANSI noise.
 - **xterm.js 6 with a WebGL renderer** and automatic fallback to the DOM renderer when a context cannot be created (the WebKitGTK case), plus a monospace stack that keeps CJK wide glyphs and Cyrillic one-cell glyphs aligned.
@@ -105,7 +105,7 @@ Commit messages follow the Conventional Commits rules in [AGENTS.md](AGENTS.md);
 
 ## Not built yet
 
-- A settings UI for switching between cloud providers and local models (the provider is `deepseek-flash` for now, with the key in the keyring).
+- Per-provider key management UI beyond "paste a key for the selected provider" (delete/rotate lives in the keychain app for now).
 - Conversation history across runs: each task starts a fresh transcript (stored runs are replayable, but their messages are not fed back to the model).
 - Serial quick-connect shortcuts on the sidebar.
 - Live SSH, SFTP and serial sessions have not been exercised against real hardware in the verification environment; they are covered by compilation and unit tests only. The keyring path is likewise unit-tested through account naming only, because writing to the real Keychain during verification would leave credentials behind.
