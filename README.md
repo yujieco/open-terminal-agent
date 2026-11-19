@@ -125,6 +125,13 @@ macOS arm64). The bundled app was launched and confirmed to start a local shell,
 so the release build embeds the frontend assets and the IPC/PTY path works outside
 `tauri dev`. Windows and Linux bundles have not been built here.
 
+## Manual checks
+
+`docs/manual-checks.md` is the acceptance list for everything the automated gates
+cannot cover: split panes, approvals, HEX view, SFTP transfers, provider
+switching and the bundled app. Each row has the step, the expected result and a
+blank for what actually happened.
+
 ## Known history limitation
 
 Commit `a668408` (the SFTP backend slice) predates a one-line clippy fix and

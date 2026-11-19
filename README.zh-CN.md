@@ -124,6 +124,12 @@ npm run tauri build -- --bundles app
 已实际启动该 bundle 并确认能拉起本地 Shell，说明 release 构建内嵌了前端资源，
 `tauri dev` 之外的 IPC 与 PTY 路径同样成立。Windows 与 Linux 的 bundle 未在此构建。
 
+## 人工验收清单
+
+`docs/manual-checks.md` 是被自动化闸门覆盖不到的部分的验收清单：分屏、审批、HEX 视图、
+SFTP 传输、provider 切换、打包产物。每行给出步骤、期望结果与「实际结果」空格，便于
+逐项勾选。
+
 ## 已知历史限制
 
 提交 `a668408`（SFTP 后端那一切片）早于之后的一行 clippy 修复，单独 checkout
