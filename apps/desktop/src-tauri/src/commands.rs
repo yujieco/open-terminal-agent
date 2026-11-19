@@ -10,6 +10,8 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use serde_json::{Value, json};
+
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use serde::{Deserialize, Serialize};
@@ -23,10 +25,18 @@ use term_core::{
 };
 use tokio::sync::{Mutex as AsyncMutex, broadcast::error::RecvError};
 
+use crate::agent::{AGENT_APPROVAL, AGENT_EVENT, AgentControl, SessionTerminal};
 use crate::error::ApiError;
 use crate::locale::LocaleInfo;
+use crate::secrets::{SecretStore, ssh_secret_account};
 use crate::state::{SessionHandle, SessionKind, SessionRegistry, SftpRegistry};
+use crate::store::{NewSavedSession, SavedSession, Store};
 use crate::{TERMINAL_EXIT_EVENT, TERMINAL_OUTPUT_EVENT};
+
+/// Identifier for a row in the saved-session table.
+pub fn new_stored_id() -> String {
+    term_core::generate_session_id("saved").into_string()
+}
 
 /// Smallest grid accepted from the UI, in columns.
 const MIN_COLS: u16 = 20;
@@ -281,15 +291,25 @@ pub async fn spawn_session(
 pub async fn connect_ssh(
     app: AppHandle,
     registry: State<'_, SessionRegistry>,
+    store: State<'_, Store>,
     request: SshConnectRequest,
 ) -> Result<SessionInfo, ApiError> {
     let cols = request.cols.clamp(MIN_COLS, MAX_COLS);
     let rows = request.rows.clamp(MIN_ROWS, MAX_ROWS);
     let host = request.host.clone();
+    let port = request.port;
     let username = request.username.clone();
-    let config = request.into_config();
+    let mut config = request.into_config();
+
+    // Trust on first contact, verify every contact after that.
+    if let Some(pinned) = store.host_key(&host, port)? {
+        config = config.with_known_host_fingerprint(pinned);
+    }
 
     let (transport, output) = SshTransport::connect(config).await?;
+    if let Some(fingerprint) = transport.server_key_fingerprint() {
+        store.remember_host_key(&host, port, &fingerprint)?;
+    }
     let label = format!("{username}@{host}");
     let transport: Arc<dyn TerminalTransport> = Arc::new(transport);
 
@@ -654,4 +674,337 @@ fn shell_exists(command: &str) -> bool {
     std::env::var_os("PATH")
         .map(|paths| std::env::split_paths(&paths).any(|dir| dir.join(command).is_file()))
         .unwrap_or(false)
+}
+
+/// Arguments for [`save_ssh_session`].
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveSshSessionRequest {
+    /// Display name for the sidebar.
+    pub name: String,
+    /// Hostname or IP address.
+    pub host: String,
+    /// TCP port.
+    pub port: u16,
+    /// Remote user.
+    pub username: String,
+    /// Authentication choice.
+    pub auth: SshAuthRequest,
+    /// Whether a password should be remembered in the OS keyring.
+    #[serde(default)]
+    pub remember_password: bool,
+}
+
+/// Persists an SSH connection, storing the password in the OS keyring only.
+#[tauri::command]
+pub fn save_ssh_session(
+    store: State<'_, Store>,
+    secrets: State<'_, SecretStore>,
+    request: SaveSshSessionRequest,
+) -> Result<SavedSession, ApiError> {
+    let account = ssh_secret_account(&request.host, request.port, &request.username);
+
+    let (auth_payload, secret_ref) = match request.auth {
+        SshAuthRequest::Password { password } => {
+            if request.remember_password {
+                secrets.set(&account, &password)?;
+                (json!({ "method": "password" }), Some(account))
+            } else {
+                (json!({ "method": "password" }), None)
+            }
+        }
+        SshAuthRequest::PrivateKey { path, .. } => {
+            (json!({ "method": "privateKey", "path": path }), None)
+        }
+    };
+
+    let payload = json!({
+        "host": request.host,
+        "port": request.port,
+        "username": request.username,
+        "auth": auth_payload,
+    });
+
+    Ok(store.save(NewSavedSession {
+        name: request.name,
+        kind: String::from("ssh"),
+        payload,
+        secret_ref,
+    })?)
+}
+
+/// Lists saved connections, newest first.
+#[tauri::command]
+pub fn list_saved_sessions(store: State<'_, Store>) -> Result<Vec<SavedSession>, ApiError> {
+    Ok(store.list()?)
+}
+
+/// Deletes a saved connection and any keyring secret attached to it.
+#[tauri::command]
+pub fn delete_saved_session(
+    store: State<'_, Store>,
+    secrets: State<'_, SecretStore>,
+    id: String,
+) -> Result<bool, ApiError> {
+    let existing = store.get(&id)?;
+    if let Some(saved) = &existing {
+        if let Some(account) = &saved.secret_ref {
+            // A missing entry is fine; the row is what matters.
+            secrets.delete(account)?;
+        }
+    }
+    Ok(store.delete(&id)?)
+}
+
+/// Reopens a saved connection, resolving secrets and pinned keys first.
+#[tauri::command]
+pub async fn connect_saved_session(
+    app: AppHandle,
+    registry: State<'_, SessionRegistry>,
+    store: State<'_, Store>,
+    secrets: State<'_, SecretStore>,
+    id: String,
+) -> Result<SessionInfo, ApiError> {
+    let saved = store
+        .get(&id)?
+        .ok_or_else(|| ApiError::UnknownSavedSession(id.clone()))?;
+
+    match saved.kind.as_str() {
+        "local" => {
+            let shell = saved
+                .payload
+                .get("shell")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
+            spawn_session(
+                app,
+                registry,
+                SpawnSessionRequest {
+                    cols: default_cols(),
+                    rows: default_rows(),
+                    shell,
+                    cwd: None,
+                },
+            )
+            .await
+        }
+        "ssh" => {
+            let host = string_field(&saved.payload, "host")?;
+            let username = string_field(&saved.payload, "username")?;
+            let port = saved
+                .payload
+                .get("port")
+                .and_then(Value::as_u64)
+                .unwrap_or(22) as u16;
+
+            let method = saved
+                .payload
+                .get("auth")
+                .and_then(|auth| auth.get("method"))
+                .and_then(Value::as_str)
+                .unwrap_or("password");
+
+            let auth = if method == "privateKey" {
+                let path = saved
+                    .payload
+                    .get("auth")
+                    .and_then(|auth| auth.get("path"))
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned();
+                SshAuthRequest::PrivateKey {
+                    path,
+                    passphrase: None,
+                }
+            } else {
+                let account = saved
+                    .secret_ref
+                    .clone()
+                    .unwrap_or_else(|| ssh_secret_account(&host, port, &username));
+                let password = secrets
+                    .get(&account)?
+                    .ok_or_else(|| ApiError::SecretMissing {
+                        account: account.clone(),
+                    })?;
+                SshAuthRequest::Password { password }
+            };
+
+            connect_ssh(
+                app,
+                registry,
+                store,
+                SshConnectRequest {
+                    host,
+                    port,
+                    username,
+                    auth,
+                    cols: default_cols(),
+                    rows: default_rows(),
+                },
+            )
+            .await
+        }
+        "serial" => {
+            let path = string_field(&saved.payload, "path")?;
+            let baud_rate = saved
+                .payload
+                .get("baudRate")
+                .and_then(Value::as_u64)
+                .unwrap_or(115200) as u32;
+            open_serial(
+                app,
+                registry,
+                SerialConnectRequest {
+                    path,
+                    baud_rate,
+                    data_bits: default_data_bits(),
+                    stop_bits: default_stop_bits(),
+                    parity: default_parity(),
+                    flow_control: default_flow_control(),
+                    cols: default_cols(),
+                    rows: default_rows(),
+                    log_path: None,
+                },
+            )
+            .await
+        }
+        other => Err(ApiError::InvalidRequest(format!(
+            "unsupported saved session kind `{other}`"
+        ))),
+    }
+}
+
+fn string_field(payload: &Value, key: &str) -> Result<String, ApiError> {
+    payload
+        .get(key)
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .ok_or_else(|| ApiError::InvalidRequest(format!("missing field `{key}`")))
+}
+
+/// Keyring account holding the LLM API key.
+pub const LLM_KEY_ACCOUNT: &str = "llm:deepseek";
+
+/// LLM configuration reported to the settings panel.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LlmStatus {
+    /// Whether an API key is stored in the keyring.
+    pub configured: bool,
+    /// Provider id.
+    pub provider: String,
+    /// Model id.
+    pub model: String,
+    /// Base URL.
+    pub base_url: String,
+}
+
+/// Reports the provider the runtime will use and whether a key is stored.
+#[tauri::command]
+pub fn llm_status(secrets: State<'_, SecretStore>) -> Result<LlmStatus, ApiError> {
+    let config = term_agent::LlmProviderConfig::deepseek_flash();
+    Ok(LlmStatus {
+        configured: secrets.get(LLM_KEY_ACCOUNT)?.is_some(),
+        provider: config.provider,
+        model: config.model,
+        base_url: config.base_url,
+    })
+}
+
+/// Stores or clears the LLM API key in the OS keyring.
+#[tauri::command]
+pub fn save_llm_key(secrets: State<'_, SecretStore>, api_key: String) -> Result<(), ApiError> {
+    let trimmed = api_key.trim();
+    if trimmed.is_empty() {
+        return secrets.delete(LLM_KEY_ACCOUNT);
+    }
+    secrets.set(LLM_KEY_ACCOUNT, trimmed)
+}
+
+/// Arguments for [`agent_run`].
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRunRequest {
+    /// Session the agent works in.
+    pub session_id: String,
+    /// Natural language task.
+    pub task: String,
+    /// Autonomy mode; supervised when omitted.
+    #[serde(default)]
+    pub mode: Option<PermissionMode>,
+}
+
+/// Starts an agent run; steps stream over `agent://event` as they happen.
+#[tauri::command]
+pub fn agent_run(
+    app: AppHandle,
+    registry: State<'_, SessionRegistry>,
+    secrets: State<'_, SecretStore>,
+    control: State<'_, Arc<AgentControl>>,
+    request: AgentRunRequest,
+) -> Result<(), ApiError> {
+    let handle = registry.require(&request.session_id)?;
+    let api_key = secrets.get(LLM_KEY_ACCOUNT)?.ok_or_else(|| {
+        ApiError::InvalidRequest(String::from(
+            "no LLM API key configured; open settings and paste a DeepSeek key",
+        ))
+    })?;
+
+    let cancelled = control.begin(&request.session_id);
+    let terminal = SessionTerminal {
+        transport: Arc::clone(&handle.transport),
+        screen: Arc::clone(&handle.screen),
+        kind: handle.kind,
+    };
+
+    let control = Arc::clone(&control);
+    let session_id = request.session_id.clone();
+    let mode = request.mode.unwrap_or_default();
+
+    tauri::async_runtime::spawn(async move {
+        let outcome = crate::agent::run_task(
+            app,
+            session_id.clone(),
+            terminal,
+            Some(api_key),
+            mode,
+            cancelled,
+            Arc::clone(&control.pending),
+            request.task,
+        )
+        .await;
+        if let Err(error) = outcome {
+            tracing::warn!(%error, session = %session_id, "agent run ended with an error");
+        }
+        control.end(&session_id);
+    });
+
+    Ok(())
+}
+
+/// Cancels the run for a session and rejects any pending approval.
+#[tauri::command]
+pub fn agent_cancel(
+    control: State<'_, Arc<AgentControl>>,
+    session_id: String,
+) -> Result<(), ApiError> {
+    control.cancel(&session_id);
+    Ok(())
+}
+
+/// Answers an approval question raised by the runtime.
+#[tauri::command]
+pub fn agent_approve(
+    control: State<'_, Arc<AgentControl>>,
+    call_id: String,
+    approved: bool,
+) -> Result<(), ApiError> {
+    control.resolve(&call_id, approved);
+    Ok(())
+}
+
+/// Event names the panel listens to, mirrored for the frontend.
+#[tauri::command]
+pub fn agent_event_names() -> (String, String) {
+    (AGENT_EVENT.to_owned(), AGENT_APPROVAL.to_owned())
 }

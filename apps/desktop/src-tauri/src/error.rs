@@ -29,6 +29,29 @@ pub enum ApiError {
     /// The requested shell binary is not installed.
     #[error("shell `{0}` is not available")]
     ShellUnavailable(String),
+
+    /// SQLite storage failed.
+    #[error(transparent)]
+    Store(#[from] crate::store::StoreError),
+
+    /// The OS keyring rejected an operation.
+    #[error("keyring failure: {0}")]
+    Secret(String),
+
+    /// The requested saved session no longer exists.
+    #[error("unknown saved session `{0}`")]
+    UnknownSavedSession(String),
+
+    /// A saved connection needs a secret that is no longer in the keyring.
+    #[error("no keyring entry `{account}`; reopen the connection and enter the password again")]
+    SecretMissing {
+        /// Keyring account that was expected.
+        account: String,
+    },
+
+    /// The request was structurally valid but not actionable.
+    #[error("invalid request: {0}")]
+    InvalidRequest(String),
 }
 
 impl Serialize for ApiError {

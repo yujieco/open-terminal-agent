@@ -1,0 +1,350 @@
+// Copyright 2026 yujieco
+// SPDX-License-Identifier: Apache-2.0
+
+//! SQLite storage for saved connections and pinned SSH host keys.
+//!
+//! Secrets never land here: a saved session stores only a `secret_ref` naming an
+//! OS keyring entry, so a stolen database file leaks no credentials.
+
+use std::path::Path;
+use std::sync::Mutex;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use rusqlite::{Connection, OptionalExtension, params};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use thiserror::Error;
+
+/// Storage failures surfaced to the UI.
+#[derive(Debug, Error)]
+pub enum StoreError {
+    /// SQLite rejected a statement or the file could not be opened.
+    #[error("storage failure: {0}")]
+    Sqlite(String),
+    /// A payload could not be encoded or decoded.
+    #[error("payload encoding failed: {0}")]
+    Encoding(String),
+}
+
+impl From<rusqlite::Error> for StoreError {
+    fn from(error: rusqlite::Error) -> Self {
+        Self::Sqlite(error.to_string())
+    }
+}
+
+impl From<serde_json::Error> for StoreError {
+    fn from(error: serde_json::Error) -> Self {
+        Self::Encoding(error.to_string())
+    }
+}
+
+/// One saved connection as the sidebar renders it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedSession {
+    /// Stable identifier.
+    pub id: String,
+    /// User provided display name.
+    pub name: String,
+    /// `local`, `ssh` or `serial`.
+    pub kind: String,
+    /// Connection parameters without any secret material.
+    pub payload: Value,
+    /// Keyring account name holding the secret, when one was remembered.
+    pub secret_ref: Option<String>,
+    /// Creation time in milliseconds since the Unix epoch.
+    pub created_at: i64,
+    /// Last update time in milliseconds since the Unix epoch.
+    pub updated_at: i64,
+}
+
+/// Values needed to insert or replace a saved session.
+#[derive(Debug, Clone)]
+pub struct NewSavedSession {
+    /// Display name.
+    pub name: String,
+    /// Connection kind.
+    pub kind: String,
+    /// Connection parameters without secrets.
+    pub payload: Value,
+    /// Keyring account name, when a secret was stored.
+    pub secret_ref: Option<String>,
+}
+
+/// Handle to the local database.
+pub struct Store {
+    connection: Mutex<Connection>,
+}
+
+impl Store {
+    /// Opens (and migrates) the database at `path`.
+    pub fn open(path: &Path) -> Result<Self, StoreError> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|error| StoreError::Sqlite(error.to_string()))?;
+        }
+        let connection = Connection::open(path)?;
+        Self::from_connection(connection)
+    }
+
+    /// Opens an in-memory database, used by tests.
+    #[cfg(test)]
+    pub fn open_in_memory() -> Result<Self, StoreError> {
+        Self::from_connection(Connection::open_in_memory()?)
+    }
+
+    fn from_connection(connection: Connection) -> Result<Self, StoreError> {
+        let store = Self {
+            connection: Mutex::new(connection),
+        };
+        store.migrate()?;
+        Ok(store)
+    }
+
+    fn migrate(&self) -> Result<(), StoreError> {
+        let connection = self.lock()?;
+        connection.execute_batch(
+            "PRAGMA journal_mode = WAL;
+             PRAGMA foreign_keys = ON;
+             CREATE TABLE IF NOT EXISTS saved_sessions (
+                 id TEXT PRIMARY KEY,
+                 name TEXT NOT NULL,
+                 kind TEXT NOT NULL,
+                 payload TEXT NOT NULL,
+                 secret_ref TEXT,
+                 created_at INTEGER NOT NULL,
+                 updated_at INTEGER NOT NULL
+             );
+             CREATE TABLE IF NOT EXISTS known_hosts (
+                 host TEXT NOT NULL,
+                 port INTEGER NOT NULL,
+                 fingerprint TEXT NOT NULL,
+                 first_seen INTEGER NOT NULL,
+                 PRIMARY KEY (host, port)
+             );
+             PRAGMA user_version = 1;",
+        )?;
+        Ok(())
+    }
+
+    fn lock(&self) -> Result<std::sync::MutexGuard<'_, Connection>, StoreError> {
+        self.connection
+            .lock()
+            .map_err(|_| StoreError::Sqlite(String::from("database lock poisoned")))
+    }
+
+    /// Inserts a saved session, generating its id and timestamps.
+    pub fn save(&self, draft: NewSavedSession) -> Result<SavedSession, StoreError> {
+        let id = crate::commands::new_stored_id();
+        let now = now_millis();
+        let payload = serde_json::to_string(&draft.payload)?;
+
+        self.lock()?.execute(
+            "INSERT INTO saved_sessions (id, name, kind, payload, secret_ref, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![id, draft.name, draft.kind, payload, draft.secret_ref, now, now],
+        )?;
+
+        Ok(SavedSession {
+            id,
+            name: draft.name,
+            kind: draft.kind,
+            payload: draft.payload,
+            secret_ref: draft.secret_ref,
+            created_at: now,
+            updated_at: now,
+        })
+    }
+
+    /// Lists saved sessions, newest first.
+    pub fn list(&self) -> Result<Vec<SavedSession>, StoreError> {
+        let connection = self.lock()?;
+        let mut statement = connection.prepare(
+            "SELECT id, name, kind, payload, secret_ref, created_at, updated_at
+             FROM saved_sessions ORDER BY updated_at DESC",
+        )?;
+        let rows = statement.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, Option<String>>(4)?,
+                row.get::<_, i64>(5)?,
+                row.get::<_, i64>(6)?,
+            ))
+        })?;
+
+        let mut sessions = Vec::new();
+        for row in rows {
+            let (id, name, kind, payload, secret_ref, created_at, updated_at) = row?;
+            sessions.push(SavedSession {
+                id,
+                name,
+                kind,
+                payload: serde_json::from_str(&payload)?,
+                secret_ref,
+                created_at,
+                updated_at,
+            });
+        }
+        Ok(sessions)
+    }
+
+    /// Returns one saved session by id.
+    pub fn get(&self, id: &str) -> Result<Option<SavedSession>, StoreError> {
+        let connection = self.lock()?;
+        let row = connection
+            .query_row(
+                "SELECT id, name, kind, payload, secret_ref, created_at, updated_at
+                 FROM saved_sessions WHERE id = ?1",
+                params![id],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, Option<String>>(4)?,
+                        row.get::<_, i64>(5)?,
+                        row.get::<_, i64>(6)?,
+                    ))
+                },
+            )
+            .optional()?;
+
+        match row {
+            None => Ok(None),
+            Some((id, name, kind, payload, secret_ref, created_at, updated_at)) => {
+                Ok(Some(SavedSession {
+                    id,
+                    name,
+                    kind,
+                    payload: serde_json::from_str(&payload)?,
+                    secret_ref,
+                    created_at,
+                    updated_at,
+                }))
+            }
+        }
+    }
+
+    /// Deletes one saved session, returning whether a row was removed.
+    pub fn delete(&self, id: &str) -> Result<bool, StoreError> {
+        let removed = self
+            .lock()?
+            .execute("DELETE FROM saved_sessions WHERE id = ?1", params![id])?;
+        Ok(removed > 0)
+    }
+
+    /// Returns the pinned fingerprint for a host, if any.
+    pub fn host_key(&self, host: &str, port: u16) -> Result<Option<String>, StoreError> {
+        let connection = self.lock()?;
+        let fingerprint = connection
+            .query_row(
+                "SELECT fingerprint FROM known_hosts WHERE host = ?1 AND port = ?2",
+                params![host, i64::from(port)],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?;
+        Ok(fingerprint)
+    }
+
+    /// Pins a host key, replacing a previous entry for the same host and port.
+    pub fn remember_host_key(
+        &self,
+        host: &str,
+        port: u16,
+        fingerprint: &str,
+    ) -> Result<(), StoreError> {
+        self.lock()?.execute(
+            "INSERT INTO known_hosts (host, port, fingerprint, first_seen)
+             VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(host, port) DO UPDATE SET fingerprint = excluded.fingerprint",
+            params![host, i64::from(port), fingerprint, now_millis()],
+        )?;
+        Ok(())
+    }
+}
+
+fn now_millis() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis() as i64)
+        .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn draft(name: &str) -> NewSavedSession {
+        NewSavedSession {
+            name: name.to_owned(),
+            kind: String::from("ssh"),
+            payload: json!({ "host": "10.0.0.12", "port": 22, "username": "root" }),
+            secret_ref: Some(String::from("ssh:10.0.0.12:22:root")),
+        }
+    }
+
+    #[test]
+    fn saves_lists_and_reads_back_a_session() {
+        let store = Store::open_in_memory().expect("store");
+
+        let saved = store.save(draft("lab router")).expect("save");
+        assert_eq!(saved.name, "lab router");
+        assert_eq!(saved.payload["host"], "10.0.0.12");
+        assert_eq!(saved.secret_ref.as_deref(), Some("ssh:10.0.0.12:22:root"));
+
+        let listed = store.list().expect("list");
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].id, saved.id);
+
+        let fetched = store.get(&saved.id).expect("get").expect("exists");
+        assert_eq!(fetched, saved);
+    }
+
+    #[test]
+    fn deletes_a_session() {
+        let store = Store::open_in_memory().expect("store");
+        let saved = store.save(draft("temp")).expect("save");
+
+        assert!(store.delete(&saved.id).expect("delete"));
+        assert!(!store.delete(&saved.id).expect("delete again"));
+        assert!(store.list().expect("list").is_empty());
+    }
+
+    #[test]
+    fn pins_and_replaces_host_keys() {
+        let store = Store::open_in_memory().expect("store");
+        assert!(store.host_key("10.0.0.12", 22).expect("lookup").is_none());
+
+        store
+            .remember_host_key("10.0.0.12", 22, "SHA256:first")
+            .expect("pin");
+        assert_eq!(
+            store.host_key("10.0.0.12", 22).expect("lookup"),
+            Some(String::from("SHA256:first"))
+        );
+
+        store
+            .remember_host_key("10.0.0.12", 22, "SHA256:second")
+            .expect("re-pin");
+        assert_eq!(
+            store.host_key("10.0.0.12", 22).expect("lookup"),
+            Some(String::from("SHA256:second"))
+        );
+        // Ports are part of the identity.
+        assert!(store.host_key("10.0.0.12", 2222).expect("lookup").is_none());
+    }
+
+    #[test]
+    fn keeps_payload_free_of_secrets() {
+        let store = Store::open_in_memory().expect("store");
+        let saved = store.save(draft("no secrets")).expect("save");
+        let encoded = saved.payload.to_string();
+        assert!(!encoded.contains("password"));
+        assert!(!encoded.contains("passphrase"));
+    }
+}

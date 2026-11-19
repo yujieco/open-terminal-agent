@@ -4,10 +4,13 @@
 //! Desktop shell entry point: wires the registries, the IPC commands and the
 //! terminal events the WebView listens to.
 
+mod agent;
 mod commands;
 mod error;
 mod locale;
+mod secrets;
 mod state;
+mod store;
 
 pub use error::ApiError;
 
@@ -21,6 +24,19 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .manage(state::SessionRegistry::default())
         .manage(state::SftpRegistry::default())
+        .manage(secrets::SecretStore::new())
+        .manage(std::sync::Arc::new(agent::AgentControl::default()))
+        .setup(|app| {
+            use tauri::Manager as _;
+            let directory = app
+                .path()
+                .app_config_dir()
+                .map_err(|error| -> Box<dyn std::error::Error> { Box::new(error) })?;
+            let store = store::Store::open(&directory.join("sessions.db"))
+                .map_err(|error| -> Box<dyn std::error::Error> { Box::new(error) })?;
+            app.manage(store);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::spawn_session,
             commands::connect_ssh,
@@ -39,6 +55,16 @@ pub fn run() {
             commands::sftp_download,
             commands::sftp_upload,
             commands::sftp_close,
+            commands::save_ssh_session,
+            commands::list_saved_sessions,
+            commands::delete_saved_session,
+            commands::connect_saved_session,
+            commands::llm_status,
+            commands::save_llm_key,
+            commands::agent_run,
+            commands::agent_cancel,
+            commands::agent_approve,
+            commands::agent_event_names,
         ]);
 
     if let Err(error) = builder.run(tauri::generate_context!()) {
