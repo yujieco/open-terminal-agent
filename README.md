@@ -125,6 +125,16 @@ macOS arm64). The bundled app was launched and confirmed to start a local shell,
 so the release build embeds the frontend assets and the IPC/PTY path works outside
 `tauri dev`. Windows and Linux bundles have not been built here.
 
+## Known history limitation
+
+Commit `a668408` (the SFTP backend slice) predates a one-line clippy fix and
+fails `cargo clippy -D warnings` on its own. `main` is green, and CI gates pushes
+and pull requests rather than historical commits, so this only matters if you
+check out that specific commit. Three scripted rebase attempts to fold the fix in
+collided with later commits that depend on it; the branches
+`backup-before-rebase`, `backup-pre-rebase2` and `backup-pre-squash` are kept so
+the history can still be repaired by hand if that ever becomes worth doing.
+
 ## Continuous integration
 
 Every push runs `.github/workflows/ci.yml`: `cargo fmt --check`,

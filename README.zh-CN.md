@@ -124,6 +124,14 @@ npm run tauri build -- --bundles app
 已实际启动该 bundle 并确认能拉起本地 Shell，说明 release 构建内嵌了前端资源，
 `tauri dev` 之外的 IPC 与 PTY 路径同样成立。Windows 与 Linux 的 bundle 未在此构建。
 
+## 已知历史限制
+
+提交 `a668408`（SFTP 后端那一切片）早于之后的一行 clippy 修复，单独 checkout
+会挂 `cargo clippy -D warnings`。`main` 本身是绿的，CI 门禁针对 push 与 PR 而非
+历史提交，因此只有恰好检出那一个提交时才会遇到。三次脚本化 rebase 尝试都因后续提交
+依赖它而冲突；`backup-before-rebase`、`backup-pre-rebase2`、`backup-pre-squash`
+三个分支已保留，将来若值得，仍可手工修复这段历史。
+
 ## 持续集成
 
 每次推送都会跑 `.github/workflows/ci.yml`：`cargo fmt --check`、
