@@ -22,7 +22,8 @@
       "serial": "串口"
     },
     "saved": "已保存",
-    "noSaved": "暂无已保存连接"
+    "noSaved": "暂无已保存连接",
+    "filesGroup": "文件"
   },
   "tabs": {
     "close": "关闭标签页"
@@ -135,5 +136,18 @@
     "flowHardware": "硬件 RTS/CTS",
     "logPath": "原始日志路径（可选）",
     "logPlaceholder": "/tmp/serial.log"
+  },
+  "sftp": {
+    "title": "SFTP 文件",
+    "connectHint": "选择一个已保存的 SSH 连接来浏览远端文件。",
+    "noProfiles": "还没有已保存的 SSH 连接，先在 SSH 面板里保存一个。",
+    "empty": "目录为空",
+    "upload": "上传",
+    "download": "下载",
+    "uploadLocal": "本地文件路径",
+    "downloadLocal": "保存到本地路径",
+    "uploadRemote": "远端目标路径",
+    "transferred": "传输完成",
+    "disconnect": "断开"
   }
 }

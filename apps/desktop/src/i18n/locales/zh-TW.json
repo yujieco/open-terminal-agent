@@ -22,7 +22,8 @@
       "serial": "序列埠"
     },
     "saved": "已儲存",
-    "noSaved": "尚無已儲存連線"
+    "noSaved": "尚無已儲存連線",
+    "filesGroup": "檔案"
   },
   "tabs": {
     "close": "關閉分頁"
@@ -135,5 +136,18 @@
     "flowHardware": "硬體 RTS/CTS",
     "logPath": "原始日誌路徑（選填）",
     "logPlaceholder": "/tmp/serial.log"
+  },
+  "sftp": {
+    "title": "SFTP 檔案",
+    "connectHint": "選擇一個已儲存的 SSH 連線來瀏覽遠端檔案。",
+    "noProfiles": "尚無已儲存的 SSH 連線，請先在 SSH 面板儲存一個。",
+    "empty": "目錄為空",
+    "upload": "上傳",
+    "download": "下載",
+    "uploadLocal": "本機檔案路徑",
+    "downloadLocal": "儲存到本機路徑",
+    "uploadRemote": "遠端目標路徑",
+    "transferred": "傳輸完成",
+    "disconnect": "中斷"
   }
 }

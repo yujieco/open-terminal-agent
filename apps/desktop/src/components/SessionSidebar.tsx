@@ -19,6 +19,7 @@ interface SessionSidebarProps {
   onDeleteSaved: (id: string) => void;
   onOpenSsh: () => void;
   onOpenSerial: () => void;
+  onOpenSftp: () => void;
 }
 
 const KIND_BADGE: Record<SessionKind, string> = {
@@ -39,6 +40,7 @@ export function SessionSidebar({
   onDeleteSaved,
   onOpenSsh,
   onOpenSerial,
+  onOpenSftp,
 }: SessionSidebarProps) {
   const { t } = useTranslation();
 
@@ -151,22 +153,15 @@ export function SessionSidebar({
 
         <section className="mt-5">
           <h2 className="px-2 text-[10px] tracking-widest text-slate-600 uppercase">
-            {t("sidebar.laterGroup")}
+            {t("sidebar.filesGroup")}
           </h2>
-          <ul className="mt-1 space-y-1">
-            <li>
-              <div
-                aria-disabled="true"
-                title={t("sidebar.sftpPending")}
-                className="flex cursor-not-allowed items-center justify-between rounded px-2 py-1 text-xs text-slate-600"
-              >
-                <span>{t("sidebar.sftp")}</span>
-                <span className="rounded bg-slate-800/60 px-1 py-0.5 text-[9px] tracking-wide uppercase">
-                  {t("common.pending")}
-                </span>
-              </div>
-            </li>
-          </ul>
+          <button
+            type="button"
+            onClick={onOpenSftp}
+            className="mt-1 w-full truncate rounded border border-sky-500/25 bg-sky-500/5 px-2 py-1.5 text-left text-xs text-sky-200/90 transition hover:bg-sky-500/15"
+          >
+            {t("sidebar.sftp")}
+          </button>
         </section>
 
         {shells.length > 1 ? (

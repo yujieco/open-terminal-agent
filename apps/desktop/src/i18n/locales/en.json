@@ -22,7 +22,8 @@
       "serial": "serial"
     },
     "saved": "Saved",
-    "noSaved": "No saved connections yet"
+    "noSaved": "No saved connections yet",
+    "filesGroup": "Files"
   },
   "tabs": {
     "close": "Close tab"
@@ -135,5 +136,18 @@
     "flowHardware": "Hardware RTS/CTS",
     "logPath": "Raw log path (optional)",
     "logPlaceholder": "/tmp/serial.log"
+  },
+  "sftp": {
+    "title": "SFTP files",
+    "connectHint": "Pick a saved SSH profile to browse its remote files.",
+    "noProfiles": "No saved SSH profile yet; save one from the SSH panel first.",
+    "empty": "Empty directory",
+    "upload": "Upload",
+    "download": "Download",
+    "uploadLocal": "Local file path",
+    "downloadLocal": "Save to local path",
+    "uploadRemote": "Remote destination path",
+    "transferred": "Transferred",
+    "disconnect": "Disconnect"
   }
 }

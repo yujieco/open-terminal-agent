@@ -246,6 +246,10 @@ export const ipc = {
     return invoke<AgentRunRecord | null>("get_agent_run", { id });
   },
 
+  sftpConnectSaved(id: string): Promise<SftpSessionInfo> {
+    return invoke<SftpSessionInfo>("sftp_connect_saved", { id });
+  },
+
   sftpConnect(input: SshConnectInput): Promise<SftpSessionInfo> {
     return invoke<SftpSessionInfo>("sftp_connect", { request: input });
   },

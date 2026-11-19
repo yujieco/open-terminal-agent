@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { AgentSidebar } from "./components/AgentSidebar";
 import { SerialConnectDialog } from "./components/SerialConnectDialog";
 import { SessionSidebar } from "./components/SessionSidebar";
+import { SftpDrawer } from "./components/SftpDrawer";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { SshConnectDialog } from "./components/SshConnectDialog";
 import { StatusBar } from "./components/StatusBar";
@@ -39,6 +40,7 @@ export default function App() {
   const [mode, setMode] = useState<PermissionMode>("supervised");
   const [agentOpen, setAgentOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [sftpOpen, setSftpOpen] = useState(false);
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -310,6 +312,13 @@ export default function App() {
           </button>
           <button
             type="button"
+            onClick={() => setSftpOpen(true)}
+            className="rounded px-2.5 py-1 text-xs text-slate-400 transition hover:bg-slate-800/70 hover:text-slate-200"
+          >
+            {t("sidebar.sftp")}
+          </button>
+          <button
+            type="button"
             onClick={() => setAgentOpen((open) => !open)}
             className={`rounded px-2.5 py-1 text-xs transition ${
               agentOpen
@@ -363,6 +372,7 @@ export default function App() {
             setDialogError(null);
             setDialog("serial");
           }}
+          onOpenSftp={() => setSftpOpen(true)}
         />
 
         <main className="flex min-w-0 flex-1 flex-col">
@@ -402,6 +412,8 @@ export default function App() {
       />
 
       {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
+
+      {sftpOpen ? <SftpDrawer saved={saved} onClose={() => setSftpOpen(false)} /> : null}
 
       {dialog === "ssh" ? (
         <SshConnectDialog

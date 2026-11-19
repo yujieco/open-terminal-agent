@@ -22,7 +22,8 @@
       "serial": "シリアル"
     },
     "saved": "保存済み",
-    "noSaved": "保存された接続はまだありません"
+    "noSaved": "保存された接続はまだありません",
+    "filesGroup": "ファイル"
   },
   "tabs": {
     "close": "タブを閉じる"
@@ -135,5 +136,18 @@
     "flowHardware": "ハードウェア RTS/CTS",
     "logPath": "生ログの保存先（任意）",
     "logPlaceholder": "/tmp/serial.log"
+  },
+  "sftp": {
+    "title": "SFTP ファイル",
+    "connectHint": "保存済みの SSH プロファイルを選んでリモートのファイルを参照します。",
+    "noProfiles": "保存済みの SSH プロファイルがありません。先に SSH パネルで保存してください。",
+    "empty": "空のディレクトリ",
+    "upload": "アップロード",
+    "download": "ダウンロード",
+    "uploadLocal": "ローカルファイルのパス",
+    "downloadLocal": "ローカルの保存先パス",
+    "uploadRemote": "リモートの保存先パス",
+    "transferred": "転送完了",
+    "disconnect": "切断"
   }
 }

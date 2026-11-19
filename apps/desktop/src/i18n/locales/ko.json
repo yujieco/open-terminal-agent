@@ -22,7 +22,8 @@
       "serial": "시리얼"
     },
     "saved": "저장됨",
-    "noSaved": "저장된 연결이 없습니다"
+    "noSaved": "저장된 연결이 없습니다",
+    "filesGroup": "파일"
   },
   "tabs": {
     "close": "탭 닫기"
@@ -135,5 +136,18 @@
     "flowHardware": "하드웨어 RTS/CTS",
     "logPath": "원본 로그 경로(선택)",
     "logPlaceholder": "/tmp/serial.log"
+  },
+  "sftp": {
+    "title": "SFTP 파일",
+    "connectHint": "저장된 SSH 프로필을 선택해 원격 파일을 탐색하세요.",
+    "noProfiles": "저장된 SSH 프로필이 없습니다. 먼저 SSH 패널에서 저장하세요.",
+    "empty": "빈 디렉터리",
+    "upload": "업로드",
+    "download": "다운로드",
+    "uploadLocal": "로컬 파일 경로",
+    "downloadLocal": "로컬 저장 경로",
+    "uploadRemote": "원격 대상 경로",
+    "transferred": "전송 완료",
+    "disconnect": "연결 해제"
   }
 }
