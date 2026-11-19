@@ -10,6 +10,8 @@
 
 use std::time::Duration;
 
+use reqwest::StatusCode;
+
 use async_trait::async_trait;
 use futures_util::StreamExt;
 use reqwest::Client;
@@ -21,6 +23,31 @@ use crate::tools::ToolSpec;
 
 /// Default request timeout for one model turn.
 pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
+
+/// Retries allowed for a rate limited or temporarily unavailable provider.
+pub const MAX_RETRIES: u32 = 2;
+
+/// Longest single backoff, so a retry never stalls the UI for long.
+pub const MAX_BACKOFF: Duration = Duration::from_secs(2);
+
+/// Longest `Retry-After` honoured; anything longer is capped to keep the run
+/// responsive rather than silently sleeping for a minute.
+pub const MAX_RETRY_AFTER: Duration = Duration::from_secs(5);
+
+/// Exponential backoff for `attempt` (0 = first retry).
+pub fn backoff_delay(attempt: u32) -> Duration {
+    let millis = 200u64.saturating_mul(1 << attempt.min(4));
+    Duration::from_millis(millis).min(MAX_BACKOFF)
+}
+
+/// Parses a `Retry-After` header in seconds, capped by [`MAX_RETRY_AFTER`].
+pub fn parse_retry_after(value: &str) -> Option<Duration> {
+    value
+        .trim()
+        .parse::<u64>()
+        .ok()
+        .map(|seconds| Duration::from_secs(seconds).min(MAX_RETRY_AFTER))
+}
 
 /// Role of one message in a chat transcript.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -265,6 +292,51 @@ impl OpenAiCompatibleClient {
         messages: &[ChatMessage],
         tools: &[ToolSpec],
     ) -> Result<reqwest::Response> {
+        let mut attempt = 0u32;
+
+        loop {
+            let response = self.send_once(messages, tools).await?;
+            if response.status().is_success() {
+                return Ok(response);
+            }
+
+            let status = response.status();
+            let retry_after = response
+                .headers()
+                .get(reqwest::header::RETRY_AFTER)
+                .and_then(|value| value.to_str().ok())
+                .and_then(parse_retry_after);
+
+            let retryable = matches!(
+                status,
+                StatusCode::TOO_MANY_REQUESTS | StatusCode::SERVICE_UNAVAILABLE
+            );
+            if retryable && attempt < MAX_RETRIES {
+                let delay = retry_after.unwrap_or_else(|| backoff_delay(attempt));
+                tracing::debug!(
+                    %status,
+                    attempt,
+                    delay_ms = delay.as_millis() as u64,
+                    "provider asked us to slow down; retrying"
+                );
+                tokio::time::sleep(delay).await;
+                attempt += 1;
+                continue;
+            }
+
+            let body = response.text().await.unwrap_or_default();
+            return Err(AgentError::ProviderRequest(format!(
+                "provider returned {status}: {body}"
+            )));
+        }
+    }
+
+    /// One attempt, without any retry logic.
+    async fn send_once(
+        &self,
+        messages: &[ChatMessage],
+        tools: &[ToolSpec],
+    ) -> Result<reqwest::Response> {
         let mut body = json!({
             "model": self.config.model,
             "messages": encode_messages(messages),
@@ -282,20 +354,10 @@ impl OpenAiCompatibleClient {
             request = request.bearer_auth(key);
         }
 
-        let response = request
+        request
             .send()
             .await
-            .map_err(|error| AgentError::ProviderRequest(error.to_string()))?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response.text().await.unwrap_or_default();
-            return Err(AgentError::ProviderRequest(format!(
-                "provider returned {status}: {text}"
-            )));
-        }
-
-        Ok(response)
+            .map_err(|error| AgentError::ProviderRequest(error.to_string()))
     }
 }
 
@@ -584,6 +646,23 @@ mod tests {
             accumulator.finish().reasoning_content.as_deref(),
             Some("thinking")
         );
+    }
+
+    #[test]
+    fn backoff_grows_and_is_capped() {
+        assert_eq!(backoff_delay(0), Duration::from_millis(200));
+        assert_eq!(backoff_delay(1), Duration::from_millis(400));
+        assert_eq!(backoff_delay(2), Duration::from_millis(800));
+        assert_eq!(backoff_delay(9), MAX_BACKOFF, "backoff must stay bounded");
+    }
+
+    #[test]
+    fn retry_after_is_parsed_and_capped() {
+        assert_eq!(parse_retry_after("3"), Some(Duration::from_secs(3)));
+        assert_eq!(parse_retry_after(" 1 "), Some(Duration::from_secs(1)));
+        assert_eq!(parse_retry_after("120"), Some(MAX_RETRY_AFTER));
+        assert_eq!(parse_retry_after("soon"), None);
+        assert_eq!(parse_retry_after(""), None);
     }
 
     #[test]
