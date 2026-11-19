@@ -57,6 +57,8 @@ This swaps the PTY backend for a local echo shell — the header shows a "Browse
 - **Risk classification you cannot slip past with a flag**: unknown programs are mutating, opaque interpreters (`sh -c`, `python -c`, `osascript -e`) and destructive flags (`find -delete`, `rsync --delete`, `sed -i`, `git clean -fd`, `--force`) are destructive, and command substitution never leaves a segment read-only.
 - **Human input wins**: typing in a terminal while the agent runs aborts the loop, rejects pending approvals and returns the write lock, with a global `Esc` take-over. The status bar always shows who owns the terminal.
 - **Run history**: every run is stored in SQLite with its full event stream, so the timeline can be replayed and audited after the fact instead of vanishing when you switch tabs.
+- **Step-through mode**: toggle it and every command — including `ls` — waits for approval, for when you want to watch each move rather than the whole plan.
+- **Bounded context**: tool output handed to the model is capped (8k characters, head and tail kept), so a noisy build log cannot crowd out the actual task.
 - **DeepSeek flash by default**: `deepseek-flash` over the OpenAI-compatible API, with the key held in the OS keyring. Local Ollama/LM Studio endpoints are probed concurrently and skipped when nothing is listening.
 - **16 ms output batching.** Transport reads are coalesced into one frame per tick (capped at 256 KB) and shipped to the WebView as base64, then decoded with a streaming `TextDecoder` so multi-byte CJK characters survive frame boundaries.
 - **Headless shadow screen.** A `vt100` parser per session mirrors the same bytes the pane receives and exposes clean text, cursor position and scrollback to the agent side — no ANSI noise.
