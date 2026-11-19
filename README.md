@@ -54,6 +54,9 @@ This swaps the PTY backend for a local echo shell — the header shows a "Browse
 - **SSH host key pinning**: the fingerprint is recorded on first contact and every later connection must match, otherwise the handshake fails with the pinned and presented fingerprints in the error.
 - **Agent runtime with a visible step timeline**: the model plans, the runtime announces `ToolRequested` with the exact command and its risk *before* writing anything, then `ToolFinished` with exit code, duration and the captured screen. Reasoning deltas stream while the model thinks.
 - **Approval gate wired to the UI**: Ask/Supervised/Autonomous run through the same policy as the rest of the app, so a gated command surfaces an Approve/Reject prompt and a rejected command never reaches the terminal.
+- **Risk classification you cannot slip past with a flag**: unknown programs are mutating, opaque interpreters (`sh -c`, `python -c`, `osascript -e`) and destructive flags (`find -delete`, `rsync --delete`, `sed -i`, `git clean -fd`, `--force`) are destructive, and command substitution never leaves a segment read-only.
+- **Human input wins**: typing in a terminal while the agent runs aborts the loop, rejects pending approvals and returns the write lock, with a global `Esc` take-over. The status bar always shows who owns the terminal.
+- **Run history**: every run is stored in SQLite with its full event stream, so the timeline can be replayed and audited after the fact instead of vanishing when you switch tabs.
 - **DeepSeek flash by default**: `deepseek-flash` over the OpenAI-compatible API, with the key held in the OS keyring. Local Ollama/LM Studio endpoints are probed concurrently and skipped when nothing is listening.
 - **16 ms output batching.** Transport reads are coalesced into one frame per tick (capped at 256 KB) and shipped to the WebView as base64, then decoded with a streaming `TextDecoder` so multi-byte CJK characters survive frame boundaries.
 - **Headless shadow screen.** A `vt100` parser per session mirrors the same bytes the pane receives and exposes clean text, cursor position and scrollback to the agent side — no ANSI noise.
@@ -88,7 +91,7 @@ pub trait TerminalTransport: Send + Sync {
 
 ```bash
 cargo check --workspace          # compile gate for the whole workspace
-cargo test --workspace           # 50 tests, including a real /bin/sh PTY round trip
+cargo test --workspace           # 54 tests, including a real /bin/sh PTY round trip
 DEEPSEEK_API_KEY=sk-... cargo test -p term-agent --test deepseek_runtime -- --ignored --nocapture
                                  # real model + real PTY: creates and verifies a file
 cd apps/desktop
@@ -101,11 +104,18 @@ Commit messages follow the Conventional Commits rules in [AGENTS.md](AGENTS.md);
 ## Not built yet
 
 - A settings UI for switching between cloud providers and local models (the provider is `deepseek-flash` for now, with the key in the keyring).
-- Conversation history across runs: each task starts a fresh transcript.
+- Conversation history across runs: each task starts a fresh transcript (stored runs are replayable, but their messages are not fed back to the model).
 - SFTP file-browser UI, serial HEX/UTF-8 dual display and serial quick-connect shortcuts.
 - Live SSH, SFTP and serial sessions have not been exercised against real hardware in the verification environment; they are covered by compilation and unit tests only. The keyring path is likewise unit-tested through account naming only, because writing to the real Keychain during verification would leave credentials behind.
 - The agent runtime was verified end to end against a real model, but the GUI timeline itself was only verified by type checks, a production build and a launch smoke test.
 - Packaging (`npm run tauri build`) has not been run, and no binary is published.
+
+## Continuous integration
+
+Every push runs `.github/workflows/ci.yml`: `cargo fmt --check`,
+`cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`,
+then `npm run typecheck` and `npm run build` for the frontend. The same commands
+are what this repository was verified with locally.
 
 ## License
 

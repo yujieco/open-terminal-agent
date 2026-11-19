@@ -54,6 +54,9 @@ npm run dev
 - **SSH 主机密钥固定**：首次接触记录指纹，之后每次连接都要求一致，不一致则握手失败，并在错误中同时给出已固定与实际收到的指纹。
 - **Agent Runtime + 可见步骤时间线**：模型负责规划，Runtime 在写入终端**之前**发出 `ToolRequested`（含完整命令行与风险等级），执行后发出 `ToolFinished`（含退出码、耗时与屏幕输出）；推理模型的思考增量实时流出。
 - **审批闸门接到界面**：Ask/Supervised/Autonomous 与全局策略同源，被拦截的命令弹出批准/拒绝，拒绝的命令绝不写入终端。
+- **风险分类不再能被参数绕过**：未知程序按「改状态」处理，不透明解释器（`sh -c`、`python -c`、`osascript -e`）与危险参数（`find -delete`、`rsync --delete`、`sed -i`、`git clean -fd`、`--force`）按「破坏性」处理，命令替换也不会让一段命令停留在只读。
+- **人工输入优先**：Agent 运行时在终端里打字会立即中止循环、拒绝所有待批命令并交回写锁，同时提供全局 `Esc` 接管；状态栏始终显示当前控制权归属。
+- **运行历史**：每次运行连同完整事件流存入 SQLite，切换标签页后仍可回放与审计，而不是凭空消失。
 - **默认 deepseek-flash**：走 OpenAI 兼容协议，密钥存系统钥匙串；本地 Ollama / LM Studio 端点并发探测，未监听则直接跳过。
 - **16ms 输出聚合**：传输读取按每拍合并为一帧（上限 256 KB），以 base64 送到 WebView，再用流式 `TextDecoder` 解码，保证跨帧被切开的多字节中文字符不损坏。
 - **影子屏幕**：每个会话维护一个 `vt100` 解析器，同步接收与窗格相同的字节，向 Agent 侧提供无 ANSI 噪声的纯文本、光标位置与历史滚动。
@@ -88,7 +91,7 @@ pub trait TerminalTransport: Send + Sync {
 
 ```bash
 cargo check --workspace          # 整个工作区的编译闸门
-cargo test --workspace           # 50 个测试，含真实 /bin/sh PTY 回环
+cargo test --workspace           # 54 个测试，含真实 /bin/sh PTY 回环
 DEEPSEEK_API_KEY=sk-... cargo test -p term-agent --test deepseek_runtime -- --ignored --nocapture
                                  # 真实模型 + 真实 PTY：创建并校验文件
 cd apps/desktop
@@ -101,11 +104,17 @@ npm run build                    # 类型检查 + vite 生产构建
 ## 尚未完成
 
 - 云端/本地模型切换的设置界面（目前固定 `deepseek-flash`，密钥存钥匙串）。
-- 跨任务的对话历史：每个任务从新会话开始。
+- 跨任务的对话历史：每个任务从新会话开始（已运行的记录可回放，但不会作为上下文喂回模型）。
 - SFTP 文件浏览器界面、串口 HEX/UTF-8 双视图与串口快捷连接入口。
 - 真实 SSH / SFTP / 串口会话未在验证环境中对接真实硬件，仅通过编译与单元测试验证；钥匙串路径也只对账号命名做了单元测试，因为验证时写入真实 Keychain 会留下凭据。
 - Agent Runtime 已对真实模型端到端验证，但界面时间线本身只经过类型检查、生产构建与启动冒烟。
 - 打包（`npm run tauri build`）尚未执行，也没有发布任何二进制。
+
+## 持续集成
+
+每次推送都会跑 `.github/workflows/ci.yml`：`cargo fmt --check`、
+`cargo clippy --workspace --all-targets -- -D warnings`、`cargo test --workspace`，
+以及前端的 `npm run typecheck` 与 `npm run build`。本地验证用的就是同一组命令。
 
 ## 许可证
 
