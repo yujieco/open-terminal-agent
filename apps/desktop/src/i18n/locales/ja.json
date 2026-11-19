@@ -12,7 +12,15 @@
     "phase2Group": "フェーズ 2",
     "serial": "シリアル接続",
     "sftp": "SFTP ファイル",
-    "shells": "利用可能なシェル"
+    "shells": "利用可能なシェル",
+    "ssh": "SSH",
+    "laterGroup": "次のスライス",
+    "sftpPending": "SFTP ファイルブラウザの UI は次のスライスで追加されます（バックエンドは実装済み）",
+    "kinds": {
+      "local": "ローカル",
+      "ssh": "ssh",
+      "serial": "シリアル"
+    }
   },
   "tabs": {
     "close": "タブを閉じる"
@@ -58,6 +66,45 @@
   "common": {
     "phase2": "フェーズ 2",
     "error": "エラーが発生しました",
-    "retry": "再試行"
+    "retry": "再試行",
+    "cancel": "キャンセル",
+    "connect": "接続",
+    "connecting": "接続中…",
+    "close": "閉じる",
+    "dismiss": "閉じる",
+    "pending": "未対応"
+  },
+  "ssh": {
+    "title": "SSH 接続",
+    "host": "ホスト",
+    "port": "ポート",
+    "username": "ユーザー",
+    "auth": "認証方式",
+    "authPassword": "パスワード",
+    "authKey": "秘密鍵",
+    "password": "パスワード",
+    "keyPath": "秘密鍵のパス",
+    "passphrase": "鍵のパスフレーズ（任意）"
+  },
+  "serial": {
+    "title": "シリアル接続",
+    "port": "ポート",
+    "refresh": "更新",
+    "selectPort": "ポートを選択…",
+    "noPorts": "シリアルデバイスが見つかりません",
+    "desktopOnly": "シリアルポートはデスクトップアプリでのみ利用できます",
+    "baud": "ボーレート",
+    "dataBits": "データビット",
+    "stopBits": "ストップビット",
+    "parity": "パリティ",
+    "parityNone": "なし",
+    "parityOdd": "奇数",
+    "parityEven": "偶数",
+    "flowControl": "フロー制御",
+    "flowNone": "なし",
+    "flowSoftware": "ソフトウェア XON/XOFF",
+    "flowHardware": "ハードウェア RTS/CTS",
+    "logPath": "生ログの保存先（任意）",
+    "logPlaceholder": "/tmp/serial.log"
   }
 }

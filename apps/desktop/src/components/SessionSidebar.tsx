@@ -3,6 +3,7 @@
 
 import { useTranslation } from "react-i18next";
 
+import type { SessionKind } from "../lib/ipc";
 import type { ShellProfile } from "../lib/ipc";
 import type { SessionView } from "../types";
 
@@ -13,7 +14,15 @@ interface SessionSidebarProps {
   creating: boolean;
   onSelect: (sessionId: string) => void;
   onCreate: (shell?: string) => void;
+  onOpenSsh: () => void;
+  onOpenSerial: () => void;
 }
+
+const KIND_BADGE: Record<SessionKind, string> = {
+  local: "bg-emerald-500/15 text-emerald-300",
+  ssh: "bg-sky-500/15 text-sky-300",
+  serial: "bg-violet-500/15 text-violet-300",
+};
 
 export function SessionSidebar({
   sessions,
@@ -22,6 +31,8 @@ export function SessionSidebar({
   creating,
   onSelect,
   onCreate,
+  onOpenSsh,
+  onOpenSerial,
 }: SessionSidebarProps) {
   const { t } = useTranslation();
 
@@ -59,7 +70,7 @@ export function SessionSidebar({
                         session.exited ? "bg-rose-400" : "bg-emerald-400"
                       }`}
                     />
-                    <span className="truncate font-mono">{session.shell}</span>
+                    <span className="truncate font-mono">{session.label}</span>
                     <span className="ml-auto shrink-0 font-mono text-[10px] text-slate-500">
                       {session.size.cols}×{session.size.rows}
                     </span>
@@ -79,13 +90,40 @@ export function SessionSidebar({
           {creating ? t("sidebar.creating") : t("sidebar.newSession")}
         </button>
 
+        <div className="mt-2 grid grid-cols-2 gap-1.5">
+          <button
+            type="button"
+            onClick={onOpenSsh}
+            className="rounded border border-sky-500/30 bg-sky-500/10 px-2 py-1.5 text-xs text-sky-200 transition hover:bg-sky-500/20"
+          >
+            {t("sidebar.ssh")}
+          </button>
+          <button
+            type="button"
+            onClick={onOpenSerial}
+            className="rounded border border-violet-500/30 bg-violet-500/10 px-2 py-1.5 text-xs text-violet-200 transition hover:bg-violet-500/20"
+          >
+            {t("sidebar.serial")}
+          </button>
+        </div>
+
         <section className="mt-5">
           <h2 className="px-2 text-[10px] tracking-widest text-slate-600 uppercase">
-            {t("sidebar.phase2Group")}
+            {t("sidebar.laterGroup")}
           </h2>
           <ul className="mt-1 space-y-1">
-            <Phase2Row label={t("sidebar.serial")} />
-            <Phase2Row label={t("sidebar.sftp")} />
+            <li>
+              <div
+                aria-disabled="true"
+                title={t("sidebar.sftpPending")}
+                className="flex cursor-not-allowed items-center justify-between rounded px-2 py-1 text-xs text-slate-600"
+              >
+                <span>{t("sidebar.sftp")}</span>
+                <span className="rounded bg-slate-800/60 px-1 py-0.5 text-[9px] tracking-wide uppercase">
+                  {t("common.pending")}
+                </span>
+              </div>
+            </li>
           </ul>
         </section>
 
@@ -113,24 +151,19 @@ export function SessionSidebar({
           </section>
         ) : null}
       </div>
-    </aside>
-  );
-}
 
-function Phase2Row({ label }: { label: string }) {
-  const { t } = useTranslation();
-  return (
-    <li>
-      <div
-        aria-disabled="true"
-        title={t("common.phase2")}
-        className="flex cursor-not-allowed items-center justify-between rounded px-2 py-1 text-xs text-slate-600"
-      >
-        <span>{label}</span>
-        <span className="rounded bg-slate-800/60 px-1 py-0.5 text-[9px] tracking-wide uppercase">
-          {t("common.phase2")}
-        </span>
+      <div className="border-t border-slate-800/60 px-2 py-2">
+        <div className="flex flex-wrap gap-1">
+          {(Object.keys(KIND_BADGE) as SessionKind[]).map((kind) => (
+            <span
+              key={kind}
+              className={`rounded px-1.5 py-0.5 text-[9px] tracking-wider uppercase ${KIND_BADGE[kind]}`}
+            >
+              {t(`sidebar.kinds.${kind}`)}
+            </span>
+          ))}
+        </div>
       </div>
-    </li>
+    </aside>
   );
 }

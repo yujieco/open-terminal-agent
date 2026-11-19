@@ -5,18 +5,28 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { AgentSidebar } from "./components/AgentSidebar";
+import { SerialConnectDialog } from "./components/SerialConnectDialog";
 import { SessionSidebar } from "./components/SessionSidebar";
 import { SettingsDialog } from "./components/SettingsDialog";
+import { SshConnectDialog } from "./components/SshConnectDialog";
 import { StatusBar } from "./components/StatusBar";
 import { TerminalWorkspace } from "./components/TerminalWorkspace";
 import { changeLanguage } from "./i18n";
-import { createTerminalBackend } from "./lib/backend";
-import { ipc, isTauri, type ShellProfile } from "./lib/ipc";
+import { createTerminalBackend, type SessionSpec } from "./lib/backend";
+import {
+  ipc,
+  isTauri,
+  type SerialConnectInput,
+  type ShellProfile,
+  type SshConnectInput,
+} from "./lib/ipc";
 import { resolveLanguage } from "./lib/locale";
 import type { PermissionMode, SessionView } from "./types";
 
 const DEFAULT_COLS = 100;
 const DEFAULT_ROWS = 30;
+
+type DialogKind = "ssh" | "serial" | null;
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -26,6 +36,8 @@ export default function App() {
   const [mode, setMode] = useState<PermissionMode>("supervised");
   const [agentOpen, setAgentOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [dialog, setDialog] = useState<DialogKind>(null);
+  const [dialogError, setDialogError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,31 +49,71 @@ export default function App() {
     sessionsRef.current = sessions;
   }, [sessions]);
 
-  const createSession = useCallback(async (shell?: string) => {
+  const openSession = useCallback(async (spec: SessionSpec) => {
     setCreating(true);
     setError(null);
     try {
-      const backend = await createTerminalBackend({
-        cols: DEFAULT_COLS,
-        rows: DEFAULT_ROWS,
-        shell,
-      });
+      const backend = await createTerminalBackend(spec);
       const view: SessionView = {
         id: backend.sessionId,
+        kind: backend.kind,
         backend,
-        shell: backend.shell,
-        title: `${backend.shell} · ${DEFAULT_COLS}×${DEFAULT_ROWS}`,
+        label: backend.label,
+        title: `${backend.label} · ${spec.cols}×${spec.rows}`,
         exited: false,
-        size: { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
+        size: { cols: spec.cols, rows: spec.rows },
       };
       setSessions((previous) => [...previous, view]);
       setActiveId(view.id);
+      return true;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      const message = cause instanceof Error ? cause.message : String(cause);
+      setDialogError(message);
+      setError(message);
+      return false;
     } finally {
       setCreating(false);
     }
   }, []);
+
+  const createLocalSession = useCallback(
+    async (shell?: string) => {
+      await openSession({ kind: "local", cols: DEFAULT_COLS, rows: DEFAULT_ROWS, shell });
+    },
+    [openSession],
+  );
+
+  const connectSsh = useCallback(
+    async (input: Omit<SshConnectInput, "cols" | "rows">) => {
+      const opened = await openSession({
+        kind: "ssh",
+        cols: DEFAULT_COLS,
+        rows: DEFAULT_ROWS,
+        ...input,
+      });
+      if (opened) {
+        setDialog(null);
+        setDialogError(null);
+      }
+    },
+    [openSession],
+  );
+
+  const openSerial = useCallback(
+    async (input: SerialConnectInput) => {
+      const opened = await openSession({
+        kind: "serial",
+        cols: DEFAULT_COLS,
+        rows: DEFAULT_ROWS,
+        ...input,
+      });
+      if (opened) {
+        setDialog(null);
+        setDialogError(null);
+      }
+    },
+    [openSession],
+  );
 
   const closeSession = useCallback((sessionId: string) => {
     const target = sessionsRef.current.find((session) => session.id === sessionId);
@@ -99,7 +151,7 @@ export default function App() {
 
     void (async () => {
       if (!isTauri()) {
-        await createSession();
+        await createLocalSession();
         return;
       }
       try {
@@ -114,9 +166,9 @@ export default function App() {
       } catch (cause) {
         console.warn("[ota] could not read locale, shells or agent capabilities", cause);
       }
-      await createSession();
+      await createLocalSession();
     })();
-  }, [createSession]);
+  }, [createLocalSession]);
 
   const activeSession = sessions.find((session) => session.id === activeId) ?? null;
 
@@ -135,6 +187,26 @@ export default function App() {
           ) : null}
         </div>
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              setDialogError(null);
+              setDialog("ssh");
+            }}
+            className="rounded px-2.5 py-1 text-xs text-slate-400 transition hover:bg-slate-800/70 hover:text-slate-200"
+          >
+            {t("sidebar.ssh")}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setDialogError(null);
+              setDialog("serial");
+            }}
+            className="rounded px-2.5 py-1 text-xs text-slate-400 transition hover:bg-slate-800/70 hover:text-slate-200"
+          >
+            {t("sidebar.serial")}
+          </button>
           <button
             type="button"
             onClick={() => setAgentOpen((open) => !open)}
@@ -166,7 +238,7 @@ export default function App() {
             onClick={() => setError(null)}
             className="rounded px-2 py-0.5 text-rose-200/80 hover:bg-rose-500/20"
           >
-            {t("common.retry")}
+            {t("common.dismiss")}
           </button>
         </div>
       ) : null}
@@ -178,7 +250,15 @@ export default function App() {
           shells={shells}
           creating={creating}
           onSelect={setActiveId}
-          onCreate={createSession}
+          onCreate={createLocalSession}
+          onOpenSsh={() => {
+            setDialogError(null);
+            setDialog("ssh");
+          }}
+          onOpenSerial={() => {
+            setDialogError(null);
+            setDialog("serial");
+          }}
         />
 
         <main className="flex min-w-0 flex-1 flex-col">
@@ -195,13 +275,12 @@ export default function App() {
           />
         </main>
 
-        {agentOpen ? (
-          <AgentSidebar mode={mode} onModeChange={setMode} />
-        ) : null}
+        {agentOpen ? <AgentSidebar mode={mode} onModeChange={setMode} /> : null}
       </div>
 
       <StatusBar
-        shell={activeSession?.shell ?? null}
+        label={activeSession?.label ?? null}
+        kind={activeSession?.kind ?? null}
         size={activeSession?.size ?? null}
         exited={activeSession?.exited ?? false}
         mode={mode}
@@ -211,6 +290,24 @@ export default function App() {
       />
 
       {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
+
+      {dialog === "ssh" ? (
+        <SshConnectDialog
+          busy={creating}
+          error={dialogError}
+          onClose={() => setDialog(null)}
+          onSubmit={(input) => void connectSsh(input)}
+        />
+      ) : null}
+
+      {dialog === "serial" ? (
+        <SerialConnectDialog
+          busy={creating}
+          error={dialogError}
+          onClose={() => setDialog(null)}
+          onSubmit={(input) => void openSerial(input)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -12,7 +12,15 @@
     "phase2Group": "第二階段",
     "serial": "序列埠連線",
     "sftp": "SFTP 檔案",
-    "shells": "可用 Shell"
+    "shells": "可用 Shell",
+    "ssh": "SSH 連線",
+    "laterGroup": "後續切片",
+    "sftpPending": "SFTP 瀏覽器介面將於下一切片接入（後端已可用）",
+    "kinds": {
+      "local": "本機",
+      "ssh": "SSH",
+      "serial": "序列埠"
+    }
   },
   "tabs": {
     "close": "關閉分頁"
@@ -58,6 +66,45 @@
   "common": {
     "phase2": "第二階段",
     "error": "發生錯誤",
-    "retry": "重試"
+    "retry": "重試",
+    "cancel": "取消",
+    "connect": "連線",
+    "connecting": "連線中…",
+    "close": "關閉",
+    "dismiss": "忽略",
+    "pending": "待接入"
+  },
+  "ssh": {
+    "title": "SSH 連線",
+    "host": "主機",
+    "port": "連接埠",
+    "username": "使用者名稱",
+    "auth": "驗證方式",
+    "authPassword": "密碼",
+    "authKey": "私鑰",
+    "password": "密碼",
+    "keyPath": "私鑰路徑",
+    "passphrase": "私鑰口令（選填）"
+  },
+  "serial": {
+    "title": "序列埠連線",
+    "port": "序列埠",
+    "refresh": "重新整理",
+    "selectPort": "選擇序列埠…",
+    "noPorts": "未偵測到序列埠裝置",
+    "desktopOnly": "序列埠僅在桌面應用中可用",
+    "baud": "鮑率",
+    "dataBits": "資料位元",
+    "stopBits": "停止位元",
+    "parity": "同位檢查",
+    "parityNone": "無",
+    "parityOdd": "奇同位",
+    "parityEven": "偶同位",
+    "flowControl": "流量控制",
+    "flowNone": "無",
+    "flowSoftware": "軟體 XON/XOFF",
+    "flowHardware": "硬體 RTS/CTS",
+    "logPath": "原始日誌路徑（選填）",
+    "logPlaceholder": "/tmp/serial.log"
   }
 }

@@ -3,10 +3,12 @@
 
 import { useTranslation } from "react-i18next";
 
+import type { SessionKind } from "../lib/ipc";
 import type { PermissionMode } from "../types";
 
 interface StatusBarProps {
-  shell: string | null;
+  label: string | null;
+  kind: SessionKind | null;
   size: { cols: number; rows: number } | null;
   exited: boolean;
   mode: PermissionMode;
@@ -16,7 +18,8 @@ interface StatusBarProps {
 }
 
 export function StatusBar({
-  shell,
+  label,
+  kind,
   size,
   exited,
   mode,
@@ -31,16 +34,23 @@ export function StatusBar({
       <span className="flex items-center gap-1.5">
         <span
           className={`h-1.5 w-1.5 rounded-full ${
-            shell === null ? "bg-slate-600" : exited ? "bg-rose-400" : "bg-emerald-400"
+            label === null ? "bg-slate-600" : exited ? "bg-rose-400" : "bg-emerald-400"
           }`}
         />
-        {shell ?? "—"}
+        {label ?? "—"}
         {size ? (
           <span className="text-slate-600">
             {size.cols}×{size.rows}
           </span>
         ) : null}
       </span>
+
+      {kind ? (
+        <>
+          <span className="text-slate-700">|</span>
+          <span className="text-slate-500">{t(`sidebar.kinds.${kind}`)}</span>
+        </>
+      ) : null}
 
       <span className="text-slate-700">|</span>
       <span>

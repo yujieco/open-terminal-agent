@@ -60,7 +60,7 @@ export function TerminalWorkspace({
                     session.exited ? "bg-rose-400" : "bg-emerald-400"
                   }`}
                 />
-                <span className="font-mono">{session.shell}</span>
+                <span className="font-mono">{session.label}</span>
               </button>
               <button
                 type="button"

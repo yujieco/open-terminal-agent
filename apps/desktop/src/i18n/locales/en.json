@@ -12,7 +12,15 @@
     "phase2Group": "Phase 2",
     "serial": "Serial connection",
     "sftp": "SFTP files",
-    "shells": "Available shells"
+    "shells": "Available shells",
+    "ssh": "SSH",
+    "laterGroup": "Later slices",
+    "sftpPending": "The SFTP file browser UI arrives in the next slice; the backend already works",
+    "kinds": {
+      "local": "local",
+      "ssh": "ssh",
+      "serial": "serial"
+    }
   },
   "tabs": {
     "close": "Close tab"
@@ -58,6 +66,45 @@
   "common": {
     "phase2": "Phase 2",
     "error": "Something went wrong",
-    "retry": "Retry"
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "connect": "Connect",
+    "connecting": "Connecting…",
+    "close": "Close",
+    "dismiss": "Dismiss",
+    "pending": "pending"
+  },
+  "ssh": {
+    "title": "SSH connection",
+    "host": "Host",
+    "port": "Port",
+    "username": "User",
+    "auth": "Authentication",
+    "authPassword": "Password",
+    "authKey": "Private key",
+    "password": "Password",
+    "keyPath": "Key path",
+    "passphrase": "Key passphrase (optional)"
+  },
+  "serial": {
+    "title": "Serial connection",
+    "port": "Port",
+    "refresh": "Refresh",
+    "selectPort": "Select a port…",
+    "noPorts": "No serial device found",
+    "desktopOnly": "Serial ports are only available in the desktop app",
+    "baud": "Baud rate",
+    "dataBits": "Data bits",
+    "stopBits": "Stop bits",
+    "parity": "Parity",
+    "parityNone": "None",
+    "parityOdd": "Odd",
+    "parityEven": "Even",
+    "flowControl": "Flow control",
+    "flowNone": "None",
+    "flowSoftware": "Software XON/XOFF",
+    "flowHardware": "Hardware RTS/CTS",
+    "logPath": "Raw log path (optional)",
+    "logPlaceholder": "/tmp/serial.log"
   }
 }

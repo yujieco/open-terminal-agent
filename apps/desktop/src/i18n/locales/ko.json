@@ -12,7 +12,15 @@
     "phase2Group": "2단계",
     "serial": "시리얼 연결",
     "sftp": "SFTP 파일",
-    "shells": "사용 가능한 셸"
+    "shells": "사용 가능한 셸",
+    "ssh": "SSH",
+    "laterGroup": "다음 단계",
+    "sftpPending": "SFTP 파일 브라우저 UI는 다음 단계에서 추가됩니다(백엔드는 이미 동작)",
+    "kinds": {
+      "local": "로컬",
+      "ssh": "ssh",
+      "serial": "시리얼"
+    }
   },
   "tabs": {
     "close": "탭 닫기"
@@ -58,6 +66,45 @@
   "common": {
     "phase2": "2단계",
     "error": "오류가 발생했습니다",
-    "retry": "다시 시도"
+    "retry": "다시 시도",
+    "cancel": "취소",
+    "connect": "연결",
+    "connecting": "연결 중…",
+    "close": "닫기",
+    "dismiss": "닫기",
+    "pending": "미지원"
+  },
+  "ssh": {
+    "title": "SSH 연결",
+    "host": "호스트",
+    "port": "포트",
+    "username": "사용자",
+    "auth": "인증 방식",
+    "authPassword": "비밀번호",
+    "authKey": "개인 키",
+    "password": "비밀번호",
+    "keyPath": "키 경로",
+    "passphrase": "키 암호(선택)"
+  },
+  "serial": {
+    "title": "시리얼 연결",
+    "port": "포트",
+    "refresh": "새로 고침",
+    "selectPort": "포트 선택…",
+    "noPorts": "시리얼 장치를 찾을 수 없습니다",
+    "desktopOnly": "시리얼 포트는 데스크톱 앱에서만 사용할 수 있습니다",
+    "baud": "보드레이트",
+    "dataBits": "데이터 비트",
+    "stopBits": "정지 비트",
+    "parity": "패리티",
+    "parityNone": "없음",
+    "parityOdd": "홀수",
+    "parityEven": "짝수",
+    "flowControl": "흐름 제어",
+    "flowNone": "없음",
+    "flowSoftware": "소프트웨어 XON/XOFF",
+    "flowHardware": "하드웨어 RTS/CTS",
+    "logPath": "원본 로그 경로(선택)",
+    "logPlaceholder": "/tmp/serial.log"
   }
 }

@@ -15,6 +15,8 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 export const TERMINAL_OUTPUT_EVENT = "terminal://output";
 export const TERMINAL_EXIT_EVENT = "terminal://exit";
 
+export type SessionKind = "local" | "ssh" | "serial";
+
 export interface LocaleInfo {
   raw: string;
   normalized: string;
@@ -23,7 +25,8 @@ export interface LocaleInfo {
 
 export interface SessionInfo {
   sessionId: string;
-  shell: string;
+  kind: SessionKind;
+  label: string;
   cols: number;
   rows: number;
 }
@@ -43,6 +46,45 @@ export interface ShellProfile {
   label: string;
   command: string;
   default: boolean;
+}
+
+export type SshAuthInput =
+  | { method: "password"; password: string }
+  | { method: "privateKey"; path: string; passphrase?: string };
+
+export interface SshConnectInput {
+  host: string;
+  port: number;
+  username: string;
+  auth: SshAuthInput;
+  cols?: number;
+  rows?: number;
+}
+
+export type SerialStopBits = "one" | "two";
+export type SerialParity = "none" | "odd" | "even";
+export type SerialFlowControl = "none" | "software" | "hardware";
+
+export interface SerialConnectInput {
+  path: string;
+  baudRate: number;
+  dataBits?: number;
+  stopBits?: SerialStopBits;
+  parity?: SerialParity;
+  flowControl?: SerialFlowControl;
+  cols?: number;
+  rows?: number;
+  logPath?: string;
+}
+
+export interface SerialPortDescriptor {
+  path: string;
+  kind: string;
+  vid: number | null;
+  pid: number | null;
+  manufacturer: string | null;
+  product: string | null;
+  serialNumber: string | null;
 }
 
 export interface CursorPosition {
@@ -72,6 +114,21 @@ export interface AgentCapabilities {
   loopPhases: string[];
 }
 
+export interface SftpSessionInfo {
+  connectionId: string;
+  host: string;
+  username: string;
+  home: string;
+}
+
+export interface SftpEntry {
+  name: string;
+  path: string;
+  directory: boolean;
+  symlink: boolean;
+  size: number | null;
+}
+
 /** True when the page runs inside the Tauri WebView rather than a browser. */
 export function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -80,6 +137,18 @@ export function isTauri(): boolean {
 export const ipc = {
   spawnSession(cols: number, rows: number, shell?: string): Promise<SessionInfo> {
     return invoke<SessionInfo>("spawn_session", { request: { cols, rows, shell } });
+  },
+
+  connectSsh(input: SshConnectInput): Promise<SessionInfo> {
+    return invoke<SessionInfo>("connect_ssh", { request: input });
+  },
+
+  openSerial(input: SerialConnectInput): Promise<SessionInfo> {
+    return invoke<SessionInfo>("open_serial", { request: input });
+  },
+
+  serialPorts(): Promise<SerialPortDescriptor[]> {
+    return invoke<SerialPortDescriptor[]>("serial_ports");
   },
 
   writeSession(sessionId: string, data: string): Promise<void> {
@@ -112,6 +181,30 @@ export const ipc = {
 
   agentCapabilities(): Promise<AgentCapabilities> {
     return invoke<AgentCapabilities>("agent_capabilities");
+  },
+
+  sftpConnect(input: SshConnectInput): Promise<SftpSessionInfo> {
+    return invoke<SftpSessionInfo>("sftp_connect", { request: input });
+  },
+
+  sftpListDir(connectionId: string, path: string): Promise<SftpEntry[]> {
+    return invoke<SftpEntry[]>("sftp_list_dir", { connectionId, path });
+  },
+
+  sftpDownload(
+    connectionId: string,
+    remotePath: string,
+    localPath: string,
+  ): Promise<number> {
+    return invoke<number>("sftp_download", { connectionId, remotePath, localPath });
+  },
+
+  sftpUpload(connectionId: string, localPath: string, remotePath: string): Promise<number> {
+    return invoke<number>("sftp_upload", { connectionId, localPath, remotePath });
+  },
+
+  sftpClose(connectionId: string): Promise<void> {
+    return invoke<void>("sftp_close", { connectionId });
   },
 };
 
