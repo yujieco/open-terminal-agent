@@ -168,5 +168,14 @@
     "uploadRemote": "遠端目標路徑",
     "transferred": "傳輸完成",
     "disconnect": "中斷"
+  },
+  "palette": {
+    "placeholder": "用一句話描述你要做的事，例如：找出佔用 8080 埠的程序",
+    "generate": "按 Enter 產生",
+    "generating": "產生中…",
+    "insert": "寫入終端機",
+    "regenerate": "重新產生",
+    "hint": "只寫入不執行，按 Enter 才會執行",
+    "noSession": "目前沒有終端機工作階段"
   }
 }

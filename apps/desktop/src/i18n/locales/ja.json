@@ -168,5 +168,14 @@
     "uploadRemote": "リモートの保存先パス",
     "transferred": "転送完了",
     "disconnect": "切断"
+  },
+  "palette": {
+    "placeholder": "やりたいことを一文で。例: 8080 番ポートを使うプロセスを探す",
+    "generate": "Enter で生成",
+    "generating": "生成中…",
+    "insert": "ターミナルに書き込む",
+    "regenerate": "再生成",
+    "hint": "書き込むだけで実行はしません（Enter で実行）",
+    "noSession": "ターミナルセッションがありません"
   }
 }

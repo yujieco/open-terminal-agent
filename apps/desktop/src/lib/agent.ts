@@ -97,6 +97,10 @@ export const agentIpc = {
     return invoke<void>("save_llm_config", { ...input });
   },
 
+  suggest(input: { prompt: string; context?: string }): Promise<string> {
+    return invoke<string>("suggest_command", { request: input });
+  },
+
   discover(): Promise<LocalModel[]> {
     return invoke<LocalModel[]>("discover_models");
   },

@@ -168,5 +168,14 @@
     "uploadRemote": "Remote destination path",
     "transferred": "Transferred",
     "disconnect": "Disconnect"
+  },
+  "palette": {
+    "placeholder": "Describe the task in one sentence, e.g. find the process on port 8080",
+    "generate": "Enter to generate",
+    "generating": "Generating…",
+    "insert": "Write to terminal",
+    "regenerate": "Regenerate",
+    "hint": "Written, not run — press Enter yourself",
+    "noSession": "No terminal session"
   }
 }

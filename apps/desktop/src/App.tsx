@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { AgentSidebar } from "./components/AgentSidebar";
 import { SerialConnectDialog } from "./components/SerialConnectDialog";
 import { SessionSidebar } from "./components/SessionSidebar";
+import { CommandPalette } from "./components/CommandPalette";
 import { SftpDrawer } from "./components/SftpDrawer";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { SshConnectDialog } from "./components/SshConnectDialog";
@@ -41,6 +42,7 @@ export default function App() {
   const [agentOpen, setAgentOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sftpOpen, setSftpOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -203,6 +205,18 @@ export default function App() {
       }
       return next;
     });
+  }, []);
+
+  // Ctrl+K opens the command palette from anywhere.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setPaletteOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
   // Global take-over: Esc hands the terminal back, no matter where focus is.
@@ -414,6 +428,13 @@ export default function App() {
       {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
 
       {sftpOpen ? <SftpDrawer saved={saved} onClose={() => setSftpOpen(false)} /> : null}
+
+      {paletteOpen ? (
+        <CommandPalette
+          backend={activeSession?.backend ?? null}
+          onClose={() => setPaletteOpen(false)}
+        />
+      ) : null}
 
       {dialog === "ssh" ? (
         <SshConnectDialog

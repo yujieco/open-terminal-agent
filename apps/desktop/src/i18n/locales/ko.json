@@ -168,5 +168,14 @@
     "uploadRemote": "원격 대상 경로",
     "transferred": "전송 완료",
     "disconnect": "연결 해제"
+  },
+  "palette": {
+    "placeholder": "하고 싶은 일을 한 문장으로. 예: 8080 포트를 쓰는 프로세스 찾기",
+    "generate": "Enter로 생성",
+    "generating": "생성 중…",
+    "insert": "터미널에 입력",
+    "regenerate": "다시 생성",
+    "hint": "입력만 하고 실행하지 않습니다(Enter로 실행)",
+    "noSession": "터미널 세션이 없습니다"
   }
 }

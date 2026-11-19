@@ -168,5 +168,14 @@
     "uploadRemote": "远端目标路径",
     "transferred": "传输完成",
     "disconnect": "断开"
+  },
+  "palette": {
+    "placeholder": "用一句话描述你要做的事，例如：找出占用 8080 端口的进程",
+    "generate": "回车生成",
+    "generating": "生成中…",
+    "insert": "写入终端",
+    "regenerate": "重新生成",
+    "hint": "命令只写入、不执行，按 Enter 才运行",
+    "noSession": "当前没有终端会话"
   }
 }
