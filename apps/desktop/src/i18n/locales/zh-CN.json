@@ -1,0 +1,63 @@
+{
+  "app": {
+    "name": "Open Terminal Agent",
+    "tagline": "终端里的 AI 操作员",
+    "demoBadge": "浏览器演示"
+  },
+  "sidebar": {
+    "sessions": "会话",
+    "noSessions": "还没有会话，点击下方按钮启动本地终端。",
+    "newSession": "新建本地终端",
+    "creating": "正在启动…",
+    "phase2Group": "第二阶段",
+    "serial": "串口连接",
+    "sftp": "SFTP 文件",
+    "shells": "可用 Shell"
+  },
+  "tabs": {
+    "close": "关闭标签页"
+  },
+  "terminal": {
+    "empty": "点击左侧「新建本地终端」开始。",
+    "exited": "进程已退出"
+  },
+  "agent": {
+    "title": "AI Agent",
+    "subtitle": "观察 · 推理 · 执行 · 校验",
+    "empty": "Agent 循环将在第二阶段接入：它会读取影子屏幕、按权限策略执行命令并校验结果。",
+    "mode": "自治模式",
+    "modes": {
+      "ask": "每次询问",
+      "supervised": "受监督",
+      "autonomous": "全自动"
+    },
+    "modesHint": {
+      "ask": "每次写入终端都需要你确认。",
+      "supervised": "只读检查自动执行，改状态或破坏性命令需要确认。",
+      "autonomous": "自动执行直到任务完成或步数耗尽。"
+    },
+    "takeOver": "紧急接管",
+    "takeOverHint": "第二阶段启用 · Esc"
+  },
+  "status": {
+    "connection": "连接",
+    "mode": "模式",
+    "locale": "语言",
+    "sessions": "会话",
+    "ready": "就绪",
+    "exited": "已退出",
+    "demo": "演示"
+  },
+  "settings": {
+    "title": "设置",
+    "language": "界面语言",
+    "languageHint": "启动时按系统语言自动选择，可随时手动切换。",
+    "close": "关闭",
+    "phase": "更多设置（LLM、密钥、会话库）将在第二阶段提供。"
+  },
+  "common": {
+    "phase2": "第二阶段",
+    "error": "出错了",
+    "retry": "重试"
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "app": {
+    "name": "Open Terminal Agent",
+    "tagline": "터미널 속의 AI 오퍼레이터",
+    "demoBadge": "브라우저 데모"
+  },
+  "sidebar": {
+    "sessions": "세션",
+    "noSessions": "세션이 없습니다. 아래 버튼으로 로컬 터미널을 시작하세요.",
+    "newSession": "새 로컬 터미널",
+    "creating": "시작 중…",
+    "phase2Group": "2단계",
+    "serial": "시리얼 연결",
+    "sftp": "SFTP 파일",
+    "shells": "사용 가능한 셸"
+  },
+  "tabs": {
+    "close": "탭 닫기"
+  },
+  "terminal": {
+    "empty": "왼쪽의 '새 로컬 터미널'에서 시작하세요.",
+    "exited": "프로세스가 종료되었습니다"
+  },
+  "agent": {
+    "title": "AI Agent",
+    "subtitle": "관찰 · 추론 · 실행 · 검증",
+    "empty": "에이전트 루프는 2단계에서 연결됩니다. 섀도 화면을 읽고 권한 정책에 따라 명령을 실행하며 결과를 검증합니다.",
+    "mode": "자율 모드",
+    "modes": {
+      "ask": "매번 확인",
+      "supervised": "감독 하",
+      "autonomous": "완전 자동"
+    },
+    "modesHint": {
+      "ask": "터미널에 쓰기 전마다 승인이 필요합니다.",
+      "supervised": "읽기 전용 점검은 자동 실행하고, 상태 변경과 파괴적 명령은 승인이 필요합니다.",
+      "autonomous": "작업 완료 또는 단계 한도까지 자동 실행합니다."
+    },
+    "takeOver": "긴급 인수",
+    "takeOverHint": "2단계에서 활성화 · Esc"
+  },
+  "status": {
+    "connection": "연결",
+    "mode": "모드",
+    "locale": "언어",
+    "sessions": "세션",
+    "ready": "준비됨",
+    "exited": "종료됨",
+    "demo": "데모"
+  },
+  "settings": {
+    "title": "설정",
+    "language": "인터페이스 언어",
+    "languageHint": "시작 시 시스템 언어로 자동 선택되며 언제든 직접 바꿀 수 있습니다.",
+    "close": "닫기",
+    "phase": "LLM 공급자, 자격 증명, 세션 저장소는 2단계에서 제공됩니다."
+  },
+  "common": {
+    "phase2": "2단계",
+    "error": "오류가 발생했습니다",
+    "retry": "다시 시도"
+  }
+}

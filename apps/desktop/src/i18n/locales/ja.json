@@ -1,0 +1,63 @@
+{
+  "app": {
+    "name": "Open Terminal Agent",
+    "tagline": "ターミナルの中の AI オペレーター",
+    "demoBadge": "ブラウザデモ"
+  },
+  "sidebar": {
+    "sessions": "セッション",
+    "noSessions": "セッションがありません。下のボタンでローカルターミナルを起動してください。",
+    "newSession": "新しいローカルターミナル",
+    "creating": "起動中…",
+    "phase2Group": "フェーズ 2",
+    "serial": "シリアル接続",
+    "sftp": "SFTP ファイル",
+    "shells": "利用可能なシェル"
+  },
+  "tabs": {
+    "close": "タブを閉じる"
+  },
+  "terminal": {
+    "empty": "左側の「新しいローカルターミナル」から開始してください。",
+    "exited": "プロセスが終了しました"
+  },
+  "agent": {
+    "title": "AI Agent",
+    "subtitle": "観察 · 推論 · 実行 · 検証",
+    "empty": "エージェントループはフェーズ 2 で接続されます。シャドウスクリーンを読み、権限ポリシーに従ってコマンドを実行し、結果を検証します。",
+    "mode": "自律モード",
+    "modes": {
+      "ask": "毎回確認",
+      "supervised": "監督下",
+      "autonomous": "全自動"
+    },
+    "modesHint": {
+      "ask": "ターミナルへの書き込みごとに承認が必要です。",
+      "supervised": "読み取り専用の確認は自動実行し、状態変更や破壊的コマンドは承認が必要です。",
+      "autonomous": "タスク完了またはステップ上限まで自動実行します。"
+    },
+    "takeOver": "緊急停止",
+    "takeOverHint": "フェーズ 2 で有効 · Esc"
+  },
+  "status": {
+    "connection": "接続",
+    "mode": "モード",
+    "locale": "言語",
+    "sessions": "セッション",
+    "ready": "準備完了",
+    "exited": "終了",
+    "demo": "デモ"
+  },
+  "settings": {
+    "title": "設定",
+    "language": "表示言語",
+    "languageHint": "起動時にシステム言語から自動選択され、いつでも切り替えられます。",
+    "close": "閉じる",
+    "phase": "LLM プロバイダー、認証情報、セッションストアはフェーズ 2 で提供されます。"
+  },
+  "common": {
+    "phase2": "フェーズ 2",
+    "error": "エラーが発生しました",
+    "retry": "再試行"
+  }
+}

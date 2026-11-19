@@ -1,0 +1,63 @@
+{
+  "app": {
+    "name": "Open Terminal Agent",
+    "tagline": "An AI operator inside your terminal",
+    "demoBadge": "Browser demo"
+  },
+  "sidebar": {
+    "sessions": "Sessions",
+    "noSessions": "No sessions yet. Start a local terminal below.",
+    "newSession": "New local terminal",
+    "creating": "Starting…",
+    "phase2Group": "Phase 2",
+    "serial": "Serial connection",
+    "sftp": "SFTP files",
+    "shells": "Available shells"
+  },
+  "tabs": {
+    "close": "Close tab"
+  },
+  "terminal": {
+    "empty": "Start a local terminal from the sidebar to begin.",
+    "exited": "Process exited"
+  },
+  "agent": {
+    "title": "AI Agent",
+    "subtitle": "Observe · Reason · Act · Verify",
+    "empty": "The agent loop arrives in phase 2: it reads the shadow screen, runs commands under the permission policy and verifies the result.",
+    "mode": "Autonomy mode",
+    "modes": {
+      "ask": "Ask",
+      "supervised": "Supervised",
+      "autonomous": "Autonomous"
+    },
+    "modesHint": {
+      "ask": "Every write to the terminal needs your approval.",
+      "supervised": "Read-only inspection runs freely; state changes need approval.",
+      "autonomous": "Runs until the task completes or the step budget runs out."
+    },
+    "takeOver": "Take over",
+    "takeOverHint": "Enabled in phase 2 · Esc"
+  },
+  "status": {
+    "connection": "Connection",
+    "mode": "Mode",
+    "locale": "Language",
+    "sessions": "Sessions",
+    "ready": "Ready",
+    "exited": "Exited",
+    "demo": "Demo"
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Interface language",
+    "languageHint": "Selected from the OS locale on launch; switch any time.",
+    "close": "Close",
+    "phase": "LLM providers, credentials and the session store arrive in phase 2."
+  },
+  "common": {
+    "phase2": "Phase 2",
+    "error": "Something went wrong",
+    "retry": "Retry"
+  }
+}

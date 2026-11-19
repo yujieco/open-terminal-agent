@@ -1,0 +1,63 @@
+{
+  "app": {
+    "name": "Open Terminal Agent",
+    "tagline": "終端機裡的 AI 操作員",
+    "demoBadge": "瀏覽器示範"
+  },
+  "sidebar": {
+    "sessions": "工作階段",
+    "noSessions": "尚無工作階段，點擊下方按鈕啟動本機終端機。",
+    "newSession": "新增本機終端機",
+    "creating": "正在啟動…",
+    "phase2Group": "第二階段",
+    "serial": "序列埠連線",
+    "sftp": "SFTP 檔案",
+    "shells": "可用 Shell"
+  },
+  "tabs": {
+    "close": "關閉分頁"
+  },
+  "terminal": {
+    "empty": "點擊左側「新增本機終端機」開始。",
+    "exited": "程序已結束"
+  },
+  "agent": {
+    "title": "AI Agent",
+    "subtitle": "觀察 · 推理 · 執行 · 驗證",
+    "empty": "Agent 迴圈將於第二階段接入：它會讀取影子畫面、依權限策略執行指令並驗證結果。",
+    "mode": "自主模式",
+    "modes": {
+      "ask": "每次詢問",
+      "supervised": "受監督",
+      "autonomous": "全自動"
+    },
+    "modesHint": {
+      "ask": "每次寫入終端機都需要你確認。",
+      "supervised": "唯讀檢查自動執行，變更狀態或破壞性指令需要確認。",
+      "autonomous": "自動執行直到任務完成或步數用盡。"
+    },
+    "takeOver": "緊急接管",
+    "takeOverHint": "第二階段啟用 · Esc"
+  },
+  "status": {
+    "connection": "連線",
+    "mode": "模式",
+    "locale": "語言",
+    "sessions": "工作階段",
+    "ready": "就緒",
+    "exited": "已結束",
+    "demo": "示範"
+  },
+  "settings": {
+    "title": "設定",
+    "language": "介面語言",
+    "languageHint": "啟動時依系統語言自動選擇，可隨時手動切換。",
+    "close": "關閉",
+    "phase": "更多設定（LLM、金鑰、工作階段資料庫）將於第二階段提供。"
+  },
+  "common": {
+    "phase2": "第二階段",
+    "error": "發生錯誤",
+    "retry": "重試"
+  }
+}
