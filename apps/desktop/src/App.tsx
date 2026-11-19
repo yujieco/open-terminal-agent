@@ -15,6 +15,7 @@ import { StatusBar } from "./components/StatusBar";
 import { TerminalWorkspace } from "./components/TerminalWorkspace";
 import { changeLanguage } from "./i18n";
 import { agentIpc } from "./lib/agent";
+import { leaf, remove, sessionIds } from "./lib/panes";
 import { createTerminalBackend, terminalBackendFor, type SessionSpec } from "./lib/backend";
 import {
   ipc,
@@ -25,7 +26,7 @@ import {
   type SshConnectInput,
 } from "./lib/ipc";
 import { resolveLanguage } from "./lib/locale";
-import type { PermissionMode, SessionView } from "./types";
+import type { PermissionMode, SessionView, TabView } from "./types";
 
 const DEFAULT_COLS = 100;
 const DEFAULT_ROWS = 30;
@@ -35,6 +36,7 @@ type DialogKind = "ssh" | "serial" | null;
 export default function App() {
   const { t, i18n } = useTranslation();
   const [sessions, setSessions] = useState<SessionView[]>([]);
+  const [tabs, setTabs] = useState<TabView[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [shells, setShells] = useState<ShellProfile[]>([]);
   const [saved, setSaved] = useState<SavedSession[]>([]);
@@ -60,6 +62,10 @@ export default function App() {
   const registerView = useCallback(
     (view: SessionView) => {
       setSessions((previous) => [...previous, view]);
+      setTabs((previous) => [
+        ...previous,
+        { id: view.id, panes: leaf(view.id), activeSessionId: view.id },
+      ]);
       setActiveId(view.id);
     },
     [],
@@ -236,6 +242,22 @@ export default function App() {
     target?.backend.dispose();
     const remaining = sessionsRef.current.filter((session) => session.id !== sessionId);
     setSessions(remaining);
+
+    // The pane tree owns closing: removing the last pane drops the tab.
+    setTabs((previous) =>
+      previous.flatMap((tab) => {
+        const panes = remove(tab.panes, sessionId);
+        if (panes === null) return [];
+        const fallback = sessionIds(panes)[0] ?? null;
+        return [
+          {
+            ...tab,
+            panes,
+            activeSessionId: tab.activeSessionId === sessionId ? fallback : tab.activeSessionId,
+          },
+        ];
+      }),
+    );
     setActiveId((current) =>
       current === sessionId ? (remaining[0]?.id ?? null) : current,
     );
@@ -286,6 +308,16 @@ export default function App() {
       await createLocalSession();
     })();
   }, [createLocalSession, refreshSaved]);
+
+  // Visual order comes from the tab trees, not from insertion order, so a future
+  // split renders panes in the order the tree describes.
+  const orderedSessions = useMemo(() => {
+    const byId = new Map(sessions.map((session) => [session.id, session]));
+    return tabs
+      .flatMap((tab) => sessionIds(tab.panes))
+      .map((id) => byId.get(id))
+      .filter((session): session is SessionView => session !== undefined);
+  }, [sessions, tabs]);
 
   const activeSession = sessions.find((session) => session.id === activeId) ?? null;
 
@@ -369,7 +401,7 @@ export default function App() {
 
       <div className="flex min-h-0 flex-1">
         <SessionSidebar
-          sessions={sessions}
+          sessions={orderedSessions}
           activeId={activeId}
           shells={shells}
           saved={saved}
@@ -391,7 +423,7 @@ export default function App() {
 
         <main className="flex min-w-0 flex-1 flex-col">
           <TerminalWorkspace
-            sessions={sessions}
+            sessions={orderedSessions}
             activeId={activeId}
             exitedLabel={t("terminal.exited")}
             emptyLabel={t("terminal.empty")}
@@ -420,7 +452,7 @@ export default function App() {
         exited={activeSession?.exited ?? false}
         mode={mode}
         locale={i18n.language}
-        sessionCount={sessions.length}
+        sessionCount={orderedSessions.length}
         demo={demo}
         agentRunning={activeId ? Boolean(agentRunning[activeId]) : false}
       />
