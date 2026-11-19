@@ -30,7 +30,13 @@
   },
   "terminal": {
     "empty": "왼쪽의 '새 로컬 터미널'에서 시작하세요.",
-    "exited": "프로세스가 종료되었습니다"
+    "exited": "프로세스가 종료되었습니다",
+    "hexMode": "HEX",
+    "utf8Mode": "UTF-8",
+    "hexSend": "보내기",
+    "hexPlaceholder": "예: 0D 0A 또는 41 54 0D",
+    "hexInvalid": "16진수를 짝수 자리로 입력하세요",
+    "hexEmpty": "아직 바이트가 없습니다. 장치 출력을 기다리는 중…"
   },
   "agent": {
     "title": "AI Agent",

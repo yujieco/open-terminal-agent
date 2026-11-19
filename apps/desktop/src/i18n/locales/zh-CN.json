@@ -30,7 +30,13 @@
   },
   "terminal": {
     "empty": "点击左侧「新建本地终端」开始。",
-    "exited": "进程已退出"
+    "exited": "进程已退出",
+    "hexMode": "HEX",
+    "utf8Mode": "UTF-8",
+    "hexSend": "发送",
+    "hexPlaceholder": "例如 0D 0A 或 41 54 0D",
+    "hexInvalid": "请填写偶数位的十六进制",
+    "hexEmpty": "暂无字节，等待设备输出…"
   },
   "agent": {
     "title": "AI Agent",

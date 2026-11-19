@@ -30,7 +30,13 @@
   },
   "terminal": {
     "empty": "左側の「新しいローカルターミナル」から開始してください。",
-    "exited": "プロセスが終了しました"
+    "exited": "プロセスが終了しました",
+    "hexMode": "HEX",
+    "utf8Mode": "UTF-8",
+    "hexSend": "送信",
+    "hexPlaceholder": "例: 0D 0A または 41 54 0D",
+    "hexInvalid": "16 進数を偶数桁で入力してください",
+    "hexEmpty": "まだバイトがありません。デバイスの出力を待っています…"
   },
   "agent": {
     "title": "AI Agent",

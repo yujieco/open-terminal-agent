@@ -186,6 +186,10 @@ export const ipc = {
     return invoke<SerialPortDescriptor[]>("serial_ports");
   },
 
+  writeSessionBytes(sessionId: string, dataBase64: string): Promise<void> {
+    return invoke<void>("write_session_bytes", { sessionId, dataBase64 });
+  },
+
   writeKeystrokes(sessionId: string, data: string): Promise<void> {
     return invoke<void>("write_keystrokes", { sessionId, data });
   },

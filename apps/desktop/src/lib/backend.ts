@@ -29,8 +29,12 @@ export interface TerminalBackend {
   readonly kind: SessionKind;
   readonly label: string;
   write(data: string): void;
+  /** Sends raw bytes, used by the serial HEX composer. */
+  writeBytes(data: Uint8Array): void;
   resize(cols: number, rows: number): void;
   onOutput(listener: (text: string) => void): () => void;
+  /** Raw bytes before UTF-8 decoding, used by the serial HEX view. */
+  onRawOutput(listener: (bytes: Uint8Array) => void): () => void;
   onExit(listener: () => void): () => void;
   dispose(): void;
 }
@@ -108,6 +112,7 @@ async function spawnSession(spec: SessionSpec): Promise<SessionInfo> {
 
 export function terminalBackendFor(info: SessionInfo): TerminalBackend {
   const outputListeners = new Set<(text: string) => void>();
+  const rawListeners = new Set<(bytes: Uint8Array) => void>();
   const exitListeners = new Set<() => void>();
   // A single streaming decoder keeps multi-byte UTF-8 glyphs intact even when a
   // character is split across two batched frames.
@@ -119,7 +124,9 @@ export function terminalBackendFor(info: SessionInfo): TerminalBackend {
 
   void onTerminalOutput((payload) => {
     if (payload.sessionId !== info.sessionId) return;
-    const text = decoder.decode(decodeBase64(payload.dataBase64), { stream: true });
+    const bytes = decodeBase64(payload.dataBase64);
+    for (const listener of rawListeners) listener(bytes);
+    const text = decoder.decode(bytes, { stream: true });
     if (text.length > 0) {
       for (const listener of outputListeners) listener(text);
     }
@@ -143,12 +150,21 @@ export function terminalBackendFor(info: SessionInfo): TerminalBackend {
     write(data) {
       void ipc.writeKeystrokes(info.sessionId, data).catch(console.error);
     },
+    writeBytes(data) {
+      void ipc
+        .writeSessionBytes(info.sessionId, encodeBase64(data))
+        .catch(console.error);
+    },
     resize(cols, rows) {
       void ipc.resizeSession(info.sessionId, cols, rows).catch(console.error);
     },
     onOutput(listener) {
       outputListeners.add(listener);
       return () => outputListeners.delete(listener);
+    },
+    onRawOutput(listener) {
+      rawListeners.add(listener);
+      return () => rawListeners.delete(listener);
     },
     onExit(listener) {
       exitListeners.add(listener);
@@ -157,6 +173,7 @@ export function terminalBackendFor(info: SessionInfo): TerminalBackend {
     dispose() {
       disposed = true;
       outputListeners.clear();
+      rawListeners.clear();
       exitListeners.clear();
       unlistenOutput?.();
       unlistenExit?.();
@@ -229,12 +246,19 @@ function createDemoBackend(cols: number, rows: number): TerminalBackend {
         }
       }
     },
+    writeBytes(data) {
+      this.write(new TextDecoder().decode(data));
+    },
     resize() {
       // The demo shell has no grid to resize.
     },
     onOutput(listener) {
       outputListeners.add(listener);
       return () => outputListeners.delete(listener);
+    },
+    onRawOutput() {
+      // The demo shell has no raw byte stream.
+      return () => {};
     },
     onExit(listener) {
       exitListeners.add(listener);
@@ -246,6 +270,12 @@ function createDemoBackend(cols: number, rows: number): TerminalBackend {
       exitListeners.clear();
     },
   };
+}
+
+function encodeBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
 }
 
 function decodeBase64(encoded: string): Uint8Array {

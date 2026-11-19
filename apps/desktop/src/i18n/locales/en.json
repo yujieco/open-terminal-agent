@@ -30,7 +30,13 @@
   },
   "terminal": {
     "empty": "Start a local terminal from the sidebar to begin.",
-    "exited": "Process exited"
+    "exited": "Process exited",
+    "hexMode": "HEX",
+    "utf8Mode": "UTF-8",
+    "hexSend": "Send",
+    "hexPlaceholder": "e.g. 0D 0A or 41 54 0D",
+    "hexInvalid": "Enter an even number of hex digits",
+    "hexEmpty": "No bytes yet; waiting for the device…"
   },
   "agent": {
     "title": "AI Agent",
