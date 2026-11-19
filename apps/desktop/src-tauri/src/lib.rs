@@ -55,6 +55,7 @@ pub fn run() {
             commands::sftp_download,
             commands::sftp_upload,
             commands::sftp_close,
+            commands::sftp_connect_saved,
             commands::save_ssh_session,
             commands::list_saved_sessions,
             commands::delete_saved_session,

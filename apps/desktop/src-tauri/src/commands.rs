@@ -1063,3 +1063,71 @@ pub fn get_agent_run(
 ) -> Result<Option<AgentRunRecord>, ApiError> {
     Ok(store.get_agent_run(&id)?)
 }
+
+/// Opens SFTP using a stored SSH profile, resolving its secret first.
+#[tauri::command]
+pub async fn sftp_connect_saved(
+    registry: State<'_, SftpRegistry>,
+    store: State<'_, Store>,
+    secrets: State<'_, SecretStore>,
+    id: String,
+) -> Result<SftpSessionInfo, ApiError> {
+    let saved = store
+        .get(&id)?
+        .ok_or_else(|| ApiError::UnknownSavedSession(id.clone()))?;
+    if saved.kind != "ssh" {
+        return Err(ApiError::InvalidRequest(String::from(
+            "only SSH profiles can open an SFTP browser",
+        )));
+    }
+
+    let host = string_field(&saved.payload, "host")?;
+    let username = string_field(&saved.payload, "username")?;
+    let port = saved
+        .payload
+        .get("port")
+        .and_then(Value::as_u64)
+        .unwrap_or(22) as u16;
+    let method = saved
+        .payload
+        .get("auth")
+        .and_then(|auth| auth.get("method"))
+        .and_then(Value::as_str)
+        .unwrap_or("password");
+
+    let auth = if method == "privateKey" {
+        let path = saved
+            .payload
+            .get("auth")
+            .and_then(|auth| auth.get("path"))
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned();
+        SshAuthRequest::PrivateKey {
+            path,
+            passphrase: None,
+        }
+    } else {
+        let account = saved
+            .secret_ref
+            .clone()
+            .unwrap_or_else(|| ssh_secret_account(&host, port, &username));
+        let password = secrets
+            .get(&account)?
+            .ok_or_else(|| ApiError::SecretMissing { account })?;
+        SshAuthRequest::Password { password }
+    };
+
+    sftp_connect(
+        registry,
+        SshConnectRequest {
+            host,
+            port,
+            username,
+            auth,
+            cols: default_cols(),
+            rows: default_rows(),
+        },
+    )
+    .await
+}
