@@ -351,11 +351,13 @@ pub fn forward_events(
 }
 
 /// Configures a runtime with the limits this app uses.
-pub fn runtime_config() -> AgentRuntimeConfig {
+pub fn runtime_config(step_approval: bool) -> AgentRuntimeConfig {
     AgentRuntimeConfig {
         max_steps: 24,
         command_timeout: Duration::from_secs(120),
         scrollback: 120,
+        step_approval,
+        ..AgentRuntimeConfig::default()
     }
 }
 
@@ -371,6 +373,7 @@ pub async fn run_task(
     cancelled: Arc<AtomicBool>,
     pending: Arc<Mutex<HashMap<String, oneshot::Sender<bool>>>>,
     task: String,
+    step_approval: bool,
 ) -> AgentResult<()> {
     let client = build_client(api_key)?;
     let model = client.model().to_owned();
@@ -391,7 +394,7 @@ pub async fn run_task(
         events_tx,
         cancelled,
     )
-    .with_config(runtime_config());
+    .with_config(runtime_config(step_approval));
 
     let outcome = runtime.run(&task).await;
 

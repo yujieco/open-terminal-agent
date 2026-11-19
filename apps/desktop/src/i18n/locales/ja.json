@@ -68,7 +68,8 @@
     "history": "履歴",
     "noHistory": "実行履歴はまだありません",
     "replay": "再生",
-    "interrupted": "人手の入力により引き継がれ、エージェントは停止しました"
+    "interrupted": "人手の入力により引き継がれ、エージェントは停止しました",
+    "stepMode": "1 ステップずつ：毎回確認する"
   },
   "status": {
     "connection": "接続",

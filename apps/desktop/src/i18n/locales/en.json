@@ -68,7 +68,8 @@
     "history": "history",
     "noHistory": "No runs recorded yet",
     "replay": "Replay",
-    "interrupted": "Taken over by human input; the agent stopped"
+    "interrupted": "Taken over by human input; the agent stopped",
+    "stepMode": "Step through: ask before every command"
   },
   "status": {
     "connection": "Connection",

@@ -58,6 +58,7 @@ export function AgentSidebar({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [runs, setRuns] = useState<AgentRunSummary[]>([]);
   const [replaying, setReplaying] = useState<string | null>(null);
+  const [stepApproval, setStepApproval] = useState(false);
   const [keyDraft, setKeyDraft] = useState("");
   const sessionRef = useRef<string | null>(sessionId);
 
@@ -199,13 +200,13 @@ export function AgentSidebar({
     setReplaying(null);
     onRunningChange(sessionId, true);
     try {
-      await agentIpc.run({ sessionId, task: task.trim(), mode });
+      await agentIpc.run({ sessionId, task: task.trim(), mode, stepApproval });
       setTask("");
     } catch (cause) {
       setRunning(false);
       setFailure(cause instanceof Error ? cause.message : String(cause));
     }
-  }, [mode, sessionId, task]);
+  }, [mode, sessionId, stepApproval, task]);
 
   const loadHistory = useCallback(async () => {
     if (!sessionId) return;
@@ -306,6 +307,15 @@ export function AgentSidebar({
         <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
           {t(`agent.modesHint.${mode}`)}
         </p>
+        <label className="mt-1.5 flex cursor-pointer items-center gap-1.5 text-[10px] text-slate-400">
+          <input
+            type="checkbox"
+            checked={stepApproval}
+            onChange={(event) => setStepApproval(event.target.checked)}
+            className="h-3 w-3 accent-cyan-400"
+          />
+          {t("agent.stepMode")}
+        </label>
       </section>
 
       {llm && !llm.configured ? (

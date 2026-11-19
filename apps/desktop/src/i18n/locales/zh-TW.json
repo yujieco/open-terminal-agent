@@ -68,7 +68,8 @@
     "history": "歷史",
     "noHistory": "尚無執行紀錄",
     "replay": "回放",
-    "interrupted": "已由人工輸入接管，Agent 已停止"
+    "interrupted": "已由人工輸入接管，Agent 已停止",
+    "stepMode": "單步執行：每條指令都先問我"
   },
   "status": {
     "connection": "連線",

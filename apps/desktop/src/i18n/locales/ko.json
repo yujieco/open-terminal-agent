@@ -68,7 +68,8 @@
     "history": "기록",
     "noHistory": "실행 기록이 없습니다",
     "replay": "재생",
-    "interrupted": "사람의 입력으로 제어권이 넘어가 에이전트가 중지되었습니다"
+    "interrupted": "사람의 입력으로 제어권이 넘어가 에이전트가 중지되었습니다",
+    "stepMode": "단계별 실행: 모든 명령 전에 확인"
   },
   "status": {
     "connection": "연결",

@@ -69,6 +69,7 @@ export interface AgentRunInput {
   sessionId: string;
   task: string;
   mode?: string;
+  stepApproval?: boolean;
 }
 
 export const agentIpc = {

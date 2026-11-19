@@ -932,6 +932,9 @@ pub struct AgentRunRequest {
     /// Autonomy mode; supervised when omitted.
     #[serde(default)]
     pub mode: Option<PermissionMode>,
+    /// Ask before every command, even read-only ones.
+    #[serde(default)]
+    pub step_approval: bool,
 }
 
 /// Starts an agent run; steps stream over `agent://event` as they happen.
@@ -980,6 +983,7 @@ pub fn agent_run(
             cancelled,
             Arc::clone(&control.pending),
             request.task,
+            request.step_approval,
         )
         .await;
         if let Err(error) = outcome {
