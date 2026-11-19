@@ -20,7 +20,9 @@
       "local": "本地",
       "ssh": "SSH",
       "serial": "串口"
-    }
+    },
+    "saved": "已保存",
+    "noSaved": "暂无已保存连接"
   },
   "tabs": {
     "close": "关闭标签页"
@@ -32,7 +34,7 @@
   "agent": {
     "title": "AI Agent",
     "subtitle": "观察 · 推理 · 执行 · 校验",
-    "empty": "Agent 循环将在第二阶段接入：它会读取影子屏幕、按权限策略执行命令并校验结果。",
+    "empty": "在这个终端里直接说你要做什么。每条命令都会在执行前出现在这里，执行后附上退出码与输出。",
     "mode": "自治模式",
     "modes": {
       "ask": "每次询问",
@@ -45,7 +47,24 @@
       "autonomous": "自动执行直到任务完成或步数耗尽。"
     },
     "takeOver": "紧急接管",
-    "takeOverHint": "第二阶段启用 · Esc"
+    "takeOverHint": "停止当前任务并拒绝待批准的命令",
+    "noProvider": "未配置模型",
+    "keyHint": "填入 DeepSeek API Key，将保存在系统钥匙串中。",
+    "saveKey": "保存",
+    "command": "命令",
+    "running": "执行中",
+    "rejected": "已拒绝",
+    "approvalNeeded": "该命令需要你批准",
+    "approve": "批准",
+    "reject": "拒绝",
+    "thinking": "思考过程",
+    "placeholder": "例如：看看当前目录里有什么，并解释最大的文件是什么",
+    "send": "发送",
+    "risk": {
+      "readonly": "只读",
+      "mutating": "改状态",
+      "destructive": "破坏性"
+    }
   },
   "status": {
     "connection": "连接",
@@ -72,7 +91,8 @@
     "connecting": "连接中…",
     "close": "关闭",
     "dismiss": "忽略",
-    "pending": "待接入"
+    "pending": "待接入",
+    "delete": "删除"
   },
   "ssh": {
     "title": "SSH 连接",
@@ -84,7 +104,9 @@
     "authKey": "私钥",
     "password": "密码",
     "keyPath": "私钥路径",
-    "passphrase": "私钥口令（可选）"
+    "passphrase": "私钥口令（可选）",
+    "remember": "保存此连接（密码存入系统钥匙串）",
+    "sessionName": "连接名称"
   },
   "serial": {
     "title": "串口连接",

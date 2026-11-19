@@ -10,7 +10,10 @@ interface SshConnectDialogProps {
   busy: boolean;
   error: string | null;
   onClose: () => void;
-  onSubmit: (input: Omit<SshConnectInput, "cols" | "rows">) => void;
+  onSubmit: (
+    input: Omit<SshConnectInput, "cols" | "rows">,
+    save: { name: string; rememberPassword: boolean } | null,
+  ) => void;
 }
 
 type AuthMethod = "password" | "privateKey";
@@ -27,6 +30,8 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
   const [password, setPassword] = useState("");
   const [keyPath, setKeyPath] = useState("~/.ssh/id_ed25519");
   const [passphrase, setPassphrase] = useState("");
+  const [save, setSave] = useState(false);
+  const [sessionName, setSessionName] = useState("");
 
   const submit = () => {
     const parsedPort = Number.parseInt(port, 10);
@@ -38,12 +43,15 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
             path: keyPath,
             passphrase: passphrase.length > 0 ? passphrase : undefined,
           };
-    onSubmit({
-      host: host.trim(),
-      port: Number.isFinite(parsedPort) ? parsedPort : 22,
-      username: username.trim(),
-      auth,
-    });
+    onSubmit(
+      {
+        host: host.trim(),
+        port: Number.isFinite(parsedPort) ? parsedPort : 22,
+        username: username.trim(),
+        auth,
+      },
+      save ? { name: sessionName.trim(), rememberPassword: true } : null,
+    );
   };
 
   const ready = host.trim().length > 0 && username.trim().length > 0;
@@ -155,6 +163,28 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
               </label>
             </>
           )}
+
+          <label className="flex cursor-pointer items-center gap-2 text-[11px] text-slate-400">
+            <input
+              type="checkbox"
+              checked={save}
+              onChange={(event) => setSave(event.target.checked)}
+              className="h-3 w-3 accent-cyan-400"
+            />
+            {t("ssh.remember")}
+          </label>
+
+          {save ? (
+            <label className="block">
+              <span className="text-[11px] text-slate-400">{t("ssh.sessionName")}</span>
+              <input
+                className={FIELD}
+                value={sessionName}
+                placeholder={`${username || "user"}@${host || "host"}`}
+                onChange={(event) => setSessionName(event.target.value)}
+              />
+            </label>
+          ) : null}
 
           {error ? <p className="text-[11px] text-rose-300">{error}</p> : null}
         </div>

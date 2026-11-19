@@ -20,7 +20,9 @@
       "local": "ローカル",
       "ssh": "ssh",
       "serial": "シリアル"
-    }
+    },
+    "saved": "保存済み",
+    "noSaved": "保存された接続はまだありません"
   },
   "tabs": {
     "close": "タブを閉じる"
@@ -32,7 +34,7 @@
   "agent": {
     "title": "AI Agent",
     "subtitle": "観察 · 推論 · 実行 · 検証",
-    "empty": "エージェントループはフェーズ 2 で接続されます。シャドウスクリーンを読み、権限ポリシーに従ってコマンドを実行し、結果を検証します。",
+    "empty": "このターミナルでやりたいことをそのまま書いてください。各コマンドは実行前にここに表示され、実行後は終了コードと出力が付きます。",
     "mode": "自律モード",
     "modes": {
       "ask": "毎回確認",
@@ -45,7 +47,24 @@
       "autonomous": "タスク完了またはステップ上限まで自動実行します。"
     },
     "takeOver": "緊急停止",
-    "takeOverHint": "フェーズ 2 で有効 · Esc"
+    "takeOverHint": "現在のタスクを停止し、保留中のコマンドを拒否します",
+    "noProvider": "モデル未設定",
+    "keyHint": "DeepSeek API キーを貼り付けてください。OS キーチェーンに保存されます。",
+    "saveKey": "保存",
+    "command": "コマンド",
+    "running": "実行中",
+    "rejected": "拒否済み",
+    "approvalNeeded": "このコマンドには承認が必要です",
+    "approve": "承認",
+    "reject": "拒否",
+    "thinking": "思考",
+    "placeholder": "例：このディレクトリを見て、一番大きいファイルを説明して",
+    "send": "送信",
+    "risk": {
+      "readonly": "読み取り専用",
+      "mutating": "状態変更",
+      "destructive": "破壊的"
+    }
   },
   "status": {
     "connection": "接続",
@@ -72,7 +91,8 @@
     "connecting": "接続中…",
     "close": "閉じる",
     "dismiss": "閉じる",
-    "pending": "未対応"
+    "pending": "未対応",
+    "delete": "削除"
   },
   "ssh": {
     "title": "SSH 接続",
@@ -84,7 +104,9 @@
     "authKey": "秘密鍵",
     "password": "パスワード",
     "keyPath": "秘密鍵のパス",
-    "passphrase": "鍵のパスフレーズ（任意）"
+    "passphrase": "鍵のパスフレーズ（任意）",
+    "remember": "この接続を保存（パスワードは OS キーチェーンへ）",
+    "sessionName": "接続名"
   },
   "serial": {
     "title": "シリアル接続",

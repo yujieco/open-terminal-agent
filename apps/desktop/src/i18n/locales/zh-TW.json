@@ -20,7 +20,9 @@
       "local": "本機",
       "ssh": "SSH",
       "serial": "序列埠"
-    }
+    },
+    "saved": "已儲存",
+    "noSaved": "尚無已儲存連線"
   },
   "tabs": {
     "close": "關閉分頁"
@@ -32,7 +34,7 @@
   "agent": {
     "title": "AI Agent",
     "subtitle": "觀察 · 推理 · 執行 · 驗證",
-    "empty": "Agent 迴圈將於第二階段接入：它會讀取影子畫面、依權限策略執行指令並驗證結果。",
+    "empty": "在這個終端機裡直接說明你要做什麼。每條指令都會在執行前出現在這裡，執行後附上結束碼與輸出。",
     "mode": "自主模式",
     "modes": {
       "ask": "每次詢問",
@@ -45,7 +47,24 @@
       "autonomous": "自動執行直到任務完成或步數用盡。"
     },
     "takeOver": "緊急接管",
-    "takeOverHint": "第二階段啟用 · Esc"
+    "takeOverHint": "停止目前任務並拒絕待核准的指令",
+    "noProvider": "尚未設定模型",
+    "keyHint": "填入 DeepSeek API Key，將儲存在系統鑰匙圈中。",
+    "saveKey": "儲存",
+    "command": "指令",
+    "running": "執行中",
+    "rejected": "已拒絕",
+    "approvalNeeded": "此指令需要你核准",
+    "approve": "核准",
+    "reject": "拒絕",
+    "thinking": "思考過程",
+    "placeholder": "例如：看看目前目錄有什麼，並說明最大的檔案是什麼",
+    "send": "送出",
+    "risk": {
+      "readonly": "唯讀",
+      "mutating": "變更狀態",
+      "destructive": "破壞性"
+    }
   },
   "status": {
     "connection": "連線",
@@ -72,7 +91,8 @@
     "connecting": "連線中…",
     "close": "關閉",
     "dismiss": "忽略",
-    "pending": "待接入"
+    "pending": "待接入",
+    "delete": "刪除"
   },
   "ssh": {
     "title": "SSH 連線",
@@ -84,7 +104,9 @@
     "authKey": "私鑰",
     "password": "密碼",
     "keyPath": "私鑰路徑",
-    "passphrase": "私鑰口令（選填）"
+    "passphrase": "私鑰口令（選填）",
+    "remember": "儲存此連線（密碼存入系統鑰匙圈）",
+    "sessionName": "連線名稱"
   },
   "serial": {
     "title": "序列埠連線",

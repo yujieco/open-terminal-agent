@@ -114,6 +114,25 @@ export interface AgentCapabilities {
   loopPhases: string[];
 }
 
+export interface SavedSession {
+  id: string;
+  name: string;
+  kind: SessionKind;
+  payload: Record<string, unknown>;
+  secretRef: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface SaveSshSessionInput {
+  name: string;
+  host: string;
+  port: number;
+  username: string;
+  auth: SshAuthInput;
+  rememberPassword: boolean;
+}
+
 export interface SftpSessionInfo {
   connectionId: string;
   host: string;
@@ -181,6 +200,22 @@ export const ipc = {
 
   agentCapabilities(): Promise<AgentCapabilities> {
     return invoke<AgentCapabilities>("agent_capabilities");
+  },
+
+  saveSshSession(input: SaveSshSessionInput): Promise<SavedSession> {
+    return invoke<SavedSession>("save_ssh_session", { request: input });
+  },
+
+  listSavedSessions(): Promise<SavedSession[]> {
+    return invoke<SavedSession[]>("list_saved_sessions");
+  },
+
+  deleteSavedSession(id: string): Promise<boolean> {
+    return invoke<boolean>("delete_saved_session", { id });
+  },
+
+  connectSavedSession(id: string): Promise<SessionInfo> {
+    return invoke<SessionInfo>("connect_saved_session", { id });
   },
 
   sftpConnect(input: SshConnectInput): Promise<SftpSessionInfo> {

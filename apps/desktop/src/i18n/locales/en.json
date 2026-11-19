@@ -20,7 +20,9 @@
       "local": "local",
       "ssh": "ssh",
       "serial": "serial"
-    }
+    },
+    "saved": "Saved",
+    "noSaved": "No saved connections yet"
   },
   "tabs": {
     "close": "Close tab"
@@ -32,7 +34,7 @@
   "agent": {
     "title": "AI Agent",
     "subtitle": "Observe · Reason · Act · Verify",
-    "empty": "The agent loop arrives in phase 2: it reads the shadow screen, runs commands under the permission policy and verifies the result.",
+    "empty": "Ask for something in this terminal. Every command appears here before it runs, with its exit code and output afterwards.",
     "mode": "Autonomy mode",
     "modes": {
       "ask": "Ask",
@@ -45,7 +47,24 @@
       "autonomous": "Runs until the task completes or the step budget runs out."
     },
     "takeOver": "Take over",
-    "takeOverHint": "Enabled in phase 2 · Esc"
+    "takeOverHint": "Stop the current task and reject pending commands",
+    "noProvider": "no model configured",
+    "keyHint": "Paste a DeepSeek API key; it is stored in the OS keyring.",
+    "saveKey": "Save",
+    "command": "command",
+    "running": "running",
+    "rejected": "rejected",
+    "approvalNeeded": "This command needs your approval",
+    "approve": "Approve",
+    "reject": "Reject",
+    "thinking": "reasoning",
+    "placeholder": "e.g. look at this directory and explain the largest file",
+    "send": "Send",
+    "risk": {
+      "readonly": "read-only",
+      "mutating": "state change",
+      "destructive": "destructive"
+    }
   },
   "status": {
     "connection": "Connection",
@@ -72,7 +91,8 @@
     "connecting": "Connecting…",
     "close": "Close",
     "dismiss": "Dismiss",
-    "pending": "pending"
+    "pending": "pending",
+    "delete": "Delete"
   },
   "ssh": {
     "title": "SSH connection",
@@ -84,7 +104,9 @@
     "authKey": "Private key",
     "password": "Password",
     "keyPath": "Key path",
-    "passphrase": "Key passphrase (optional)"
+    "passphrase": "Key passphrase (optional)",
+    "remember": "Save this connection (password goes to the OS keyring)",
+    "sessionName": "Connection name"
   },
   "serial": {
     "title": "Serial connection",

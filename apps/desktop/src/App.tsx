@@ -12,10 +12,11 @@ import { SshConnectDialog } from "./components/SshConnectDialog";
 import { StatusBar } from "./components/StatusBar";
 import { TerminalWorkspace } from "./components/TerminalWorkspace";
 import { changeLanguage } from "./i18n";
-import { createTerminalBackend, type SessionSpec } from "./lib/backend";
+import { createTerminalBackend, terminalBackendFor, type SessionSpec } from "./lib/backend";
 import {
   ipc,
   isTauri,
+  type SavedSession,
   type SerialConnectInput,
   type ShellProfile,
   type SshConnectInput,
@@ -33,6 +34,7 @@ export default function App() {
   const [sessions, setSessions] = useState<SessionView[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [shells, setShells] = useState<ShellProfile[]>([]);
+  const [saved, setSaved] = useState<SavedSession[]>([]);
   const [mode, setMode] = useState<PermissionMode>("supervised");
   const [agentOpen, setAgentOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -49,12 +51,20 @@ export default function App() {
     sessionsRef.current = sessions;
   }, [sessions]);
 
+  const registerView = useCallback(
+    (view: SessionView) => {
+      setSessions((previous) => [...previous, view]);
+      setActiveId(view.id);
+    },
+    [],
+  );
+
   const openSession = useCallback(async (spec: SessionSpec) => {
     setCreating(true);
     setError(null);
     try {
       const backend = await createTerminalBackend(spec);
-      const view: SessionView = {
+      registerView({
         id: backend.sessionId,
         kind: backend.kind,
         backend,
@@ -62,9 +72,7 @@ export default function App() {
         title: `${backend.label} · ${spec.cols}×${spec.rows}`,
         exited: false,
         size: { cols: spec.cols, rows: spec.rows },
-      };
-      setSessions((previous) => [...previous, view]);
-      setActiveId(view.id);
+      });
       return true;
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
@@ -74,7 +82,53 @@ export default function App() {
     } finally {
       setCreating(false);
     }
+  }, [registerView]);
+
+  const refreshSaved = useCallback(async () => {
+    if (!isTauri()) return;
+    try {
+      setSaved(await ipc.listSavedSessions());
+    } catch (cause) {
+      console.warn("[ota] could not list saved sessions", cause);
+    }
   }, []);
+
+  const openSaved = useCallback(
+    async (id: string) => {
+      setCreating(true);
+      setError(null);
+      try {
+        const info = await ipc.connectSavedSession(id);
+        const backend = terminalBackendFor(info);
+        registerView({
+          id: backend.sessionId,
+          kind: backend.kind,
+          backend,
+          label: backend.label,
+          title: `${backend.label} · ${info.cols}×${info.rows}`,
+          exited: false,
+          size: { cols: info.cols, rows: info.rows },
+        });
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      } finally {
+        setCreating(false);
+      }
+    },
+    [registerView],
+  );
+
+  const deleteSaved = useCallback(
+    async (id: string) => {
+      try {
+        await ipc.deleteSavedSession(id);
+        await refreshSaved();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
+    },
+    [refreshSaved],
+  );
 
   const createLocalSession = useCallback(
     async (shell?: string) => {
@@ -84,19 +138,38 @@ export default function App() {
   );
 
   const connectSsh = useCallback(
-    async (input: Omit<SshConnectInput, "cols" | "rows">) => {
+    async (
+      input: Omit<SshConnectInput, "cols" | "rows">,
+      save: { name: string; rememberPassword: boolean } | null,
+    ) => {
       const opened = await openSession({
         kind: "ssh",
         cols: DEFAULT_COLS,
         rows: DEFAULT_ROWS,
         ...input,
       });
-      if (opened) {
-        setDialog(null);
-        setDialogError(null);
+      if (!opened) return;
+
+      if (save && isTauri()) {
+        try {
+          await ipc.saveSshSession({
+            name: save.name.length > 0 ? save.name : `${input.username}@${input.host}`,
+            host: input.host,
+            port: input.port,
+            username: input.username,
+            auth: input.auth,
+            rememberPassword: save.rememberPassword,
+          });
+          await refreshSaved();
+        } catch (cause) {
+          setError(cause instanceof Error ? cause.message : String(cause));
+        }
       }
+
+      setDialog(null);
+      setDialogError(null);
     },
-    [openSession],
+    [openSession, refreshSaved],
   );
 
   const openSerial = useCallback(
@@ -166,9 +239,10 @@ export default function App() {
       } catch (cause) {
         console.warn("[ota] could not read locale, shells or agent capabilities", cause);
       }
+      await refreshSaved();
       await createLocalSession();
     })();
-  }, [createLocalSession]);
+  }, [createLocalSession, refreshSaved]);
 
   const activeSession = sessions.find((session) => session.id === activeId) ?? null;
 
@@ -248,9 +322,12 @@ export default function App() {
           sessions={sessions}
           activeId={activeId}
           shells={shells}
+          saved={saved}
           creating={creating}
           onSelect={setActiveId}
           onCreate={createLocalSession}
+          onOpenSaved={(id) => void openSaved(id)}
+          onDeleteSaved={(id) => void deleteSaved(id)}
           onOpenSsh={() => {
             setDialogError(null);
             setDialog("ssh");
@@ -275,7 +352,9 @@ export default function App() {
           />
         </main>
 
-        {agentOpen ? <AgentSidebar mode={mode} onModeChange={setMode} /> : null}
+        {agentOpen ? (
+          <AgentSidebar sessionId={activeId} mode={mode} onModeChange={setMode} />
+        ) : null}
       </div>
 
       <StatusBar
@@ -296,7 +375,7 @@ export default function App() {
           busy={creating}
           error={dialogError}
           onClose={() => setDialog(null)}
-          onSubmit={(input) => void connectSsh(input)}
+          onSubmit={(input, save) => void connectSsh(input, save)}
         />
       ) : null}
 

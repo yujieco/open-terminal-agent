@@ -20,7 +20,9 @@
       "local": "로컬",
       "ssh": "ssh",
       "serial": "시리얼"
-    }
+    },
+    "saved": "저장됨",
+    "noSaved": "저장된 연결이 없습니다"
   },
   "tabs": {
     "close": "탭 닫기"
@@ -32,7 +34,7 @@
   "agent": {
     "title": "AI Agent",
     "subtitle": "관찰 · 추론 · 실행 · 검증",
-    "empty": "에이전트 루프는 2단계에서 연결됩니다. 섀도 화면을 읽고 권한 정책에 따라 명령을 실행하며 결과를 검증합니다.",
+    "empty": "이 터미널에서 하고 싶은 일을 그대로 적으세요. 모든 명령은 실행 전에 여기에 표시되고, 실행 후에는 종료 코드와 출력이 붙습니다.",
     "mode": "자율 모드",
     "modes": {
       "ask": "매번 확인",
@@ -45,7 +47,24 @@
       "autonomous": "작업 완료 또는 단계 한도까지 자동 실행합니다."
     },
     "takeOver": "긴급 인수",
-    "takeOverHint": "2단계에서 활성화 · Esc"
+    "takeOverHint": "현재 작업을 중지하고 대기 중인 명령을 거부합니다",
+    "noProvider": "모델 미설정",
+    "keyHint": "DeepSeek API 키를 붙여넣으세요. OS 키체인에 저장됩니다.",
+    "saveKey": "저장",
+    "command": "명령",
+    "running": "실행 중",
+    "rejected": "거부됨",
+    "approvalNeeded": "이 명령에는 승인이 필요합니다",
+    "approve": "승인",
+    "reject": "거부",
+    "thinking": "사고 과정",
+    "placeholder": "예: 이 디렉터리를 보고 가장 큰 파일을 설명해 줘",
+    "send": "보내기",
+    "risk": {
+      "readonly": "읽기 전용",
+      "mutating": "상태 변경",
+      "destructive": "파괴적"
+    }
   },
   "status": {
     "connection": "연결",
@@ -72,7 +91,8 @@
     "connecting": "연결 중…",
     "close": "닫기",
     "dismiss": "닫기",
-    "pending": "미지원"
+    "pending": "미지원",
+    "delete": "삭제"
   },
   "ssh": {
     "title": "SSH 연결",
@@ -84,7 +104,9 @@
     "authKey": "개인 키",
     "password": "비밀번호",
     "keyPath": "키 경로",
-    "passphrase": "키 암호(선택)"
+    "passphrase": "키 암호(선택)",
+    "remember": "이 연결 저장(비밀번호는 OS 키체인에)",
+    "sessionName": "연결 이름"
   },
   "serial": {
     "title": "시리얼 연결",

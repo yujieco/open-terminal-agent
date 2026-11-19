@@ -73,7 +73,7 @@ export async function createTerminalBackend(spec: SessionSpec): Promise<Terminal
   }
 
   const info = await spawnSession(spec);
-  return attachBackend(info);
+  return terminalBackendFor(info);
 }
 
 async function spawnSession(spec: SessionSpec): Promise<SessionInfo> {
@@ -106,7 +106,7 @@ async function spawnSession(spec: SessionSpec): Promise<SessionInfo> {
   }
 }
 
-function attachBackend(info: SessionInfo): TerminalBackend {
+export function terminalBackendFor(info: SessionInfo): TerminalBackend {
   const outputListeners = new Set<(text: string) => void>();
   const exitListeners = new Set<() => void>();
   // A single streaming decoder keeps multi-byte UTF-8 glyphs intact even when a

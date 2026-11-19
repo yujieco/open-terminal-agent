@@ -3,7 +3,7 @@
 
 import { useTranslation } from "react-i18next";
 
-import type { SessionKind } from "../lib/ipc";
+import type { SavedSession, SessionKind } from "../lib/ipc";
 import type { ShellProfile } from "../lib/ipc";
 import type { SessionView } from "../types";
 
@@ -11,9 +11,12 @@ interface SessionSidebarProps {
   sessions: SessionView[];
   activeId: string | null;
   shells: ShellProfile[];
+  saved: SavedSession[];
   creating: boolean;
   onSelect: (sessionId: string) => void;
   onCreate: (shell?: string) => void;
+  onOpenSaved: (id: string) => void;
+  onDeleteSaved: (id: string) => void;
   onOpenSsh: () => void;
   onOpenSerial: () => void;
 }
@@ -28,9 +31,12 @@ export function SessionSidebar({
   sessions,
   activeId,
   shells,
+  saved,
   creating,
   onSelect,
   onCreate,
+  onOpenSaved,
+  onDeleteSaved,
   onOpenSsh,
   onOpenSerial,
 }: SessionSidebarProps) {
@@ -106,6 +112,42 @@ export function SessionSidebar({
             {t("sidebar.serial")}
           </button>
         </div>
+
+        <section className="mt-5">
+          <h2 className="px-2 text-[10px] tracking-widest text-slate-600 uppercase">
+            {t("sidebar.saved")}
+          </h2>
+          {saved.length === 0 ? (
+            <p className="px-2 py-1 text-[11px] leading-relaxed text-slate-600">
+              {t("sidebar.noSaved")}
+            </p>
+          ) : (
+            <ul className="mt-1 space-y-0.5">
+              {saved.map((entry) => (
+                <li key={entry.id} className="group flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onOpenSaved(entry.id)}
+                    className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-2 py-1 text-left text-xs text-slate-400 transition hover:bg-slate-800/60 hover:text-slate-200"
+                  >
+                    <span className={`rounded px-1 py-0.5 text-[9px] uppercase ${KIND_BADGE[entry.kind]}`}>
+                      {t(`sidebar.kinds.${entry.kind}`)}
+                    </span>
+                    <span className="truncate">{entry.name}</span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={t("common.delete")}
+                    onClick={() => onDeleteSaved(entry.id)}
+                    className="rounded px-1 text-slate-600 opacity-0 transition group-hover:opacity-100 hover:text-rose-300"
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
         <section className="mt-5">
           <h2 className="px-2 text-[10px] tracking-widest text-slate-600 uppercase">
