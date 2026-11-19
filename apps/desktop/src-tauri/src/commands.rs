@@ -16,6 +16,7 @@ use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
+use term_agent::llm::{ChatMessage, ChatRole, LlmClient, OpenAiCompatibleClient};
 use term_agent::{LoopPhase, PermissionMode, ToolSpec, tool_catalog};
 use term_core::pty::PtyTransport;
 use term_core::{
@@ -1227,4 +1228,62 @@ pub async fn write_session_bytes(
     let handle = registry.require(&session_id)?;
     handle.transport.write_bytes(&bytes).await?;
     Ok(())
+}
+
+/// System prompt for the command palette: one shell line, nothing else.
+const SUGGEST_PROMPT: &str = "You write one POSIX shell command for the user's request. Reply with the command only, on a single line, inside a sh code fence. No explanation, no prompt symbol, no comments. If the request is ambiguous, pick the least destructive reading.";
+
+/// Arguments for [`suggest_command`].
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SuggestCommandRequest {
+    /// What the user wants to do.
+    pub prompt: String,
+    /// Optional visible screen text used as context.
+    #[serde(default)]
+    pub context: Option<String>,
+}
+
+/// Generates one command without touching the terminal. The user reviews it
+/// before anything is written, which is why this call takes no tools.
+#[tauri::command]
+pub async fn suggest_command(
+    store: State<'_, Store>,
+    secrets: State<'_, SecretStore>,
+    request: SuggestCommandRequest,
+) -> Result<String, ApiError> {
+    let config = stored_llm_config(&store);
+    let api_key = secrets.get(&llm_key_account(&config.provider))?;
+    let client = OpenAiCompatibleClient::new(config, api_key)
+        .map_err(|error| ApiError::InvalidRequest(error.to_string()))?;
+
+    let mut user = request.prompt;
+    if let Some(context) = request.context.filter(|text| !text.trim().is_empty()) {
+        user.push_str("\n\nCurrent terminal screen:\n");
+        user.push_str(&context);
+    }
+
+    let response = client
+        .complete(
+            &[
+                ChatMessage::text(ChatRole::System, SUGGEST_PROMPT),
+                ChatMessage::text(ChatRole::User, user),
+            ],
+            &[],
+        )
+        .await
+        .map_err(|error| ApiError::InvalidRequest(error.to_string()))?;
+
+    Ok(clean_command(&response.content))
+}
+
+/// Strips fences, prompts and surrounding whitespace from a model answer.
+fn clean_command(raw: &str) -> String {
+    let mut lines: Vec<&str> = raw
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with("```"))
+        .collect();
+    let first = lines.drain(..).next().unwrap_or_default();
+    first.trim_start_matches("$ ").trim().to_owned()
 }

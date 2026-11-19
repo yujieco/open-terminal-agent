@@ -64,6 +64,7 @@ pub fn run() {
             commands::save_llm_key,
             commands::save_llm_config,
             commands::discover_models,
+            commands::suggest_command,
             commands::agent_run,
             commands::agent_cancel,
             commands::agent_approve,
