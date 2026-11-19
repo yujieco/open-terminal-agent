@@ -13,7 +13,9 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Tauri generated artifacts
-apps/desktop/src-tauri/gen/
+# gen/android is the real Gradle project for the mobile targets and must be
+# committed; only the schema cache is machine-local.
+apps/desktop/src-tauri/gen/schemas/
 apps/desktop/src-tauri/target/
 
 # Local databases & secrets
