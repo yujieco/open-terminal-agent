@@ -134,6 +134,7 @@ async fn deepseek_flash_creates_a_file_through_visible_steps() {
         max_steps: 10,
         command_timeout: Duration::from_secs(45),
         scrollback: 120,
+        ..AgentRuntimeConfig::default()
     });
 
     let collector = tokio::spawn(async move {

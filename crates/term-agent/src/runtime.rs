@@ -42,6 +42,9 @@ pub const DEFAULT_COMMAND_TIMEOUT: Duration = Duration::from_secs(120);
 /// Scrollback lines handed to the model when it reads the screen.
 pub const DEFAULT_SCROLLBACK_LINES: usize = 200;
 
+/// Default cap on the output text handed back to the model.
+pub const DEFAULT_MAX_TOOL_OUTPUT_CHARS: usize = 8_000;
+
 /// System prompt that keeps the loop grounded and visible.
 pub const SYSTEM_PROMPT: &str = "\
 You are the terminal operator inside Open Terminal Agent. The user watches every \
@@ -236,6 +239,10 @@ pub struct AgentRuntimeConfig {
     pub command_timeout: Duration,
     /// Scrollback lines included in a screen read.
     pub scrollback: usize,
+    /// Ask before every command, including read-only ones.
+    pub step_approval: bool,
+    /// Cap on the output text handed to the model.
+    pub max_tool_output_chars: usize,
 }
 
 impl Default for AgentRuntimeConfig {
@@ -244,6 +251,8 @@ impl Default for AgentRuntimeConfig {
             max_steps: DEFAULT_MAX_STEPS,
             command_timeout: DEFAULT_COMMAND_TIMEOUT,
             scrollback: DEFAULT_SCROLLBACK_LINES,
+            step_approval: false,
+            max_tool_output_chars: DEFAULT_MAX_TOOL_OUTPUT_CHARS,
         }
     }
 }
@@ -409,7 +418,10 @@ impl AgentRuntime {
                     call_id: call.id.clone(),
                     lines,
                 });
-                Ok(format!("screen ({lines} lines):\n{text}"))
+                Ok(truncate_for_model(
+                    &format!("screen ({lines} lines):\n{text}"),
+                    self.config.max_tool_output_chars,
+                ))
             }
             EXECUTE_COMMAND => {
                 let command = request.command()?.to_owned();
@@ -422,7 +434,9 @@ impl AgentRuntime {
                     risk: Some(risk),
                 });
 
-                if self.policy.decide(&command) == PolicyDecision::RequiresApproval {
+                let needs_approval = self.config.step_approval
+                    || self.policy.decide(&command) == PolicyDecision::RequiresApproval;
+                if needs_approval {
                     let approval = ApprovalRequest {
                         call_id: call.id.clone(),
                         command: command.clone(),
@@ -459,14 +473,17 @@ impl AgentRuntime {
                     duration_ms,
                 });
 
-                Ok(format!(
-                    "exit_code: {}\ntimed_out: {}\noutput:\n{}",
-                    outcome
-                        .exit_code
-                        .map(|code| code.to_string())
-                        .unwrap_or_else(|| String::from("unknown")),
-                    outcome.timed_out,
-                    outcome.output
+                Ok(truncate_for_model(
+                    &format!(
+                        "exit_code: {}\ntimed_out: {}\noutput:\n{}",
+                        outcome
+                            .exit_code
+                            .map(|code| code.to_string())
+                            .unwrap_or_else(|| String::from("unknown")),
+                        outcome.timed_out,
+                        outcome.output
+                    ),
+                    self.config.max_tool_output_chars,
                 ))
             }
             SEND_CONTROL_SIGNAL => {
@@ -505,5 +522,45 @@ impl AgentRuntime {
                 message: String::from("unknown tool"),
             }),
         }
+    }
+}
+
+/// Keeps tool output legible inside the model's context: long transcripts are
+/// cut in the middle, keeping both the command echo and the final result.
+pub(crate) fn truncate_for_model(text: &str, limit: usize) -> String {
+    let total = text.chars().count();
+    if total <= limit || limit < 16 {
+        return text.to_owned();
+    }
+    let half = limit / 2;
+    let head: String = text.chars().take(half).collect();
+    let tail: String = {
+        let mut chars: Vec<char> = text.chars().rev().take(half).collect();
+        chars.reverse();
+        chars.into_iter().collect()
+    };
+    format!(
+        "{head}\n… [{total} chars, {} omitted] …\n{tail}",
+        total - head.chars().count() - tail.chars().count()
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::truncate_for_model;
+
+    #[test]
+    fn short_output_is_untouched() {
+        assert_eq!(truncate_for_model("ok", 100), "ok");
+    }
+
+    #[test]
+    fn long_output_keeps_head_and_tail() {
+        let text = "a".repeat(50) + "MIDDLE" + &"b".repeat(50);
+        let cut = truncate_for_model(&text, 40);
+        assert!(cut.starts_with("aaaaaaaa"));
+        assert!(cut.ends_with("bbbbbbbb"));
+        assert!(cut.contains("chars"));
+        assert!(cut.chars().count() < text.chars().count());
     }
 }

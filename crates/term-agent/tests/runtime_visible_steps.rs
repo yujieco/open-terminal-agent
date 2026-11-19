@@ -111,6 +111,14 @@ async fn collect(
     mode: PermissionMode,
     approver: Arc<dyn Approver>,
 ) -> (Vec<AgentEvent>, Arc<RecordingTerminal>) {
+    collect_with(mode, approver, false).await
+}
+
+async fn collect_with(
+    mode: PermissionMode,
+    approver: Arc<dyn Approver>,
+    step_approval: bool,
+) -> (Vec<AgentEvent>, Arc<RecordingTerminal>) {
     let terminal = Arc::new(RecordingTerminal::default());
     let client = Arc::new(ScriptedClient {
         turns: Mutex::new(scripted_turns()),
@@ -129,6 +137,8 @@ async fn collect(
         max_steps: 4,
         command_timeout: Duration::from_secs(5),
         scrollback: 20,
+        step_approval,
+        max_tool_output_chars: 8_000,
     });
 
     let collector = tokio::spawn(async move {
@@ -183,6 +193,22 @@ async fn supervised_mode_auto_approves_read_only_commands() {
             .iter()
             .any(|event| matches!(event, AgentEvent::ToolDenied { .. })),
         "read-only `ls` must not need approval"
+    );
+}
+
+#[tokio::test]
+async fn step_approval_gates_even_read_only_commands() {
+    let (events, terminal) =
+        collect_with(PermissionMode::Supervised, Arc::new(AlwaysDeny), true).await;
+
+    assert!(
+        terminal.commands.lock().expect("commands").is_empty(),
+        "step mode must gate `ls` as well"
+    );
+    assert!(
+        events
+            .iter()
+            .any(|event| matches!(event, AgentEvent::ToolDenied { .. }))
     );
 }
 
