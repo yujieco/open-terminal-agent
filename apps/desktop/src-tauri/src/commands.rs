@@ -153,6 +153,9 @@ pub struct SshConnectRequest {
     /// Requested rows.
     #[serde(default = "default_rows")]
     pub rows: u16,
+    /// Fingerprint the user just approved on first contact.
+    #[serde(default)]
+    pub trust_fingerprint: Option<String>,
 }
 
 impl SshConnectRequest {
@@ -302,10 +305,14 @@ pub async fn connect_ssh(
     let host = request.host.clone();
     let port = request.port;
     let username = request.username.clone();
+    let request_trust_fingerprint = request.trust_fingerprint.clone();
     let mut config = request.into_config();
 
-    // Trust on first contact, verify every contact after that.
-    if let Some(pinned) = store.host_key(&host, port)? {
+    // Trust on first contact, verify every contact after that. A fingerprint the
+    // user just approved wins, because it is the one they actually looked at.
+    if let Some(trusted) = request_trust_fingerprint.clone() {
+        config = config.with_known_host_fingerprint(trusted);
+    } else if let Some(pinned) = store.host_key(&host, port)? {
         config = config.with_known_host_fingerprint(pinned);
     }
 
@@ -843,6 +850,7 @@ pub async fn connect_saved_session(
                     auth,
                     cols: default_cols(),
                     rows: default_rows(),
+                    trust_fingerprint: None,
                 },
             )
             .await
@@ -1203,6 +1211,7 @@ pub async fn sftp_connect_saved(
             auth,
             cols: default_cols(),
             rows: default_rows(),
+            trust_fingerprint: None,
         },
     )
     .await
@@ -1327,4 +1336,12 @@ mod tests {
         assert_eq!(clean_command(""), "");
         assert_eq!(clean_command("```\n```"), "");
     }
+}
+
+/// Reports the server key fingerprint without opening a shell.
+#[tauri::command]
+pub async fn probe_ssh_host_key(host: String, port: u16) -> Result<String, ApiError> {
+    term_core::probe_host_key(&host, port, std::time::Duration::from_secs(8))
+        .await
+        .map_err(|error| ApiError::InvalidRequest(error.to_string()))
 }

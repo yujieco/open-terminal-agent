@@ -59,6 +59,8 @@ export interface SshConnectInput {
   auth: SshAuthInput;
   cols?: number;
   rows?: number;
+  /** Fingerprint the user approved on first contact. */
+  trustFingerprint?: string;
 }
 
 export type SerialStopBits = "one" | "two";
@@ -247,6 +249,10 @@ export const ipc = {
 
   connectSavedSession(id: string): Promise<SessionInfo> {
     return invoke<SessionInfo>("connect_saved_session", { id });
+  },
+
+  probeHostKey(host: string, port: number): Promise<string> {
+    return invoke<string>("probe_ssh_host_key", { host, port });
   },
 
   listKnownHosts(): Promise<KnownHost[]> {

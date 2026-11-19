@@ -137,7 +137,9 @@
     "keyPath": "키 경로",
     "passphrase": "키 암호(선택)",
     "remember": "이 연결 저장(비밀번호는 OS 키체인에)",
-    "sessionName": "연결 이름"
+    "sessionName": "연결 이름",
+    "firstContact": "이 호스트에 처음 연결합니다. 신뢰하기 전에 키 지문을 확인하세요:",
+    "trustAndConnect": "신뢰하고 연결"
   },
   "serial": {
     "title": "시리얼 연결",

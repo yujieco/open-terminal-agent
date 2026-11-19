@@ -11,6 +11,7 @@
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use async_trait::async_trait;
 use russh::client::{self, Config, Handle};
@@ -105,6 +106,8 @@ pub(crate) struct SshClientHandler {
     pub(crate) fingerprint: Arc<Mutex<Option<String>>>,
     expected: Option<String>,
     mismatch: Arc<AtomicBool>,
+    /// Stop after capturing the key instead of completing the handshake.
+    capture_only: bool,
 }
 
 impl client::Handler for SshClientHandler {
@@ -126,6 +129,15 @@ impl client::Handler for SshClientHandler {
                 .fingerprint(russh::keys::HashAlg::Sha256)
                 .to_string(),
         };
+        // Probe mode: capture the key and refuse it, which aborts the handshake
+        // right after we learned what the server offers.
+        if self.capture_only {
+            if let Ok(mut slot) = self.fingerprint.lock() {
+                *slot = Some(fingerprint);
+            }
+            return Ok(false);
+        }
+
         if let Some(expected) = &self.expected
             && expected != &fingerprint
         {
@@ -153,6 +165,7 @@ pub(crate) async fn open_authenticated_session(
         fingerprint: Arc::clone(&fingerprint),
         expected: config.known_host_fingerprint.clone(),
         mismatch: Arc::clone(&mismatch),
+        capture_only: false,
     };
 
     let mut handle = client::connect(
@@ -214,6 +227,37 @@ pub(crate) async fn open_authenticated_session(
     }
 
     Ok((handle, fingerprint))
+}
+
+/// Connects only far enough to learn the server key, then aborts.
+///
+/// This is what lets the UI show a fingerprint *before* a shell opens, instead of
+/// trusting first contact silently.
+pub async fn probe_host_key(host: &str, port: u16, timeout: Duration) -> Result<String> {
+    let fingerprint = Arc::new(Mutex::new(None));
+    let handler = SshClientHandler {
+        fingerprint: Arc::clone(&fingerprint),
+        expected: None,
+        mismatch: Arc::new(AtomicBool::new(false)),
+        capture_only: true,
+    };
+
+    // The handshake is expected to fail; only the captured key matters.
+    let _ = tokio::time::timeout(
+        timeout,
+        client::connect(
+            Arc::new(Config::default()),
+            (host.to_owned(), port),
+            handler,
+        ),
+    )
+    .await;
+
+    fingerprint
+        .lock()
+        .ok()
+        .and_then(|slot| slot.clone())
+        .ok_or_else(|| CoreError::Ssh(String::from("host did not present a key")))
 }
 
 /// A live SSH shell session.

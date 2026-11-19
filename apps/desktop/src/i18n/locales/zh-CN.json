@@ -137,7 +137,9 @@
     "keyPath": "私钥路径",
     "passphrase": "私钥口令（可选）",
     "remember": "保存此连接（密码存入系统钥匙串）",
-    "sessionName": "连接名称"
+    "sessionName": "连接名称",
+    "firstContact": "首次连接该主机，请核对服务器密钥指纹后再信任：",
+    "trustAndConnect": "信任并连接"
   },
   "serial": {
     "title": "串口连接",

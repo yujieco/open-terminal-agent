@@ -67,6 +67,7 @@ pub fn run() {
             commands::suggest_command,
             commands::list_known_hosts,
             commands::forget_host_key,
+            commands::probe_ssh_host_key,
             commands::agent_run,
             commands::agent_cancel,
             commands::agent_approve,

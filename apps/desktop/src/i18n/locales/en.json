@@ -137,7 +137,9 @@
     "keyPath": "Key path",
     "passphrase": "Key passphrase (optional)",
     "remember": "Save this connection (password goes to the OS keyring)",
-    "sessionName": "Connection name"
+    "sessionName": "Connection name",
+    "firstContact": "First connection to this host — check the key fingerprint before trusting it:",
+    "trustAndConnect": "Trust and connect"
   },
   "serial": {
     "title": "Serial connection",

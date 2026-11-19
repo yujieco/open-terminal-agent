@@ -54,6 +54,7 @@ export interface SshSessionSpec {
   port: number;
   username: string;
   auth: SshAuthInput;
+  trustFingerprint?: string;
 }
 
 export interface SerialSessionSpec {
@@ -92,6 +93,7 @@ async function spawnSession(spec: SessionSpec): Promise<SessionInfo> {
         auth: spec.auth,
         cols: spec.cols,
         rows: spec.rows,
+        trustFingerprint: spec.trustFingerprint,
       });
     case "serial": {
       const request: SerialConnectInput = {

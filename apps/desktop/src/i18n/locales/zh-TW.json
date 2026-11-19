@@ -137,7 +137,9 @@
     "keyPath": "私鑰路徑",
     "passphrase": "私鑰口令（選填）",
     "remember": "儲存此連線（密碼存入系統鑰匙圈）",
-    "sessionName": "連線名稱"
+    "sessionName": "連線名稱",
+    "firstContact": "首次連線此主機，請核對伺服器金鑰指紋後再信任：",
+    "trustAndConnect": "信任並連線"
   },
   "serial": {
     "title": "序列埠連線",

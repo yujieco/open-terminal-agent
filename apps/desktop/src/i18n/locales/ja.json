@@ -137,7 +137,9 @@
     "keyPath": "秘密鍵のパス",
     "passphrase": "鍵のパスフレーズ（任意）",
     "remember": "この接続を保存（パスワードは OS キーチェーンへ）",
-    "sessionName": "接続名"
+    "sessionName": "接続名",
+    "firstContact": "このホストへの初回接続です。信頼する前に鍵の指紋を確認してください:",
+    "trustAndConnect": "信頼して接続"
   },
   "serial": {
     "title": "シリアル接続",
