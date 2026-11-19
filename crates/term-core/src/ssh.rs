@@ -126,14 +126,14 @@ impl client::Handler for SshClientHandler {
                 .fingerprint(russh::keys::HashAlg::Sha256)
                 .to_string(),
         };
-        if let Some(expected) = &self.expected {
-            if expected != &fingerprint {
-                self.mismatch.store(true, Ordering::SeqCst);
-                if let Ok(mut slot) = self.fingerprint.lock() {
-                    *slot = Some(fingerprint);
-                }
-                return Ok(false);
+        if let Some(expected) = &self.expected
+            && expected != &fingerprint
+        {
+            self.mismatch.store(true, Ordering::SeqCst);
+            if let Ok(mut slot) = self.fingerprint.lock() {
+                *slot = Some(fingerprint);
             }
+            return Ok(false);
         }
 
         if let Ok(mut slot) = self.fingerprint.lock() {

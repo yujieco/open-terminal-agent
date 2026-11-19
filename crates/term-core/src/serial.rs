@@ -447,7 +447,7 @@ pub fn parse_hex(input: &str) -> Result<Vec<u8>> {
         .filter(|character| !character.is_whitespace())
         .collect();
     let cleaned = cleaned.replace("0x", "").replace("0X", "");
-    if cleaned.len() % 2 != 0 {
+    if !cleaned.len().is_multiple_of(2) {
         return Err(CoreError::Serial(String::from(
             "hex input needs an even number of digits",
         )));
