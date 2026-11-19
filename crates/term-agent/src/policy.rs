@@ -115,6 +115,39 @@ const DESTRUCTIVE_FRAGMENTS: &[&str] = &[
     "mkfs", "dd if=", "of=/dev/", "rm -rf /", "flashrom", "wipefs", "shutdown", "poweroff", ":(){",
 ];
 
+/// Interpreters whose payload we cannot inspect, so any use counts as
+/// destructive: `sh -c ...`, `python -c ...`, `osascript -e ...`.
+const OPAQUE_INTERPRETERS: &[&str] = &[
+    "sh",
+    "bash",
+    "zsh",
+    "dash",
+    "ksh",
+    "python",
+    "python3",
+    "perl",
+    "ruby",
+    "node",
+    "osascript",
+    "eval",
+    "source",
+];
+
+/// Flags that turn an otherwise read-only program into a destructive one,
+/// found empirically: `find -delete` was previously classified read-only.
+const DANGEROUS_FLAGS: &[&str] = &[
+    "-delete",
+    "-exec",
+    "-execdir",
+    "-ok",
+    "--delete",
+    "--remove-files",
+    "--no-preserve-root",
+    "--remove-destination",
+    "--force",
+    "--hard",
+];
+
 /// Wrappers that elevate whatever they run.
 const ELEVATION_PROGRAMS: &[&str] = &["sudo", "doas", "su"];
 
@@ -197,6 +230,35 @@ fn classify_segment(segment: &str) -> CommandRisk {
 
     let rest: Vec<String> = tokens.map(|token| token.to_ascii_lowercase()).collect();
 
+    // Code we cannot read is code we cannot vouch for.
+    if OPAQUE_INTERPRETERS.contains(&program.as_str()) {
+        return CommandRisk::Destructive;
+    }
+
+    // A read-only program becomes destructive when it carries a flag that
+    // deletes or overwrites, e.g. `find . -delete`.
+    if rest
+        .iter()
+        .any(|token| DANGEROUS_FLAGS.contains(&token.as_str()))
+    {
+        return CommandRisk::Destructive;
+    }
+
+    // `sed -i` edits files in place; the short flag needs its own rule because
+    // `-i` is also used for "case insensitive" elsewhere.
+    if program == "sed"
+        && rest
+            .iter()
+            .any(|token| token == "-i" || token == "--in-place" || token.starts_with("-i'"))
+    {
+        return CommandRisk::Destructive;
+    }
+
+    // `git clean -fd` and friends discard work irreversibly.
+    if program == "git" && rest.first().map(String::as_str) == Some("clean") {
+        return CommandRisk::Destructive;
+    }
+
     let mut risk = if program == "git" {
         match rest.first().map(String::as_str) {
             Some(subcommand) if READ_ONLY_GIT_SUBCOMMANDS.contains(&subcommand) => {
@@ -224,6 +286,12 @@ fn classify_segment(segment: &str) -> CommandRisk {
         risk = CommandRisk::Mutating;
     }
 
+    // Command substitution hides a second command inside a read-only one:
+    // `ls $(rm -rf x)` must not look like `ls`.
+    if risk == CommandRisk::ReadOnly && (lower.contains("$(") || lower.contains('`')) {
+        risk = CommandRisk::Mutating;
+    }
+
     if escalated {
         risk.max(CommandRisk::Mutating)
     } else {
@@ -240,19 +308,10 @@ fn base_name(token: &str) -> String {
 }
 
 /// Per-session policy and control arbitration.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SessionPolicy {
     mode: PermissionMode,
     control: ControlState,
-}
-
-impl Default for SessionPolicy {
-    fn default() -> Self {
-        Self {
-            mode: PermissionMode::default(),
-            control: ControlState::default(),
-        }
-    }
 }
 
 impl SessionPolicy {
@@ -371,6 +430,66 @@ mod tests {
             CommandRisk::Destructive
         );
         assert_eq!(classify_command("ls && reboot"), CommandRisk::Destructive);
+    }
+
+    #[test]
+    fn read_only_programs_with_destructive_flags_are_destructive() {
+        assert_eq!(
+            classify_command("find /tmp -delete"),
+            CommandRisk::Destructive
+        );
+        assert_eq!(
+            classify_command("find . -name '*.log' -exec rm {} +"),
+            CommandRisk::Destructive
+        );
+        assert_eq!(
+            classify_command("rsync -a --delete a/ b/"),
+            CommandRisk::Destructive
+        );
+        assert_eq!(
+            classify_command("tar --remove-files -cf a.tar x"),
+            CommandRisk::Destructive
+        );
+        assert_eq!(
+            classify_command("sed -i '' s/a/b/ f.txt"),
+            CommandRisk::Destructive
+        );
+        assert_eq!(classify_command("git clean -fd"), CommandRisk::Destructive);
+        assert_eq!(
+            classify_command("git push --force origin main"),
+            CommandRisk::Destructive
+        );
+    }
+
+    #[test]
+    fn opaque_interpreters_are_destructive() {
+        assert_eq!(
+            classify_command("sh -c 'rm -rf /tmp/x'"),
+            CommandRisk::Destructive
+        );
+        assert_eq!(
+            classify_command("python3 -c \"import shutil; shutil.rmtree('/tmp/x')\""),
+            CommandRisk::Destructive
+        );
+        assert_eq!(
+            classify_command("osascript -e 'quit app'"),
+            CommandRisk::Destructive
+        );
+    }
+
+    #[test]
+    fn command_substitution_is_not_read_only() {
+        assert_eq!(
+            classify_command("ls $(cat /etc/hosts)"),
+            CommandRisk::Mutating
+        );
+        assert_eq!(classify_command("echo `rm -rf x`"), CommandRisk::Mutating);
+        // Plain read-only commands must stay read-only.
+        assert_eq!(classify_command("ls -la"), CommandRisk::ReadOnly);
+        assert_eq!(
+            classify_command("grep -i error app.log"),
+            CommandRisk::ReadOnly
+        );
     }
 
     #[test]

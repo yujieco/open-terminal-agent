@@ -436,18 +436,18 @@ impl Accumulator {
             return Ok(());
         };
 
-        if let Some(reasoning) = delta.get("reasoning_content").and_then(Value::as_str) {
-            if !reasoning.is_empty() {
-                self.reasoning.push_str(reasoning);
-                sink.on_reasoning(reasoning);
-            }
+        if let Some(reasoning) = delta.get("reasoning_content").and_then(Value::as_str)
+            && !reasoning.is_empty()
+        {
+            self.reasoning.push_str(reasoning);
+            sink.on_reasoning(reasoning);
         }
 
-        if let Some(content) = delta.get("content").and_then(Value::as_str) {
-            if !content.is_empty() {
-                self.content.push_str(content);
-                sink.on_content(content);
-            }
+        if let Some(content) = delta.get("content").and_then(Value::as_str)
+            && !content.is_empty()
+        {
+            self.content.push_str(content);
+            sink.on_content(content);
         }
 
         if let Some(calls) = delta.get("tool_calls").and_then(Value::as_array) {
