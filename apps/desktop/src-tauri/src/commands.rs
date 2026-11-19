@@ -1301,3 +1301,30 @@ pub fn list_known_hosts(store: State<'_, Store>) -> Result<Vec<KnownHost>, ApiEr
 pub fn forget_host_key(store: State<'_, Store>, host: String, port: u16) -> Result<bool, ApiError> {
     Ok(store.forget_host_key(&host, port)?)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::clean_command;
+
+    #[test]
+    fn strips_fences_and_prompt_symbols() {
+        assert_eq!(clean_command("```sh\nls -la\n```"), "ls -la");
+        assert_eq!(clean_command("$ ls -la"), "ls -la");
+        assert_eq!(clean_command("  \n\nls -la\n"), "ls -la");
+    }
+
+    #[test]
+    fn keeps_only_the_first_command_line() {
+        // A chatty model must not smuggle a second command into the palette.
+        assert_eq!(
+            clean_command("```bash\nfind . -name '*.log'\n```\nThis lists logs."),
+            "find . -name '*.log'"
+        );
+    }
+
+    #[test]
+    fn empty_answer_stays_empty() {
+        assert_eq!(clean_command(""), "");
+        assert_eq!(clean_command("```\n```"), "");
+    }
+}
