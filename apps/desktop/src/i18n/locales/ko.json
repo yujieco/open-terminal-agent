@@ -87,7 +87,7 @@
     "approve": "승인",
     "reject": "거부",
     "thinking": "사고 과정",
-    "placeholder": "예: 이 디렉터리를 보고 가장 큰 파일을 설명해 줘",
+    "placeholder": "예: 디스크 사용량이나 오류 확인",
     "send": "보내기",
     "risk": {
       "readonly": "읽기 전용",
@@ -111,6 +111,9 @@
       "verify": "검증"
     },
     "tabAcceptHint": "Tab 키를 눌러 추천 문구를 채우세요",
+    "tabFill": "Tab 채우기",
+    "clearRuns": "전체 삭제",
+    "deleteRun": "기록 삭제",
     "openSettings": "설정 열기",
     "errors": {
       "missingKey": "현재 모델의 API 키가 저장되어 있지 않습니다. '설정 열기'에서 키를 입력하거나 로컬 Ollama / LM Studio 모델로 전환하세요.",
@@ -327,5 +330,28 @@
     "restarting": "설치 완료, 재시작 중…",
     "manualHint": "이 릴리스에는 서명된 자동 업데이트 패키지가 아직 없습니다. GitHub Releases에서 다운로드해 주세요.",
     "failed": "업데이트 실패"
+  },
+  "exportLog": {
+    "menuItem": "로그 내보내기…",
+    "title": "세션 로그 내보내기",
+    "formatLabel": "형식",
+    "filenameLabel": "파일 이름",
+    "folderLabel": "저장 폴더",
+    "exportButton": "내보내기",
+    "exporting": "내보내는 중…",
+    "reveal": "폴더에서 보기",
+    "success": "{{lines}}줄 내보내기 완료",
+    "formats": {
+      "log": "표준 로그 (.log)",
+      "logDesc": "ANSI 제어 문자를 제거한 깔끔한 텍스트 로그",
+      "md": "Markdown (.md)",
+      "mdDesc": "세션 정보와 코드 블록이 포함된 문서",
+      "html": "단독 HTML (.html)",
+      "htmlDesc": "브라우저에서 바로 열 수 있는 다크 테마 기록",
+      "json": "구조화 JSON (.json)",
+      "jsonDesc": "메타데이터와 줄 배열이 담긴 스크립트용 형식",
+      "txt": "일반 텍스트 (.txt)",
+      "txtDesc": "어디서나 열 수 있는 범용 텍스트 형식"
+    }
   }
 }

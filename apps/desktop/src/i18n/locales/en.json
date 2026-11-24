@@ -87,7 +87,7 @@
     "approve": "Approve",
     "reject": "Reject",
     "thinking": "reasoning",
-    "placeholder": "e.g. look at this directory and explain the largest file",
+    "placeholder": "e.g. Check disk usage or errors",
     "send": "Send",
     "risk": {
       "readonly": "read-only",
@@ -111,6 +111,9 @@
       "verify": "Verify"
     },
     "tabAcceptHint": "Press Tab to fill this suggestion",
+    "tabFill": "Tab fill",
+    "clearRuns": "Clear",
+    "deleteRun": "Delete run",
     "openSettings": "Open Settings",
     "errors": {
       "missingKey": "No API key is saved for the current model yet. Open Settings → Model & Provider to add your key, or switch to a local Ollama / LM Studio model.",
@@ -327,5 +330,28 @@
     "restarting": "Installed — restarting…",
     "manualHint": "This release does not include a signed auto-updater manifest yet. Download it from GitHub Releases.",
     "failed": "Update failed"
+  },
+  "exportLog": {
+    "menuItem": "Export log…",
+    "title": "Export session log",
+    "formatLabel": "Format",
+    "filenameLabel": "Filename",
+    "folderLabel": "Save directory",
+    "exportButton": "Export",
+    "exporting": "Exporting…",
+    "reveal": "Show in Folder",
+    "success": "Exported {{lines}} lines",
+    "formats": {
+      "log": "Standard Log (.log)",
+      "logDesc": "Clean ANSI-stripped plain text for archiving & grep",
+      "md": "Markdown (.md)",
+      "mdDesc": "Includes session metadata and fenced code block",
+      "html": "Standalone HTML (.html)",
+      "htmlDesc": "Dark-styled transcript viewable in any browser",
+      "json": "Structured JSON (.json)",
+      "jsonDesc": "Metadata plus line array for scripts & pipelines",
+      "txt": "Plain Text (.txt)",
+      "txtDesc": "Universal text format readable anywhere"
+    }
   }
 }

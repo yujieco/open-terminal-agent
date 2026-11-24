@@ -87,7 +87,7 @@
     "approve": "核准",
     "reject": "拒絕",
     "thinking": "思考過程",
-    "placeholder": "例如：看看目前目錄有什麼，並說明最大的檔案是什麼",
+    "placeholder": "例如：查看磁碟空間或排查錯誤",
     "send": "送出",
     "risk": {
       "readonly": "唯讀",
@@ -111,6 +111,9 @@
       "verify": "驗證"
     },
     "tabAcceptHint": "按 Tab 鍵一鍵填入提示內容",
+    "tabFill": "Tab 補全",
+    "clearRuns": "清空",
+    "deleteRun": "刪除紀錄",
     "openSettings": "開啟設定",
     "errors": {
       "missingKey": "尚未設定目前模型的 API Key。請點擊下方「開啟設定」填入金鑰，或切換至本機 Ollama / LM Studio 模型。",
@@ -327,5 +330,28 @@
     "restarting": "安裝完成，正在重新啟動…",
     "manualHint": "此版本未附帶簽章自動更新封包，請前往 GitHub Releases 手動下載安裝。",
     "failed": "自動更新失敗"
+  },
+  "exportLog": {
+    "menuItem": "匯出日誌…",
+    "title": "匯出工作階段日誌",
+    "formatLabel": "匯出格式",
+    "filenameLabel": "檔案名稱",
+    "folderLabel": "儲存目錄",
+    "exportButton": "匯出",
+    "exporting": "正在匯出…",
+    "reveal": "在資料夾中顯示",
+    "success": "已匯出 {{lines}} 行日誌",
+    "formats": {
+      "log": "標準日誌 (.log)",
+      "logDesc": "純文字清除 ANSI 控制碼，適合歸檔與檢索",
+      "md": "Markdown 文件 (.md)",
+      "mdDesc": "附帶標題與程式碼區塊，方便貼入文件或 Issue",
+      "html": "獨立網頁 (.html)",
+      "htmlDesc": "深色終端機排版，瀏覽器可直接開啟分享",
+      "json": "結構化資料 (.json)",
+      "jsonDesc": "包含中繼資料與逐行陣列，方便腳本分析",
+      "txt": "純文字 (.txt)",
+      "txtDesc": "通用純文字格式，任意編輯器皆可開啟"
+    }
   }
 }

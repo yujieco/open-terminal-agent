@@ -87,7 +87,7 @@
     "approve": "承認",
     "reject": "拒否",
     "thinking": "思考",
-    "placeholder": "例：このディレクトリを見て、一番大きいファイルを説明して",
+    "placeholder": "例：ディスク使用量やエラーを確認",
     "send": "送信",
     "risk": {
       "readonly": "読み取り専用",
@@ -111,6 +111,9 @@
       "verify": "検証"
     },
     "tabAcceptHint": "Tab キーでこの候補を入力します",
+    "tabFill": "Tab 補完",
+    "clearRuns": "すべて削除",
+    "deleteRun": "履歴を削除",
     "openSettings": "設定を開く",
     "errors": {
       "missingKey": "現在のモデルの API キーがまだ設定されていません。「設定を開く」からキーを登録するか、ローカルの Ollama / LM Studio に切り替えてください。",
@@ -327,5 +330,28 @@
     "restarting": "完了しました。再起動しています…",
     "manualHint": "このリリースには署名済み自動更新パッケージがありません。GitHub Releases から手動でダウンロードしてください。",
     "failed": "アップデートに失敗しました"
+  },
+  "exportLog": {
+    "menuItem": "ログをエクスポート…",
+    "title": "セッションログをエクスポート",
+    "formatLabel": "形式",
+    "filenameLabel": "ファイル名",
+    "folderLabel": "保存先フォルダ",
+    "exportButton": "エクスポート",
+    "exporting": "エクスポート中…",
+    "reveal": "フォルダで表示",
+    "success": "{{lines}} 行をエクスポートしました",
+    "formats": {
+      "log": "標準ログ (.log)",
+      "logDesc": "ANSI 制御コードを除去したプレーンログ",
+      "md": "Markdown (.md)",
+      "mdDesc": "メタデータとコードブロック付きドキュメント",
+      "html": "スタンドアロン HTML (.html)",
+      "htmlDesc": "ブラウザでそのまま閲覧できるダークテーマ出力",
+      "json": "構造化 JSON (.json)",
+      "jsonDesc": "メタデータと行配列を含む解析向け形式",
+      "txt": "テキスト (.txt)",
+      "txtDesc": "どのエディタでも開ける汎用テキスト"
+    }
   }
 }
