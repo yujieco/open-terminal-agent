@@ -143,6 +143,9 @@ impl PtyTransport {
             command.env(key, value);
         }
         command.env("TERM", TERM_VALUE);
+        command.env("COLORTERM", "truecolor");
+        command.env("CLICOLOR", "1");
+        command.env("TERM_PROGRAM", "OpenTerminalAgent");
 
         let child = pair
             .slave
