@@ -3,6 +3,7 @@
 
 import { useTranslation } from "react-i18next";
 
+import pkg from "../../package.json";
 import type { UpdateInfo } from "../lib/ipc";
 
 interface StatusBarProps {
@@ -75,7 +76,7 @@ export function StatusBar({
             <span>
               {checkingUpdate
                 ? t("update.checking")
-                : `v${updateInfo?.currentVersion ?? "0.1.0"}`}
+                : `v${updateInfo?.currentVersion ?? pkg.version}`}
             </span>
           </button>
         )}
