@@ -47,6 +47,8 @@ tracing = "0.1"
 # Persistence & platform integration
 keyring = { version = "4.2", features = [
     "apple-native-keyring-store",
+    "windows-native-keyring-store",
+    "zbus-secret-service-keyring-store",
     "android-native-keyring-store",
 ] }
 rusqlite = { version = "0.43", default-features = false, features = ["bundled", "cache"] }

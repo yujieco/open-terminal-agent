@@ -9,9 +9,9 @@
 //! the moment it is decided.
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use async_trait::async_trait;
 use serde::Serialize;
@@ -23,7 +23,9 @@ use term_agent::{
     Result as AgentResult,
 };
 use term_core::{ShadowScreen, TerminalTransport};
+use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::{Mutex as AsyncMutex, oneshot};
+use tokio::time::Instant;
 
 use crate::state::SessionKind;
 
@@ -34,8 +36,12 @@ pub const AGENT_APPROVAL: &str = "agent://approval";
 /// Event emitted when human input takes the terminal back mid-run.
 pub const AGENT_INTERRUPTED: &str = "agent://interrupted";
 
-/// Marker prefix used to detect command completion on an echoing transport.
-static COMMAND_SEQUENCE: AtomicU64 = AtomicU64::new(1);
+/// Maximum raw bytes buffered while waiting for command completion.
+const MAX_CAPTURE_BYTES: usize = 256 * 1024;
+
+/// Quiet window after a shell prompt reappears on sessions without OSC 133;D
+/// (such as remote SSH hosts) before treating the command as finished.
+const PROMPT_SETTLE_WINDOW: Duration = Duration::from_millis(350);
 
 /// Payload of [`AGENT_EVENT`].
 #[derive(Debug, Clone, Serialize)]
@@ -61,20 +67,29 @@ pub struct ApprovalPayload {
     pub risk: String,
 }
 
+/// One pending approval tagged with the session that owns it, so cancelling or
+/// taking over one tab never rejects approvals waiting in another tab.
+pub struct PendingApproval {
+    /// Session that requested approval.
+    pub session_id: String,
+    /// Channel back to the waiting runtime.
+    pub sender: oneshot::Sender<bool>,
+}
+
 /// One session exposed to the runtime.
 pub struct SessionTerminal {
-    /// Transport used for writes.
+    /// Transport used for writes and reactive output subscriptions.
     pub transport: Arc<dyn TerminalTransport>,
-    /// Shadow screen used for reads.
+    /// Shadow screen used for clean text reads.
     pub screen: Arc<AsyncMutex<ShadowScreen>>,
     /// Session kind, which decides how completion is detected.
     pub kind: SessionKind,
 }
 
 impl SessionTerminal {
-    async fn snapshot(&self) -> String {
+    async fn snapshot(&self, scrollback: usize) -> String {
         let mut screen = self.screen.lock().await;
-        let history = screen.scrollback_lines(120);
+        let history = screen.scrollback_lines(scrollback);
         let visible = screen.visible_text();
         if history.is_empty() {
             visible
@@ -90,104 +105,254 @@ impl SessionTerminal {
         }
     }
 
-    /// Detects completion with a shell sentinel, used by PTY and SSH sessions.
-    async fn execute_with_sentinel(
+    /// Executes a command cleanly without appending any synthetic `printf`
+    /// sentinel to the user's terminal or remote shell history.
+    ///
+    /// Completion detection works in two layers:
+    /// 1. **Instant exact path**: standard invisible `OSC 133;D;<exit_code>`
+    ///    emitted automatically by local shell integration (or remote shells
+    ///    that support OSC 133).
+    /// 2. **Smart prompt-return path** (remote SSH / plain shells): watches for
+    ///    the stream to settle for [`PROMPT_SETTLE_WINDOW`] while the cursor is
+    ///    resting on a live shell prompt line (never prematurely firing while
+    ///    slow commands like `sleep` or `apt-get` have the cursor on a blank or
+    ///    output line).
+    async fn execute_shell_command(
         &self,
         command: &str,
         timeout: Duration,
     ) -> AgentResult<CommandOutcome> {
-        let marker = format!(
-            "__OTA_{}__",
-            COMMAND_SEQUENCE.fetch_add(1, Ordering::Relaxed)
-        );
-        let line = format!("{command}; printf '\\n{marker}%s\\n' $?\r");
-        self.transport
-            .write_bytes(line.as_bytes())
-            .await
-            .map_err(|error| Self::io_error("execute_command", error))?;
+        let pre_prompt = self.current_cursor_line().await;
+        let prompt_prefix = extract_prompt_prefix(&pre_prompt);
 
-        let deadline = Instant::now() + timeout;
-        loop {
-            if Instant::now() >= deadline {
-                let _ = self
-                    .transport
-                    .write_bytes(ControlSignal::CtrlC.bytes())
-                    .await;
-                return Ok(CommandOutcome {
-                    exit_code: None,
-                    output: self.snapshot().await,
-                    timed_out: true,
-                });
-            }
-
-            tokio::time::sleep(Duration::from_millis(60)).await;
-            let text = self.snapshot().await;
-            if let Some(position) = text.rfind(&marker) {
-                let tail = &text[position + marker.len()..];
-                let digits: String = tail.chars().take_while(char::is_ascii_digit).collect();
-                return Ok(CommandOutcome {
-                    exit_code: digits.parse().ok(),
-                    output: text,
-                    timed_out: false,
-                });
-            }
-        }
-    }
-
-    /// Serial consoles run U-Boot, RTOS or AT firmware that never echo a
-    /// sentinel, so completion is inferred from an idle screen instead.
-    async fn execute_with_idle_detection(
-        &self,
-        command: &str,
-        timeout: Duration,
-    ) -> AgentResult<CommandOutcome> {
+        let mut output_rx = self.transport.subscribe_output();
         self.transport
             .write_bytes(format!("{command}\r").as_bytes())
             .await
             .map_err(|error| Self::io_error("execute_command", error))?;
 
         let deadline = Instant::now() + timeout;
-        let mut previous = String::new();
-        let mut stable_since = Instant::now();
+        let mut buffer: Vec<u8> = Vec::with_capacity(8 * 1024);
+        let mut saw_newline = false;
+        let mut settle_deadline: Option<Instant> = None;
 
         loop {
-            if Instant::now() >= deadline {
-                return Ok(CommandOutcome {
-                    exit_code: None,
-                    output: self.snapshot().await,
-                    timed_out: true,
-                });
-            }
-
-            tokio::time::sleep(Duration::from_millis(80)).await;
-            let text = self.snapshot().await;
-            if text == previous {
-                if stable_since.elapsed() >= Duration::from_millis(300) {
+            tokio::select! {
+                _ = tokio::time::sleep_until(deadline) => {
+                    let _ = self
+                        .transport
+                        .write_bytes(ControlSignal::CtrlC.bytes())
+                        .await;
                     return Ok(CommandOutcome {
                         exit_code: None,
-                        output: text,
-                        timed_out: false,
+                        output: self.snapshot(120).await,
+                        timed_out: true,
                     });
                 }
-            } else {
-                previous = text;
-                stable_since = Instant::now();
+                _ = wait_optional(settle_deadline) => {
+                    settle_deadline = None;
+                    let cursor_line = self.current_cursor_line().await;
+                    if looks_like_shell_prompt(&cursor_line, prompt_prefix.as_deref(), command) {
+                        return Ok(CommandOutcome {
+                            exit_code: None,
+                            output: self.snapshot(120).await,
+                            timed_out: false,
+                        });
+                    }
+                }
+                received = output_rx.recv() => match received {
+                    Ok(frame) => {
+                        if frame.bytes.contains(&b'\n') {
+                            saw_newline = true;
+                        }
+                        append_bounded(&mut buffer, &frame.bytes, MAX_CAPTURE_BYTES);
+                        if let Some(exit_code) = find_osc133_exit_code(&buffer) {
+                            // Yield briefly so the shared output forwarder feeds
+                            // this frame into the shadow screen before we read it.
+                            tokio::time::sleep(Duration::from_millis(20)).await;
+                            return Ok(CommandOutcome {
+                                exit_code: Some(exit_code),
+                                output: self.snapshot(120).await,
+                                timed_out: false,
+                            });
+                        }
+                        if saw_newline {
+                            settle_deadline = Some(Instant::now() + PROMPT_SETTLE_WINDOW);
+                        }
+                    }
+                    Err(RecvError::Lagged(_)) => {
+                        saw_newline = true;
+                        settle_deadline = Some(Instant::now() + PROMPT_SETTLE_WINDOW);
+                    }
+                    Err(RecvError::Closed) => {
+                        return Ok(CommandOutcome {
+                            exit_code: None,
+                            output: self.snapshot(120).await,
+                            timed_out: false,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    async fn current_cursor_line(&self) -> String {
+        let screen = self.screen.lock().await;
+        let row = screen.cursor().row as usize;
+        screen.visible_lines().get(row).cloned().unwrap_or_default()
+    }
+
+    /// Serial consoles run U-Boot, RTOS or AT firmware that never echo a
+    /// sentinel, so completion is inferred from a 300ms stream idle window.
+    async fn execute_with_idle_detection(
+        &self,
+        command: &str,
+        timeout: Duration,
+    ) -> AgentResult<CommandOutcome> {
+        let mut output_rx = self.transport.subscribe_output();
+        self.transport
+            .write_bytes(format!("{command}\r").as_bytes())
+            .await
+            .map_err(|error| Self::io_error("execute_command", error))?;
+
+        let deadline = Instant::now() + timeout;
+        let idle_window = Duration::from_millis(300);
+        let mut idle_deadline = Instant::now() + idle_window;
+
+        loop {
+            let next_wake = deadline.min(idle_deadline);
+            tokio::select! {
+                _ = tokio::time::sleep_until(next_wake) => {
+                    let timed_out = Instant::now() >= deadline;
+                    return Ok(CommandOutcome {
+                        exit_code: None,
+                        output: self.snapshot(120).await,
+                        timed_out,
+                    });
+                }
+                received = output_rx.recv() => match received {
+                    Ok(_) | Err(RecvError::Lagged(_)) => {
+                        idle_deadline = Instant::now() + idle_window;
+                    }
+                    Err(RecvError::Closed) => {
+                        return Ok(CommandOutcome {
+                            exit_code: None,
+                            output: self.snapshot(120).await,
+                            timed_out: false,
+                        });
+                    }
+                }
             }
         }
     }
 }
 
+/// Appends bytes while keeping the buffer bounded to the most recent `limit` bytes.
+fn append_bounded(buffer: &mut Vec<u8>, chunk: &[u8], limit: usize) {
+    buffer.extend_from_slice(chunk);
+    if buffer.len() > limit {
+        let excess = buffer.len() - limit;
+        buffer.drain(..excess);
+    }
+}
+
+async fn wait_optional(deadline: Option<Instant>) {
+    match deadline {
+        Some(instant) => tokio::time::sleep_until(instant).await,
+        None => std::future::pending().await,
+    }
+}
+
+/// Finds a standard `OSC 133;D;<exit_code>` sequence in captured transport bytes.
+fn find_osc133_exit_code(bytes: &[u8]) -> Option<i32> {
+    const PREFIX: &str = "\x1b]133;D;";
+    let text = String::from_utf8_lossy(bytes);
+    let mut search_from = 0;
+    let mut matched = None;
+    while let Some(offset) = text[search_from..].find(PREFIX) {
+        let after = search_from + offset + PREFIX.len();
+        let rest = &text[after..];
+        let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+        if !digits.is_empty() {
+            let after_digits = &rest[digits.len()..];
+            if (after_digits.starts_with('\x07')
+                || after_digits.starts_with("\x1b\\")
+                || after_digits.starts_with(';'))
+                && let Ok(code) = digits.parse::<i32>()
+            {
+                matched = Some(code);
+            }
+        }
+        search_from = after;
+    }
+    matched
+}
+
+/// Extracts a stable host/user prefix from a shell prompt line such as
+/// `ubuntu@VM-0-8-ubuntu:~$` -> `Some("ubuntu@VM-0-8-ubuntu")`.
+fn extract_prompt_prefix(prompt_line: &str) -> Option<String> {
+    let trimmed = prompt_line.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if let Some((prefix, _)) = trimmed.split_once(':')
+        && prefix.contains('@')
+        && prefix.len() >= 3
+    {
+        return Some(prefix.to_owned());
+    }
+    trimmed
+        .split_whitespace()
+        .next()
+        .filter(|token| token.contains('@') && token.len() >= 3)
+        .map(str::to_owned)
+}
+
+/// Heuristic for detecting when the cursor has returned to an interactive shell
+/// prompt on remote SSH sessions that do not emit OSC 133;D.
+fn looks_like_shell_prompt(
+    cursor_line: &str,
+    prompt_prefix: Option<&str>,
+    executed_command: &str,
+) -> bool {
+    let trimmed = cursor_line.trim_end();
+    if trimmed.is_empty() {
+        return false;
+    }
+    let first_cmd_piece = executed_command.trim().lines().next().unwrap_or_default();
+    if !first_cmd_piece.is_empty() && trimmed.ends_with(first_cmd_piece) {
+        return false;
+    }
+
+    let ends_with_prompt_char = trimmed
+        .chars()
+        .last()
+        .is_some_and(|ch| matches!(ch, '$' | '#' | '%' | '>' | '❯' | '➜' | 'λ' | '»' | '›'));
+    if !ends_with_prompt_char {
+        return false;
+    }
+
+    if let Some(prefix) = prompt_prefix
+        && trimmed.contains(prefix)
+    {
+        return true;
+    }
+
+    // Standard short prompt lines (e.g. `root@box:~#`, `$`, `bash-5.2$`, `~ %`).
+    trimmed.len() <= 120
+}
+
 #[async_trait]
 impl AgentTerminal for SessionTerminal {
-    async fn screen(&self, _scrollback: usize) -> AgentResult<String> {
-        Ok(self.snapshot().await)
+    async fn screen(&self, scrollback: usize) -> AgentResult<String> {
+        Ok(self.snapshot(scrollback).await)
     }
 
     async fn execute(&self, command: &str, timeout: Duration) -> AgentResult<CommandOutcome> {
         match self.kind {
             SessionKind::Serial => self.execute_with_idle_detection(command, timeout).await,
             SessionKind::Local | SessionKind::Ssh => {
-                self.execute_with_sentinel(command, timeout).await
+                self.execute_shell_command(command, timeout).await
             }
         }
     }
@@ -207,7 +372,7 @@ pub struct EventApprover {
     /// Session the run belongs to.
     pub session_id: String,
     /// Pending decisions keyed by tool call id.
-    pub pending: Arc<Mutex<HashMap<String, oneshot::Sender<bool>>>>,
+    pub pending: Arc<Mutex<HashMap<String, PendingApproval>>>,
 }
 
 #[async_trait]
@@ -216,7 +381,13 @@ impl Approver for EventApprover {
         let (sender, receiver) = oneshot::channel();
         match self.pending.lock() {
             Ok(mut pending) => {
-                pending.insert(request.call_id.clone(), sender);
+                pending.insert(
+                    request.call_id.clone(),
+                    PendingApproval {
+                        session_id: self.session_id.clone(),
+                        sender,
+                    },
+                );
             }
             Err(_) => return false,
         }
@@ -228,6 +399,9 @@ impl Approver for EventApprover {
             risk: format!("{:?}", request.risk).to_lowercase(),
         };
         if self.app.emit(AGENT_APPROVAL, payload).is_err() {
+            if let Ok(mut pending) = self.pending.lock() {
+                pending.remove(&request.call_id);
+            }
             return false;
         }
 
@@ -242,8 +416,8 @@ impl Approver for EventApprover {
 pub struct AgentControl {
     /// Cancellation flags per session.
     pub cancel: Mutex<HashMap<String, Arc<AtomicBool>>>,
-    /// Pending approvals per tool call id.
-    pub pending: Arc<Mutex<HashMap<String, oneshot::Sender<bool>>>>,
+    /// Pending approvals per tool call id, tagged with their owning session.
+    pub pending: Arc<Mutex<HashMap<String, PendingApproval>>>,
 }
 
 impl AgentControl {
@@ -261,6 +435,7 @@ impl AgentControl {
         if let Ok(mut cancel) = self.cancel.lock() {
             cancel.remove(session_id);
         }
+        self.reject_session(session_id);
     }
 
     /// Whether a run is currently in flight for `session_id`.
@@ -285,7 +460,7 @@ impl AgentControl {
         match flag {
             Some(flag) => {
                 flag.store(true, Ordering::SeqCst);
-                self.reject_all();
+                self.reject_session(session_id);
                 true
             }
             None => false,
@@ -299,23 +474,30 @@ impl AgentControl {
         {
             flag.store(true, Ordering::SeqCst);
         }
-        self.reject_all();
+        self.reject_session(session_id);
     }
 
     /// Resolves one approval question.
     pub fn resolve(&self, call_id: &str, approved: bool) {
         if let Ok(mut pending) = self.pending.lock()
-            && let Some(sender) = pending.remove(call_id)
+            && let Some(entry) = pending.remove(call_id)
         {
-            let _ = sender.send(approved);
+            let _ = entry.sender.send(approved);
         }
     }
 
-    /// Rejects every outstanding question, used by cancel and take-over.
-    fn reject_all(&self) {
+    /// Rejects only the pending approvals belonging to `session_id`.
+    fn reject_session(&self, session_id: &str) {
         if let Ok(mut pending) = self.pending.lock() {
-            for (_, sender) in pending.drain() {
-                let _ = sender.send(false);
+            let matching: Vec<String> = pending
+                .iter()
+                .filter(|(_, entry)| entry.session_id == session_id)
+                .map(|(call_id, _)| call_id.clone())
+                .collect();
+            for call_id in matching {
+                if let Some(entry) = pending.remove(&call_id) {
+                    let _ = entry.sender.send(false);
+                }
             }
         }
     }
@@ -374,7 +556,7 @@ pub async fn run_task(
     api_key: Option<String>,
     mode: PermissionMode,
     cancelled: Arc<AtomicBool>,
-    pending: Arc<Mutex<HashMap<String, oneshot::Sender<bool>>>>,
+    pending: Arc<Mutex<HashMap<String, PendingApproval>>>,
     task: String,
     step_approval: bool,
 ) -> AgentResult<()> {
@@ -483,11 +665,13 @@ mod tests {
     async fn approve_sends_the_decision_to_the_waiting_runtime() {
         let control = AgentControl::default();
         let (sender, receiver) = oneshot::channel();
-        control
-            .pending
-            .lock()
-            .expect("pending")
-            .insert(String::from("call-1"), sender);
+        control.pending.lock().expect("pending").insert(
+            String::from("call-1"),
+            PendingApproval {
+                session_id: String::from("local-1"),
+                sender,
+            },
+        );
 
         control.resolve("call-1", false);
         assert!(!receiver.await.expect("decision"));
@@ -496,21 +680,75 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn cancelling_rejects_every_pending_approval() {
+    async fn cancelling_one_session_keeps_other_sessions_approvals_alive() {
         let control = AgentControl::default();
         let (first_tx, first_rx) = oneshot::channel();
-        let (second_tx, second_rx) = oneshot::channel();
+        let (second_tx, mut second_rx) = oneshot::channel();
         {
             let mut pending = control.pending.lock().expect("pending");
-            pending.insert(String::from("call-a"), first_tx);
-            pending.insert(String::from("call-b"), second_tx);
+            pending.insert(
+                String::from("call-a"),
+                PendingApproval {
+                    session_id: String::from("ssh-1"),
+                    sender: first_tx,
+                },
+            );
+            pending.insert(
+                String::from("call-b"),
+                PendingApproval {
+                    session_id: String::from("local-2"),
+                    sender: second_tx,
+                },
+            );
         }
-        let _flag = control.begin("ssh-1");
+        let _flag_a = control.begin("ssh-1");
+        let _flag_b = control.begin("local-2");
 
         control.cancel("ssh-1");
 
-        assert!(!first_rx.await.expect("first"));
-        assert!(!second_rx.await.expect("second"));
-        assert!(control.pending.lock().expect("pending").is_empty());
+        assert!(!first_rx.await.expect("first cancelled"));
+        assert!(
+            second_rx.try_recv().is_err(),
+            "unrelated session approval must stay pending"
+        );
+        assert_eq!(control.pending.lock().expect("pending").len(), 1);
+    }
+
+    #[test]
+    fn osc133_exit_code_is_parsed_and_invisible_on_screen() {
+        let completed = b"hello world\r\n\x1b]133;D;127\x07\x1b]133;A\x07$ ";
+        assert_eq!(find_osc133_exit_code(completed), Some(127));
+        assert_eq!(find_osc133_exit_code(b"plain output only\r\n"), None);
+
+        let mut screen = ShadowScreen::new(80, 10).expect("screen");
+        screen.feed(completed);
+        let visible = screen.visible_text();
+        assert!(visible.contains("hello world"));
+        assert!(!visible.contains("133"));
+    }
+
+    #[test]
+    fn prompt_detector_recognizes_ssh_prompt_return_and_ignores_blank_or_echo_lines() {
+        let prefix = extract_prompt_prefix("ubuntu@VM-0-8-ubuntu:~$ ");
+        assert_eq!(prefix.as_deref(), Some("ubuntu@VM-0-8-ubuntu"));
+
+        // Blank cursor line while a slow command is still running must not match.
+        assert!(!looks_like_shell_prompt(
+            "",
+            prefix.as_deref(),
+            "apt-get -s upgrade"
+        ));
+        // The echoed command itself must not match.
+        assert!(!looks_like_shell_prompt(
+            "ubuntu@VM-0-8-ubuntu:~$ apt-get -s upgrade",
+            prefix.as_deref(),
+            "apt-get -s upgrade"
+        ));
+        // Returned prompt (even after `cd /var/log`) matches cleanly.
+        assert!(looks_like_shell_prompt(
+            "ubuntu@VM-0-8-ubuntu:/var/log$ ",
+            prefix.as_deref(),
+            "cd /var/log"
+        ));
     }
 }

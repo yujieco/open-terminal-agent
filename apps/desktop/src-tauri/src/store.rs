@@ -158,6 +158,43 @@ pub struct NewAgentRun {
     pub events: Value,
 }
 
+/// One user-favorited command snippet shown in the right-hand command handbook.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandSnippet {
+    /// Stable identifier.
+    pub id: String,
+    /// Human-friendly alias, e.g. "Check port 8080".
+    pub alias: String,
+    /// Exact shell command pasted into the terminal on click.
+    pub command: String,
+    /// Optional grouping label, e.g. "network", "docker", "logs".
+    pub category: String,
+    /// Optional short note.
+    pub description: String,
+    /// Number of times the user pasted this snippet.
+    pub usage_count: u32,
+    /// Creation time in milliseconds since the Unix epoch.
+    pub created_at: i64,
+    /// Last update time in milliseconds since the Unix epoch.
+    pub updated_at: i64,
+}
+
+/// Values needed to create or update a command snippet.
+#[derive(Debug, Clone)]
+pub struct NewCommandSnippet {
+    /// Existing id when updating, or `None` when creating a new snippet.
+    pub id: Option<String>,
+    /// Human-friendly alias.
+    pub alias: String,
+    /// Exact shell command.
+    pub command: String,
+    /// Category label.
+    pub category: String,
+    /// Short note.
+    pub description: String,
+}
+
 /// Handle to the local database. Cloning is cheap and keeps the same file.
 #[derive(Clone)]
 pub struct Store {
@@ -228,7 +265,17 @@ impl Store {
                  key TEXT PRIMARY KEY,
                  value TEXT NOT NULL
              );
-             PRAGMA user_version = 3;",
+             CREATE TABLE IF NOT EXISTS command_snippets (
+                 id TEXT PRIMARY KEY,
+                 alias TEXT NOT NULL,
+                 command TEXT NOT NULL,
+                 category TEXT NOT NULL DEFAULT 'general',
+                 description TEXT NOT NULL DEFAULT '',
+                 usage_count INTEGER NOT NULL DEFAULT 0,
+                 created_at INTEGER NOT NULL,
+                 updated_at INTEGER NOT NULL
+             );
+             PRAGMA user_version = 4;",
         )?;
         Ok(())
     }
@@ -551,6 +598,112 @@ impl Store {
         )?;
         Ok(())
     }
+
+    /// Creates or updates one user command snippet.
+    pub fn save_snippet(&self, draft: NewCommandSnippet) -> Result<CommandSnippet, StoreError> {
+        let now = now_millis();
+        let category = if draft.category.trim().is_empty() {
+            String::from("general")
+        } else {
+            draft.category.trim().to_owned()
+        };
+        let alias = draft.alias.trim().to_owned();
+        let command = draft.command.trim().to_owned();
+        let description = draft.description.trim().to_owned();
+
+        if let Some(existing_id) = draft.id {
+            let connection = self.lock()?;
+            let updated = connection.execute(
+                "UPDATE command_snippets
+                 SET alias = ?1, command = ?2, category = ?3, description = ?4, updated_at = ?5
+                 WHERE id = ?6",
+                params![alias, command, category, description, now, existing_id],
+            )?;
+            if updated > 0 {
+                let row = connection.query_row(
+                    "SELECT id, alias, command, category, description, usage_count, created_at, updated_at
+                     FROM command_snippets WHERE id = ?1",
+                    params![existing_id],
+                    |row| {
+                        Ok(CommandSnippet {
+                            id: row.get(0)?,
+                            alias: row.get(1)?,
+                            command: row.get(2)?,
+                            category: row.get(3)?,
+                            description: row.get(4)?,
+                            usage_count: row.get::<_, i64>(5)? as u32,
+                            created_at: row.get(6)?,
+                            updated_at: row.get(7)?,
+                        })
+                    },
+                )?;
+                return Ok(row);
+            }
+        }
+
+        let id = term_core::generate_session_id("snip").into_string();
+        self.lock()?.execute(
+            "INSERT INTO command_snippets (id, alias, command, category, description, usage_count, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6, ?7)",
+            params![id, alias, command, category, description, now, now],
+        )?;
+
+        Ok(CommandSnippet {
+            id,
+            alias,
+            command,
+            category,
+            description,
+            usage_count: 0,
+            created_at: now,
+            updated_at: now,
+        })
+    }
+
+    /// Lists saved command snippets ordered by usage frequency then recency.
+    pub fn list_snippets(&self) -> Result<Vec<CommandSnippet>, StoreError> {
+        let connection = self.lock()?;
+        let mut statement = connection.prepare(
+            "SELECT id, alias, command, category, description, usage_count, created_at, updated_at
+             FROM command_snippets
+             ORDER BY usage_count DESC, updated_at DESC",
+        )?;
+        let rows = statement.query_map([], |row| {
+            Ok(CommandSnippet {
+                id: row.get(0)?,
+                alias: row.get(1)?,
+                command: row.get(2)?,
+                category: row.get(3)?,
+                description: row.get(4)?,
+                usage_count: row.get::<_, i64>(5)? as u32,
+                created_at: row.get(6)?,
+                updated_at: row.get(7)?,
+            })
+        })?;
+
+        let mut snippets = Vec::new();
+        for row in rows {
+            snippets.push(row?);
+        }
+        Ok(snippets)
+    }
+
+    /// Increments the usage counter of one snippet when pasted.
+    pub fn bump_snippet_usage(&self, id: &str) -> Result<(), StoreError> {
+        self.lock()?.execute(
+            "UPDATE command_snippets SET usage_count = usage_count + 1, updated_at = ?1 WHERE id = ?2",
+            params![now_millis(), id],
+        )?;
+        Ok(())
+    }
+
+    /// Deletes one snippet, returning whether a row was removed.
+    pub fn delete_snippet(&self, id: &str) -> Result<bool, StoreError> {
+        let removed = self
+            .lock()?
+            .execute("DELETE FROM command_snippets WHERE id = ?1", params![id])?;
+        Ok(removed > 0)
+    }
 }
 
 fn now_millis() -> i64 {
@@ -709,5 +862,38 @@ mod tests {
         let encoded = saved.payload.to_string();
         assert!(!encoded.contains("password"));
         assert!(!encoded.contains("passphrase"));
+    }
+
+    #[test]
+    fn saves_updates_bumps_and_deletes_snippets() {
+        let store = Store::open_in_memory().expect("store");
+        let created = store
+            .save_snippet(NewCommandSnippet {
+                id: None,
+                alias: String::from("Port 8080"),
+                command: String::from("lsof -i :8080"),
+                category: String::from("network"),
+                description: String::from("Find process listening on 8080"),
+            })
+            .expect("create");
+        assert_eq!(created.usage_count, 0);
+
+        store.bump_snippet_usage(&created.id).expect("bump");
+        let updated = store
+            .save_snippet(NewCommandSnippet {
+                id: Some(created.id.clone()),
+                alias: String::from("Check 8080"),
+                command: String::from("lsof -nP -iTCP:8080"),
+                category: String::from("network"),
+                description: String::new(),
+            })
+            .expect("update");
+        assert_eq!(updated.alias, "Check 8080");
+        assert_eq!(updated.usage_count, 1);
+
+        let listed = store.list_snippets().expect("list");
+        assert_eq!(listed.len(), 1);
+        assert!(store.delete_snippet(&created.id).expect("delete"));
+        assert!(store.list_snippets().expect("empty").is_empty());
     }
 }
