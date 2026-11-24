@@ -151,6 +151,11 @@ const DANGEROUS_FLAGS: &[&str] = &[
 /// Wrappers that elevate whatever they run.
 const ELEVATION_PROGRAMS: &[&str] = &["sudo", "doas", "su"];
 
+/// Transparent execution wrappers whose target program is the real command.
+const WRAPPER_PROGRAMS: &[&str] = &[
+    "env", "nohup", "nice", "time", "command", "builtin", "stdbuf",
+];
+
 /// Git subcommands that never mutate the repository.
 const READ_ONLY_GIT_SUBCOMMANDS: &[&str] = &[
     "status",
@@ -178,6 +183,8 @@ const READ_ONLY_SYSTEMCTL_SUBCOMMANDS: &[&str] = &[
 /// Classifies a full command line, including pipes and `&&` chains.
 ///
 /// A chain is only as safe as its riskiest segment, so the maximum risk wins.
+/// Segment splitting respects single/double quotes and backslash escapes so
+/// literals like `grep "a|b" app.log` stay intact.
 pub fn classify_command(command: &str) -> CommandRisk {
     let trimmed = command.trim();
     if trimmed.is_empty() {
@@ -185,7 +192,7 @@ pub fn classify_command(command: &str) -> CommandRisk {
     }
 
     let mut risk = CommandRisk::ReadOnly;
-    for segment in trimmed.split([';', '\n', '|', '&']) {
+    for segment in split_shell_segments(trimmed) {
         let segment = segment.trim();
         if segment.is_empty() {
             continue;
@@ -196,6 +203,137 @@ pub fn classify_command(command: &str) -> CommandRisk {
         }
     }
     risk
+}
+
+/// Splits a shell command line on unquoted `;`, `\n`, `|`, and `&`.
+fn split_shell_segments(command: &str) -> Vec<String> {
+    let mut segments = Vec::new();
+    let mut current = String::new();
+    let mut in_single = false;
+    let mut in_double = false;
+    let mut escaped = false;
+
+    for ch in command.chars() {
+        if escaped {
+            current.push(ch);
+            escaped = false;
+            continue;
+        }
+        if !in_single && ch == '\\' {
+            current.push(ch);
+            escaped = true;
+            continue;
+        }
+        if !in_double && ch == '\'' {
+            in_single = !in_single;
+            current.push(ch);
+            continue;
+        }
+        if !in_single && ch == '"' {
+            in_double = !in_double;
+            current.push(ch);
+            continue;
+        }
+        if !in_single && !in_double && matches!(ch, ';' | '\n' | '|' | '&') {
+            if !current.trim().is_empty() {
+                segments.push(std::mem::take(&mut current));
+            } else {
+                current.clear();
+            }
+            continue;
+        }
+        current.push(ch);
+    }
+
+    if !current.trim().is_empty() {
+        segments.push(current);
+    }
+    segments
+}
+
+/// Tokenizes one shell segment while preserving quote boundaries, and reports
+/// whether an unquoted redirection (`>`, `>>`) or expandable command
+/// substitution (`$(...)`, backticks) was observed.
+fn scan_segment(segment: &str) -> (Vec<String>, bool, bool) {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut in_single = false;
+    let mut in_double = false;
+    let mut escaped = false;
+    let mut has_redirect = false;
+    let mut has_substitution = false;
+
+    let chars: Vec<char> = segment.chars().collect();
+    let mut idx = 0;
+    while idx < chars.len() {
+        let ch = chars[idx];
+        if escaped {
+            current.push(ch);
+            escaped = false;
+            idx += 1;
+            continue;
+        }
+        if !in_single && ch == '\\' {
+            escaped = true;
+            idx += 1;
+            continue;
+        }
+        if !in_double && ch == '\'' {
+            in_single = !in_single;
+            idx += 1;
+            continue;
+        }
+        if !in_single && ch == '"' {
+            in_double = !in_double;
+            idx += 1;
+            continue;
+        }
+
+        // Command substitutions execute outside single quotes (including inside
+        // double quotes in POSIX shells).
+        if !in_single && (ch == '`' || (ch == '$' && chars.get(idx + 1) == Some(&'('))) {
+            has_substitution = true;
+        }
+
+        // Unquoted `>` or `>>` redirects output to disk, even with no spaces
+        // around the operator (e.g. `echo hi>out.txt` or `cmd 2>err.log`).
+        if !in_single && !in_double && ch == '>' {
+            has_redirect = true;
+            if !current.is_empty() {
+                tokens.push(std::mem::take(&mut current));
+            }
+            idx += 1;
+            continue;
+        }
+
+        if !in_single && !in_double && ch.is_whitespace() {
+            if !current.is_empty() {
+                tokens.push(std::mem::take(&mut current));
+            }
+            idx += 1;
+            continue;
+        }
+
+        current.push(ch);
+        idx += 1;
+    }
+
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+
+    (tokens, has_redirect, has_substitution)
+}
+
+fn is_env_assignment(token: &str) -> bool {
+    let Some((name, _)) = token.split_once('=') else {
+        return false;
+    };
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+        && !name.starts_with(|ch: char| ch.is_ascii_digit())
 }
 
 fn classify_segment(segment: &str) -> CommandRisk {
@@ -213,25 +351,85 @@ fn classify_segment(segment: &str) -> CommandRisk {
         return CommandRisk::Destructive;
     }
 
-    let mut tokens = segment.split_whitespace();
-    let first = match tokens.next() {
-        Some(token) => base_name(token),
-        None => return CommandRisk::ReadOnly,
-    };
+    let (tokens, has_redirect, has_substitution) = scan_segment(segment);
+    let mut index = 0;
 
-    let (program, escalated) = if ELEVATION_PROGRAMS.contains(&first.as_str()) {
-        match tokens.next() {
-            Some(token) => (base_name(token), true),
-            None => return CommandRisk::Mutating,
+    // Skip leading `VAR=val` assignments so `LANG=C rm -rf /tmp/x` is not
+    // misclassified as an unknown program.
+    while index < tokens.len() && is_env_assignment(&tokens[index]) {
+        index += 1;
+    }
+
+    let mut escalated = false;
+    while index < tokens.len() {
+        let candidate = base_name(&tokens[index]);
+        if ELEVATION_PROGRAMS.contains(&candidate.as_str()) {
+            escalated = true;
+            index += 1;
+            // Skip flags belonging to sudo/doas (e.g. `sudo -u root`).
+            while index < tokens.len() && tokens[index].starts_with('-') {
+                let flag = &tokens[index];
+                index += 1;
+                if matches!(flag.as_str(), "-u" | "-g" | "-C" | "-p" | "-h") && index < tokens.len()
+                {
+                    index += 1;
+                }
+            }
+            continue;
         }
-    } else {
-        (first, false)
+        if WRAPPER_PROGRAMS.contains(&candidate.as_str()) {
+            index += 1;
+            while index < tokens.len()
+                && (tokens[index].starts_with('-') || is_env_assignment(&tokens[index]))
+            {
+                index += 1;
+            }
+            continue;
+        }
+        break;
+    }
+
+    let program = match tokens.get(index) {
+        Some(token) => base_name(token),
+        None => {
+            return if escalated {
+                CommandRisk::Mutating
+            } else {
+                CommandRisk::ReadOnly
+            };
+        }
     };
 
-    let rest: Vec<String> = tokens.map(|token| token.to_ascii_lowercase()).collect();
+    let rest: Vec<String> = tokens[index + 1..]
+        .iter()
+        .map(|token| token.to_ascii_lowercase())
+        .collect();
 
     // Code we cannot read is code we cannot vouch for.
     if OPAQUE_INTERPRETERS.contains(&program.as_str()) {
+        return CommandRisk::Destructive;
+    }
+
+    // `xargs` invokes an arbitrary target command on stdin items.
+    if program == "xargs" {
+        let target = rest
+            .iter()
+            .find(|token| !token.starts_with('-'))
+            .map(|token| base_name(token));
+        return match target.as_deref() {
+            Some(cmd)
+                if DESTRUCTIVE_PROGRAMS.contains(&cmd)
+                    || OPAQUE_INTERPRETERS.contains(&cmd)
+                    || ELEVATION_PROGRAMS.contains(&cmd) =>
+            {
+                CommandRisk::Destructive
+            }
+            _ => CommandRisk::Mutating,
+        };
+    }
+
+    // `awk` can spawn arbitrary commands via `system(...)`.
+    if matches!(program.as_str(), "awk" | "gawk" | "nawk" | "mawk") && lower.contains("system(") {
         return CommandRisk::Destructive;
     }
 
@@ -281,14 +479,14 @@ fn classify_segment(segment: &str) -> CommandRisk {
         CommandRisk::Mutating
     };
 
-    // Redirection writes to disk even when the program itself only reads.
-    if risk == CommandRisk::ReadOnly && (lower.contains(" >>") || lower.contains(" >")) {
+    // Unquoted redirection writes to disk even when the program itself only reads.
+    if risk == CommandRisk::ReadOnly && has_redirect {
         risk = CommandRisk::Mutating;
     }
 
     // Command substitution hides a second command inside a read-only one:
     // `ls $(rm -rf x)` must not look like `ls`.
-    if risk == CommandRisk::ReadOnly && (lower.contains("$(") || lower.contains('`')) {
+    if risk == CommandRisk::ReadOnly && has_substitution {
         risk = CommandRisk::Mutating;
     }
 
@@ -524,5 +722,45 @@ mod tests {
         policy.take_over();
         assert_eq!(policy.control(), ControlState::Human);
         assert!(policy.begin_run().is_ok());
+    }
+
+    #[test]
+    fn handles_quotes_unspaced_redirects_and_wrappers() {
+        // Quoted operators must not break a read-only command.
+        assert_eq!(
+            classify_command("grep \"error|warn\" app.log"),
+            CommandRisk::ReadOnly
+        );
+        assert_eq!(
+            classify_command("grep 'a>b' app.log"),
+            CommandRisk::ReadOnly
+        );
+        // Unspaced redirection still writes to disk.
+        assert_eq!(classify_command("echo hi>notes.txt"), CommandRisk::Mutating);
+        assert_eq!(
+            classify_command("cat /etc/hosts>>copy.txt"),
+            CommandRisk::Mutating
+        );
+        // Transparent wrappers and env assignments cannot mask destructive commands.
+        assert_eq!(
+            classify_command("LANG=C rm -rf /tmp/test"),
+            CommandRisk::Destructive
+        );
+        assert_eq!(
+            classify_command("env rm -rf /tmp/test"),
+            CommandRisk::Destructive
+        );
+        assert_eq!(
+            classify_command("nohup dd if=/dev/zero of=/tmp/a"),
+            CommandRisk::Destructive
+        );
+        assert_eq!(
+            classify_command("find . -name '*.tmp' | xargs rm -f"),
+            CommandRisk::Destructive
+        );
+        assert_eq!(
+            classify_command("awk 'BEGIN { system(\"rm -rf /tmp/x\") }'"),
+            CommandRisk::Destructive
+        );
     }
 }

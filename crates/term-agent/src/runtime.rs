@@ -26,7 +26,7 @@ use tokio::sync::mpsc;
 
 use crate::error::{AgentError, Result};
 use crate::llm::{ChatMessage, ChatRole, LlmClient, StreamSink, ToolCall};
-use crate::loop_engine::StepBudget;
+use crate::loop_engine::{AgentLoopState, LoopPhase};
 use crate::policy::{CommandRisk, PermissionMode, PolicyDecision, SessionPolicy, classify_command};
 use crate::tools::{
     ControlSignal, EXECUTE_COMMAND, READ_TERMINAL_SCREEN, SEND_CONTROL_SIGNAL, ToolCallRequest,
@@ -151,6 +151,11 @@ pub enum AgentEvent {
         mode: PermissionMode,
         /// Model that will be asked.
         model: String,
+    },
+    /// The Observe -> Reason -> Act -> Verify state machine entered a new phase.
+    PhaseChanged {
+        /// Current loop phase.
+        phase: LoopPhase,
     },
     /// Reasoning delta from a reasoning model.
     Thinking {
@@ -333,21 +338,28 @@ impl AgentRuntime {
             ChatMessage::text(ChatRole::System, SYSTEM_PROMPT),
             ChatMessage::text(ChatRole::User, task),
         ];
-        let mut budget = StepBudget::new(self.config.max_steps);
-        let mut steps = 0u32;
+        let mut loop_state = AgentLoopState::new(task, self.config.max_steps);
+        let _ = self.events.send(AgentEvent::PhaseChanged {
+            phase: loop_state.phase(),
+        });
 
         loop {
             if self.cancelled.load(Ordering::SeqCst) {
                 self.interrupt().await;
-                self.finish(steps, RunFinishReason::Cancelled);
+                self.finish(loop_state.budget().used(), RunFinishReason::Cancelled);
                 return Ok(());
             }
 
-            if let Err(error) = budget.consume() {
-                self.finish(steps, RunFinishReason::StepBudget);
-                return Err(error);
-            }
-            steps = budget.used();
+            // Observe -> Reason (consumes one step from the loop budget).
+            let phase = match loop_state.advance() {
+                Ok(phase) => phase,
+                Err(error) => {
+                    self.finish(loop_state.budget().used(), RunFinishReason::StepBudget);
+                    return Err(error);
+                }
+            };
+            let _ = self.events.send(AgentEvent::PhaseChanged { phase });
+            let steps = loop_state.budget().used();
 
             let response = {
                 let mut sink = EventSink {
@@ -383,6 +395,13 @@ impl AgentRuntime {
                 return Ok(());
             }
 
+            // Reason -> Act
+            if let Ok(act_phase) = loop_state.advance() {
+                let _ = self
+                    .events
+                    .send(AgentEvent::PhaseChanged { phase: act_phase });
+            }
+
             for call in &response.tool_calls {
                 if self.cancelled.load(Ordering::SeqCst) {
                     self.interrupt().await;
@@ -392,6 +411,17 @@ impl AgentRuntime {
                 let result = self.run_tool(call, steps).await?;
                 messages.push(ChatMessage::tool_result(call.id.clone(), result));
             }
+
+            // Act -> Verify -> Observe for the next iteration.
+            if let Ok(verify_phase) = loop_state.advance() {
+                let _ = self.events.send(AgentEvent::PhaseChanged {
+                    phase: verify_phase,
+                });
+            }
+            let observe_phase = loop_state.reobserve();
+            let _ = self.events.send(AgentEvent::PhaseChanged {
+                phase: observe_phase,
+            });
         }
     }
 
