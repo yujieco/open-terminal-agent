@@ -27,6 +27,7 @@ interface TerminalWorkspaceProps {
   onTakeOver: () => void;
   onOpenPalette: () => void;
   onFavoriteCommand: (command: string) => void;
+  onExportLog: (sessionId: string, label: string, lines?: string[]) => void;
 }
 
 export function TerminalWorkspace({
@@ -47,6 +48,7 @@ export function TerminalWorkspace({
   onTakeOver,
   onOpenPalette,
   onFavoriteCommand,
+  onExportLog,
 }: TerminalWorkspaceProps) {
   const { t } = useTranslation();
   const [quickTask, setQuickTask] = useState("");
@@ -73,19 +75,21 @@ export function TerminalWorkspace({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[var(--bg-canvas)]">
-      {/* Subtle editorial metadata strip above the terminal viewport */}
+      {/* Subtle metadata strip above the terminal viewport */}
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-[var(--border-subtle)] px-4">
-        <div className="flex min-w-0 items-center gap-2 font-mono text-[10.5px] tracking-[0.08em] text-[var(--text-muted)] uppercase">
-          <span>{activeSession ? t(`sidebar.kinds.${activeSession.kind}`) : "—"}</span>
-          <span className="opacity-40">·</span>
-          <span className="truncate normal-case tracking-normal text-[var(--text-secondary)]">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="text-[11px] font-medium text-[var(--text-muted)]">
+            {activeSession ? t(`sidebar.kinds.${activeSession.kind}`) : "—"}
+          </span>
+          <span className="text-[var(--text-muted)] opacity-40">·</span>
+          <span className="truncate text-[12.5px] font-medium text-[var(--text-primary)]">
             {activeSession?.label ?? "terminal"}
           </span>
         </div>
 
         <div className="flex items-center gap-1">
           <span
-            className="mr-1.5 flex items-center gap-1.5 font-mono text-[10.5px]"
+            className="mr-1.5 flex items-center gap-1.5 text-[11px] font-medium"
             style={{
               color: agentRunning ? "var(--accent)" : "var(--text-muted)",
             }}
@@ -143,6 +147,7 @@ export function TerminalWorkspace({
               onResize={onResize}
               onExit={onExit}
               onFavoriteCommand={onFavoriteCommand}
+              onExportLog={onExportLog}
             />
           </div>
         ))}
@@ -168,7 +173,7 @@ export function TerminalWorkspace({
               }
             }}
             placeholder={activePlaceholder}
-            className="h-7 min-w-0 flex-1 bg-transparent text-xs text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-50"
+            className="h-7 min-w-0 flex-1 bg-transparent text-[12.5px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-50"
           />
 
           {quickTask.length === 0 && !agentRunning ? (
@@ -178,18 +183,24 @@ export function TerminalWorkspace({
                 if (activePlaceholder.length > 0) setQuickTask(activePlaceholder);
               }}
               title={t("agent.tabAcceptHint")}
-              className="ota-ctrl hidden font-mono text-[11px] sm:inline-flex"
+              className="ota-ctrl hidden font-sans sm:inline-flex"
             >
-              Tab
+              <span className="inline-flex items-center justify-center gap-[3px]">
+                <span className="text-[13px] leading-none">⇥</span>
+                <span className="text-[11px] font-medium leading-none">Tab</span>
+              </span>
             </button>
           ) : null}
 
           <button
             type="button"
             onClick={onOpenPalette}
-            className="ota-ctrl hidden font-mono text-[11px] sm:inline-flex"
+            className="ota-ctrl hidden font-sans sm:inline-flex"
           >
-            ⌘K
+            <span className="inline-flex items-center justify-center gap-[3px]">
+              <span className="text-[13px] leading-none">⌘</span>
+              <span className="text-[11px] font-medium leading-none">K</span>
+            </span>
           </button>
 
           {agentRunning ? (

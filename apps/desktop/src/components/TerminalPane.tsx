@@ -10,6 +10,12 @@ import { Terminal } from "@xterm/xterm";
 import type { ResolvedTheme } from "../hooks/useTheme";
 import type { TerminalBackend } from "../lib/backend";
 import {
+  buildClickMoveSequence,
+  buildSelectionDeleteSequence,
+  clientPointToBufferCell,
+  extractTerminalLines,
+} from "../lib/terminalEditing";
+import {
   resolveTerminalTheme,
   type TerminalAppearanceConfig,
 } from "../lib/terminalThemes";
@@ -29,6 +35,7 @@ interface TerminalPaneProps {
   onResize: (cols: number, rows: number) => void;
   onExit: () => void;
   onFavoriteCommand: (command: string) => void;
+  onExportLog: (lines: string[]) => void;
 }
 
 interface ContextMenuState {
@@ -45,6 +52,7 @@ export function TerminalPane({
   onResize,
   onExit,
   onFavoriteCommand,
+  onExportLog,
 }: TerminalPaneProps) {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -185,6 +193,71 @@ export function TerminalPane({
       onExitRef.current();
     });
 
+    // Editor-grade selection deletion & type-to-replace on the active shell prompt line.
+    term.attachCustomKeyEventHandler((event) => {
+      if (event.type !== "keydown" || event.isComposing || event.key === "Process") {
+        return true;
+      }
+      if (event.ctrlKey || event.metaKey || event.altKey) {
+        return true;
+      }
+      if (!term.hasSelection()) {
+        return true;
+      }
+
+      if (event.key === "Backspace" || event.key === "Delete") {
+        const seq = buildSelectionDeleteSequence(term);
+        if (seq) {
+          event.preventDefault();
+          term.clearSelection();
+          backend.write(seq);
+          return false;
+        }
+        return true;
+      }
+
+      // Directly typing a printable character replaces the active-line selection.
+      if (event.key.length === 1) {
+        const seq = buildSelectionDeleteSequence(term);
+        if (seq) {
+          event.preventDefault();
+          term.clearSelection();
+          backend.write(seq + event.key);
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    // Click anywhere on the active command line to reposition the shell cursor.
+    let pointerDown: { x: number; y: number } | null = null;
+    const onMouseDown = (event: MouseEvent) => {
+      if (event.button !== 0 || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) {
+        pointerDown = null;
+        return;
+      }
+      pointerDown = { x: event.clientX, y: event.clientY };
+    };
+    const onMouseUp = (event: MouseEvent) => {
+      if (!pointerDown || event.button !== 0 || event.detail !== 1) {
+        pointerDown = null;
+        return;
+      }
+      const dist = Math.hypot(event.clientX - pointerDown.x, event.clientY - pointerDown.y);
+      pointerDown = null;
+      if (dist >= 4 || term.hasSelection()) return;
+
+      const cell = clientPointToBufferCell(term, container, event.clientX, event.clientY);
+      if (!cell) return;
+      const moveSeq = buildClickMoveSequence(term, cell.row, cell.col);
+      if (moveSeq) {
+        backend.write(moveSeq);
+      }
+    };
+    container.addEventListener("mousedown", onMouseDown);
+    container.addEventListener("mouseup", onMouseUp);
+
     let disposed = false;
     const applySize = () => {
       if (disposed) return;
@@ -209,6 +282,8 @@ export function TerminalPane({
       fitAddonRef.current = null;
       cancelAnimationFrame(frame);
       observer.disconnect();
+      container.removeEventListener("mousedown", onMouseDown);
+      container.removeEventListener("mouseup", onMouseUp);
       oscDisposable.dispose();
       dataSubscription.dispose();
       stopOutput();
@@ -365,6 +440,21 @@ export function TerminalPane({
           </button>
 
           <div className="my-1 border-t border-[var(--border-subtle)]" />
+
+          <button
+            type="button"
+            onClick={() => {
+              const lines = terminalRef.current ? extractTerminalLines(terminalRef.current) : [];
+              setMenu(null);
+              onExportLog(lines);
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--text-primary)] transition hover:bg-[var(--bg-hover)]"
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 2.5v7.5M5.2 7.2L8 10l2.8-2.8M3 12.5h10" />
+            </svg>
+            <span>{t("exportLog.menuItem")}</span>
+          </button>
 
           <button
             type="button"

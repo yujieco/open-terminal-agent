@@ -202,6 +202,14 @@ export interface UpdateInfo {
   publishedAt: string | null;
 }
 
+export type LogExportFormat = "log" | "txt" | "md" | "html" | "json";
+
+export interface ExportLogResult {
+  path: string;
+  bytes: number;
+  lines: number;
+}
+
 export type UpdateDownloadEvent =
   | { event: "started"; contentLength: number | null }
   | { event: "progress"; downloaded: number; total: number | null }
@@ -379,5 +387,23 @@ export const ipc = {
 
   openExternalUrl(url: string): Promise<void> {
     return invoke<void>("open_external_url", { url });
+  },
+
+  defaultExportDir(): Promise<string> {
+    return invoke<string>("default_export_dir");
+  },
+
+  exportSessionLog(request: {
+    sessionId: string;
+    label: string;
+    format: LogExportFormat;
+    path?: string;
+    lines?: string[];
+  }): Promise<ExportLogResult> {
+    return invoke<ExportLogResult>("export_session_log", { request });
+  },
+
+  revealInFolder(path: string): Promise<void> {
+    return invoke<void>("reveal_in_folder", { path });
   },
 };

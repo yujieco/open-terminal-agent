@@ -19,6 +19,7 @@ interface PaneTreeProps {
   onResize: (sessionId: string, cols: number, rows: number) => void;
   onExit: (sessionId: string) => void;
   onFavoriteCommand: (command: string) => void;
+  onExportLog: (sessionId: string, label: string, lines?: string[]) => void;
 }
 
 /**
@@ -37,6 +38,7 @@ export function PaneTree({
   onResize,
   onExit,
   onFavoriteCommand,
+  onExportLog,
 }: PaneTreeProps) {
   if (node.kind === "leaf") {
     const session = sessions.find((entry) => entry.id === node.sessionId);
@@ -57,6 +59,7 @@ export function PaneTree({
           onResize={(cols, rows) => onResize(session.id, cols, rows)}
           onExit={() => onExit(session.id)}
           onFavoriteCommand={onFavoriteCommand}
+          onExportLog={(lines) => onExportLog(session.id, session.label, lines)}
         />
       </div>
     );
@@ -81,6 +84,7 @@ export function PaneTree({
           onResize={onResize}
           onExit={onExit}
           onFavoriteCommand={onFavoriteCommand}
+          onExportLog={onExportLog}
         />
       </div>
       <div className={row ? "w-px bg-[var(--border-subtle)]" : "h-px bg-[var(--border-subtle)]"} />
@@ -100,6 +104,7 @@ export function PaneTree({
           onResize={onResize}
           onExit={onExit}
           onFavoriteCommand={onFavoriteCommand}
+          onExportLog={onExportLog}
         />
       </div>
     </div>

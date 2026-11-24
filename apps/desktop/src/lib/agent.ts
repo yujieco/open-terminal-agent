@@ -133,6 +133,14 @@ export const agentIpc = {
   runDetail(id: string) {
     return invoke<import("./ipc").AgentRunRecord | null>("get_agent_run", { id });
   },
+
+  deleteRun(id: string): Promise<boolean> {
+    return invoke<boolean>("delete_agent_run", { id });
+  },
+
+  clearRuns(sessionId?: string): Promise<number> {
+    return invoke<number>("clear_agent_runs", { sessionId });
+  },
 };
 
 export function onAgentEvent(
