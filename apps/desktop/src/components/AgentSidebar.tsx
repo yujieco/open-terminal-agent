@@ -399,13 +399,13 @@ export function AgentSidebar({
           <p className="text-[11px] leading-snug text-[var(--text-primary)]">
             {t("agent.keyHint")}
           </p>
-          <div className="mt-2 flex gap-1.5">
+          <div className="mt-2 flex items-center gap-1.5">
             <input
               type="password"
               value={keyDraft}
               placeholder="sk-..."
               onChange={(event) => setKeyDraft(event.target.value)}
-              className="ota-input flex-1 font-mono"
+              className="ota-input !h-7 flex-1 !py-0 font-mono"
             />
             <button
               type="button"
@@ -416,7 +416,7 @@ export function AgentSidebar({
                   void refreshStatus();
                 });
               }}
-              className="ota-btn-primary rounded-md px-2.5 py-1 text-[11px]"
+              className="ota-ctrl-primary"
             >
               {t("agent.saveKey")}
             </button>
@@ -590,18 +590,18 @@ export function AgentSidebar({
               {approval.command}
             </pre>
 
-            <div className="mt-2.5 flex gap-2">
+            <div className="mt-2.5 flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => void decide(true)}
-                className="ota-btn-primary flex-1 rounded-md px-3 py-1.5 text-xs"
+                className="ota-ctrl-primary flex-1"
               >
                 {t("agent.approve")}
               </button>
               <button
                 type="button"
                 onClick={() => void decide(false)}
-                className="flex-1 rounded-md border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs text-[var(--text-secondary)] transition hover:border-[var(--status-danger)] hover:text-[var(--status-danger)]"
+                className="ota-ctrl flex-1 hover:!border-[var(--status-danger)] hover:!text-[var(--status-danger)]"
               >
                 {t("agent.reject")}
               </button>
@@ -691,56 +691,49 @@ export function AgentSidebar({
         )}
       </section>
 
-      {/* Sidebar composer with Tab-to-accept placeholder */}
+      {/* Sidebar composer with uniform Apple-style equal-height controls */}
       <footer className="border-t border-[var(--border-subtle)] bg-[var(--bg-chrome)] p-3">
-        <div className="relative">
-          <textarea
-            value={task}
-            onChange={(event) => setTask(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Tab" && task.length === 0 && activePlaceholder.length > 0) {
-                event.preventDefault();
-                setTask(activePlaceholder);
-                return;
-              }
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                void startTask(task).then(() => setTask(""));
-              }
-            }}
-            rows={2}
-            placeholder={activePlaceholder}
-            className="ota-input resize-none pr-12"
-          />
+        <textarea
+          value={task}
+          onChange={(event) => setTask(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Tab" && task.length === 0 && activePlaceholder.length > 0) {
+              event.preventDefault();
+              setTask(activePlaceholder);
+              return;
+            }
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              void startTask(task).then(() => setTask(""));
+            }
+          }}
+          rows={2}
+          placeholder={activePlaceholder}
+          className="ota-input resize-none"
+        />
+        <div className="mt-2 flex items-center gap-1.5">
           {task.length === 0 && !running ? (
-            <kbd
+            <button
+              type="button"
+              onClick={() => {
+                if (activePlaceholder.length > 0) setTask(activePlaceholder);
+              }}
               title={t("agent.tabAcceptHint")}
-              className="pointer-events-none absolute right-2 bottom-2 rounded border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-1 py-0.5 font-mono text-[9px] text-[var(--text-muted)]"
+              className="ota-ctrl font-mono text-[11px]"
             >
-              Tab ⇥
-            </kbd>
+              Tab
+            </button>
           ) : null}
-        </div>
-        <div className="mt-2 flex gap-1.5">
           <button
             type="button"
             onClick={() => void startTask(task).then(() => setTask(""))}
             disabled={running || !sessionId || task.trim().length === 0}
-            className="ota-btn-primary flex-1 rounded-md px-3 py-1.5 text-xs"
+            className="ota-ctrl-primary flex-1"
           >
             {running ? t("agent.running") : t("agent.send")}
           </button>
           {running ? (
-            <button
-              type="button"
-              onClick={() => void cancel()}
-              className="rounded-md border px-2.5 py-1.5 text-xs font-medium transition"
-              style={{
-                borderColor: "var(--status-danger)",
-                backgroundColor: "var(--status-danger-soft)",
-                color: "var(--status-danger)",
-              }}
-            >
+            <button type="button" onClick={() => void cancel()} className="ota-ctrl-danger">
               {t("agent.takeOver")}
             </button>
           ) : null}

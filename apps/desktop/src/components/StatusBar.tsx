@@ -38,7 +38,7 @@ export function StatusBar({
           <button
             type="button"
             onClick={onOpenUpdate}
-            className="inline-flex h-6 items-center justify-center gap-1.5 rounded-full border px-2.5 font-sans text-[11px] font-medium shadow-sm backdrop-blur-md transition hover:brightness-105"
+            className="inline-flex h-6 items-center justify-center gap-1.5 rounded-full border px-2.5 font-sans text-[11px] font-medium shadow-sm backdrop-blur-md transition duration-150 hover:brightness-105 active:scale-[0.965]"
             style={{
               backgroundColor: "color-mix(in srgb, var(--bg-surface) 62%, transparent)",
               borderColor: "var(--accent-border)",

@@ -75,7 +75,6 @@ export function SessionSidebar({
     };
   }, [contextMenu]);
 
-  const activeSession = sessions.find((session) => session.id === activeId) ?? null;
   const localCount = sessions.filter((s) => s.kind === "local").length;
   const sshCount = sessions.filter((s) => s.kind === "ssh").length;
   const serialCount = sessions.filter((s) => s.kind === "serial").length;
@@ -405,21 +404,6 @@ export function SessionSidebar({
                 {t("sidebar.kinds.serial")}
               </div>
             </div>
-          </div>
-
-          <div className="mt-2 flex items-center justify-between font-mono text-[10px] text-[var(--text-muted)]">
-            <span className="truncate">{activeSession ? activeSession.label : "—"}</span>
-            {activeSession ? (
-              <span
-                className="shrink-0"
-                title={t("status.gridTooltip", {
-                  cols: activeSession.size.cols,
-                  rows: activeSession.size.rows,
-                })}
-              >
-                {activeSession.size.cols}×{activeSession.size.rows}
-              </span>
-            ) : null}
           </div>
         </div>
       </div>

@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 
 import { AgentSidebar, type ExternalTaskTrigger } from "./components/AgentSidebar";
 import { CommandPalette } from "./components/CommandPalette";
+import { GlobalContextMenu } from "./components/GlobalContextMenu";
 import { SaveSnippetDialog } from "./components/SaveSnippetDialog";
 import { SerialConnectDialog } from "./components/SerialConnectDialog";
 import { SessionSidebar } from "./components/SessionSidebar";
@@ -776,57 +777,31 @@ export default function App() {
 
         {/* Right studio controls */}
         <div className="flex shrink-0 items-center gap-2 px-3">
-          <div className="hidden items-center rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-0.5 lg:flex">
-            {MODES.map((candidate) => {
-              const selected = candidate === mode;
-              return (
-                <button
-                  key={candidate}
-                  type="button"
-                  onClick={() => setMode(candidate)}
-                  className={`rounded px-2 py-1 text-[11px] font-medium transition ${
-                    selected
-                      ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
-                      : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-                  }`}
-                >
-                  {t(`agent.modes.${candidate}`)}
-                </button>
-              );
-            })}
+          <div className="ota-segmented hidden grid-cols-3 lg:inline-grid">
+            {MODES.map((candidate) => (
+              <button
+                key={candidate}
+                type="button"
+                data-active={candidate === mode}
+                onClick={() => setMode(candidate)}
+                className="ota-segment"
+              >
+                {t(`agent.modes.${candidate}`)}
+              </button>
+            ))}
           </div>
 
           {activeAgentRunning ? (
-            <button
-              type="button"
-              onClick={handleTakeOver}
-              className="ota-btn-primary inline-flex h-7 items-center justify-center gap-1.5 rounded-md px-3 text-xs"
-            >
-              <svg viewBox="0 0 16 16" className="h-3 w-3 shrink-0" fill="currentColor">
-                <rect x="3.5" y="3.5" width="9" height="9" rx="1.5" />
-              </svg>
-              <span>{t("agent.takeOver")}</span>
+            <button type="button" onClick={handleTakeOver} className="ota-ctrl-primary">
+              {t("agent.takeOver")}
             </button>
           ) : (
             <button
               type="button"
               onClick={() => setRightOpen((open) => !open)}
-              className={`inline-flex h-7 items-center justify-center gap-1.5 rounded-md px-3 text-xs transition ${
-                rightOpen
-                  ? "ota-btn-primary"
-                  : "border border-[var(--border-strong)] bg-[var(--bg-surface)] font-medium text-[var(--text-primary)] hover:border-[var(--accent-border)]"
-              }`}
+              className={rightOpen ? "ota-ctrl-primary" : "ota-ctrl"}
             >
-              {rightOpen ? (
-                <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3.5 8.5L6.5 11.5L12.5 5" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M8 2.5L9.4 6.6L13.5 8L9.4 9.4L8 13.5L6.6 9.4L2.5 8L6.6 6.6L8 2.5z" />
-                </svg>
-              )}
-              <span>{t("agent.title")}</span>
+              {t("agent.title")}
             </button>
           )}
 
@@ -836,7 +811,7 @@ export default function App() {
             onClick={cycleTheme}
             title={`${t("settings.appearance")}: ${t(`settings.theme.${themePreference}`)} (${t(`settings.theme.${resolvedTheme}`)})`}
             aria-label={t("settings.appearance")}
-            className="relative inline-flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-secondary)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+            className="ota-ctrl relative !w-7 !px-0"
           >
             {resolvedTheme === "light" ? (
               <svg
@@ -878,7 +853,7 @@ export default function App() {
             onClick={() => setSettingsOpen(true)}
             title={t("settings.title")}
             aria-label={t("settings.title")}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-secondary)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+            className="ota-ctrl !w-7 !px-0"
           >
             <svg
               viewBox="0 0 24 24"
@@ -969,38 +944,25 @@ export default function App() {
           />
         </main>
 
-        {/* Right collapsible dual-tab panel: AI Agent | Command Handbook (Snippets) */}
+        {/* Right collapsible dual-tab panel: AI Agent | Command Handbook (pure typography segmented control) */}
         {rightOpen ? (
           <aside className="flex w-[21rem] shrink-0 flex-col border-l border-[var(--border-subtle)] bg-[var(--bg-sidebar)]">
             <div className="border-b border-[var(--border-subtle)] bg-[var(--bg-chrome)] px-3 py-2">
-              <div className="grid grid-cols-2 gap-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-0.5">
+              <div className="ota-segmented w-full grid-cols-2">
                 <button
                   type="button"
+                  data-active={rightTab === "agent"}
                   onClick={() => setRightTab("agent")}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition"
-                  style={{
-                    backgroundColor: rightTab === "agent" ? "var(--bg-elevated)" : "transparent",
-                    color: rightTab === "agent" ? "var(--text-primary)" : "var(--text-muted)",
-                  }}
+                  className="ota-segment"
                 >
-                  <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M8 2.5L9.4 6.6L13.5 8L9.4 9.4L8 13.5L6.6 9.4L2.5 8L6.6 6.6L8 2.5z" />
-                  </svg>
                   <span>{t("agent.title")}</span>
                 </button>
                 <button
                   type="button"
+                  data-active={rightTab === "snippets"}
                   onClick={() => setRightTab("snippets")}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition"
-                  style={{
-                    backgroundColor:
-                      rightTab === "snippets" ? "var(--bg-elevated)" : "transparent",
-                    color: rightTab === "snippets" ? "var(--text-primary)" : "var(--text-muted)",
-                  }}
+                  className="ota-segment"
                 >
-                  <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 3h4.5A1.5 1.5 0 019 4.5V13a1.2 1.2 0 00-1.2-1.2H3V3zM13 3H8.5A1.5 1.5 0 007 4.5V13a1.2 1.2 0 011.2-1.2H13V3z" />
-                  </svg>
                   <span>{t("snippets.tabTitle")}</span>
                   {snippets.length > 0 ? (
                     <span className="rounded bg-[var(--bg-canvas)] px-1 font-mono text-[9.5px] text-[var(--text-muted)]">
@@ -1057,6 +1019,12 @@ export default function App() {
       {updateModalOpen && updateInfo ? (
         <UpdateDialog info={updateInfo} onClose={() => setUpdateModalOpen(false)} />
       ) : null}
+
+      <GlobalContextMenu
+        onFavoriteCommand={(command) =>
+          setSnippetModal({ initialCommand: command, editing: null })
+        }
+      />
 
       {/* Localized Tab right-click context menu */}
       {tabMenu ? (

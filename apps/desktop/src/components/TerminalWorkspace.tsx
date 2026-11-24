@@ -148,15 +148,9 @@ export function TerminalWorkspace({
         ))}
       </div>
 
-      {/* Bottom docked Quick Agent bar with Tab-to-accept ghost placeholder */}
+      {/* Bottom docked Quick Agent bar — clean Apple-style composer with uniform 28px controls */}
       <div className="shrink-0 border-t border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-4 py-2.5">
-        <div className="flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-1.5 transition focus-within:border-[var(--border-strong)] focus-within:shadow-[0_0_0_3px_var(--accent-soft)]">
-          <span
-            className="inline-flex h-4 w-4 shrink-0 items-center justify-center select-none text-xs"
-            style={{ color: "var(--accent)" }}
-          >
-            ✦
-          </span>
+        <div className="flex items-center gap-1.5 rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-1.5 pl-3 transition focus-within:border-[var(--border-strong)] focus-within:shadow-[0_0_0_3px_var(--accent-soft)]">
           <input
             type="text"
             value={quickTask}
@@ -174,32 +168,32 @@ export function TerminalWorkspace({
               }
             }}
             placeholder={activePlaceholder}
-            className="min-w-0 flex-1 bg-transparent text-xs text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-50"
+            className="h-7 min-w-0 flex-1 bg-transparent text-xs text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-50"
           />
 
           {quickTask.length === 0 && !agentRunning ? (
-            <kbd
+            <button
+              type="button"
+              onClick={() => {
+                if (activePlaceholder.length > 0) setQuickTask(activePlaceholder);
+              }}
               title={t("agent.tabAcceptHint")}
-              className="hidden rounded border border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-1.5 py-0.5 font-mono text-[9.5px] text-[var(--text-muted)] sm:inline-flex"
+              className="ota-ctrl hidden font-mono text-[11px] sm:inline-flex"
             >
-              Tab ⇥
-            </kbd>
+              Tab
+            </button>
           ) : null}
 
           <button
             type="button"
             onClick={onOpenPalette}
-            className="hidden rounded border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 py-0.5 font-mono text-[10px] text-[var(--text-secondary)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] sm:inline-flex"
+            className="ota-ctrl hidden font-mono text-[11px] sm:inline-flex"
           >
             ⌘K
           </button>
 
           {agentRunning ? (
-            <button
-              type="button"
-              onClick={onTakeOver}
-              className="ota-btn-primary rounded-md px-2.5 py-1 text-[11px]"
-            >
+            <button type="button" onClick={onTakeOver} className="ota-ctrl-primary">
               {t("agent.takeOver")}
             </button>
           ) : (
@@ -207,7 +201,9 @@ export function TerminalWorkspace({
               type="button"
               onClick={submitQuickTask}
               disabled={!activeId || quickTask.trim().length === 0}
-              className="rounded-md border border-[var(--border-strong)] bg-[var(--bg-elevated)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-primary)] transition hover:border-[var(--accent-border)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+              className={
+                quickTask.trim().length > 0 && activeId ? "ota-ctrl-primary" : "ota-ctrl"
+              }
             >
               {t("agent.run")}
             </button>

@@ -65,10 +65,7 @@ export function CommandPalette({ backend, onOpenSettings, onClose }: CommandPale
         className="w-full max-w-xl overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)] shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center gap-2.5 px-4 py-3">
-          <span className="text-sm" style={{ color: "var(--accent)" }}>
-            ✦
-          </span>
+        <div className="flex items-center gap-2 px-3.5 py-2.5">
           <input
             ref={inputRef}
             value={prompt}
@@ -82,12 +79,16 @@ export function CommandPalette({ backend, onOpenSettings, onClose }: CommandPale
               if (event.key === "Enter") void generate();
             }}
             placeholder={placeholderText}
-            className="w-full bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+            className="h-7 w-full bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
           />
           {prompt.length === 0 ? (
-            <kbd className="shrink-0 rounded border border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-1.5 py-0.5 font-mono text-[9.5px] text-[var(--text-muted)]">
-              Tab ⇥
-            </kbd>
+            <button
+              type="button"
+              onClick={() => setPrompt(placeholderText)}
+              className="ota-ctrl font-mono text-[11px]"
+            >
+              Tab
+            </button>
           ) : null}
         </div>
 
@@ -97,18 +98,10 @@ export function CommandPalette({ backend, onOpenSettings, onClose }: CommandPale
               $ {suggestion}
             </pre>
             <div className="mt-2.5 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={insert}
-                className="ota-btn-primary rounded-md px-3 py-1.5 text-xs"
-              >
+              <button type="button" onClick={insert} className="ota-ctrl-primary">
                 {t("palette.insert")}
               </button>
-              <button
-                type="button"
-                onClick={() => void generate()}
-                className="rounded-md border border-[var(--border-strong)] bg-[var(--bg-canvas)] px-3 py-1.5 text-xs text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-              >
+              <button type="button" onClick={() => void generate()} className="ota-ctrl">
                 {t("palette.regenerate")}
               </button>
               <span className="ml-auto font-mono text-[10px] text-[var(--text-muted)]">

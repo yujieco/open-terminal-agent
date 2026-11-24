@@ -195,11 +195,18 @@ export interface UpdateInfo {
   currentVersion: string;
   latestVersion: string;
   available: boolean;
+  canAutoInstall: boolean;
   releaseUrl: string;
   releaseName: string;
   notes: string;
   publishedAt: string | null;
 }
+
+export type UpdateDownloadEvent =
+  | { event: "started"; contentLength: number | null }
+  | { event: "progress"; downloaded: number; total: number | null }
+  | { event: "installing" }
+  | { event: "restarting" };
 
 /** True when the page runs inside the Tauri WebView rather than a browser. */
 export function isTauri(): boolean {
@@ -362,6 +369,12 @@ export const ipc = {
 
   checkForUpdates(): Promise<UpdateInfo> {
     return invoke<UpdateInfo>("check_for_updates");
+  },
+
+  installAndRelaunchUpdate(onEvent: (event: UpdateDownloadEvent) => void): Promise<void> {
+    const channel = new Channel<UpdateDownloadEvent>();
+    channel.onmessage = onEvent;
+    return invoke<void>("install_and_relaunch_update", { onEvent: channel });
   },
 
   openExternalUrl(url: string): Promise<void> {
