@@ -54,6 +54,12 @@
       "clear": "ターミナルをクリア"
     }
   },
+  "contextMenu": {
+    "cut": "切り取り",
+    "copy": "コピー",
+    "paste": "貼り付け",
+    "selectAll": "すべて選択"
+  },
   "agent": {
     "title": "AI Agent",
     "subtitle": "観察 · 推論 · 実行 · 検証",
@@ -313,6 +319,13 @@
     "dialogTitle": "新しいバージョンがあります",
     "noNotes": "GitHub Releases に新しいバージョンが公開されています。",
     "later": "あとで",
-    "download": "GitHub でダウンロード"
+    "download": "GitHub でダウンロード",
+    "viewRelease": "リリースページ",
+    "installAndRestart": "更新して再起動",
+    "downloading": "アップデートをダウンロード中…",
+    "installing": "署名を検証してインストール中…",
+    "restarting": "完了しました。再起動しています…",
+    "manualHint": "このリリースには署名済み自動更新パッケージがありません。GitHub Releases から手動でダウンロードしてください。",
+    "failed": "アップデートに失敗しました"
   }
 }

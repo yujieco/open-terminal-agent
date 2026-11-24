@@ -54,6 +54,12 @@
       "clear": "Clear terminal"
     }
   },
+  "contextMenu": {
+    "cut": "Cut",
+    "copy": "Copy",
+    "paste": "Paste",
+    "selectAll": "Select All"
+  },
   "agent": {
     "title": "AI Agent",
     "subtitle": "Observe · Reason · Act · Verify",
@@ -313,6 +319,13 @@
     "dialogTitle": "New version available",
     "noNotes": "A new release is available on GitHub Releases.",
     "later": "Later",
-    "download": "Download on GitHub"
+    "download": "Download on GitHub",
+    "viewRelease": "Release page",
+    "installAndRestart": "Update & Restart",
+    "downloading": "Downloading update…",
+    "installing": "Verifying signature & installing…",
+    "restarting": "Installed — restarting…",
+    "manualHint": "This release does not include a signed auto-updater manifest yet. Download it from GitHub Releases.",
+    "failed": "Update failed"
   }
 }

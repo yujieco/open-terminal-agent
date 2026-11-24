@@ -54,6 +54,12 @@
       "clear": "清空终端"
     }
   },
+  "contextMenu": {
+    "cut": "剪切",
+    "copy": "复制",
+    "paste": "粘贴",
+    "selectAll": "全选"
+  },
   "agent": {
     "title": "AI Agent",
     "subtitle": "观察 · 推理 · 执行 · 校验",
@@ -311,8 +317,15 @@
     "checking": "检查更新…",
     "checkTooltip": "点击检查 GitHub Release 新版本",
     "dialogTitle": "发现新版本",
-    "noNotes": "GitHub Releases 已发布新版本，点击下方按钮前往下载。",
+    "noNotes": "GitHub Releases 已发布新版本，点击下方按钮即可更新。",
     "later": "稍后再说",
-    "download": "前往 GitHub 下载"
+    "download": "前往 GitHub 下载",
+    "viewRelease": "查看发布页",
+    "installAndRestart": "立即更新并重启",
+    "downloading": "正在下载更新…",
+    "installing": "正在校验签名并安装…",
+    "restarting": "安装完成，正在重启…",
+    "manualHint": "该版本未附带签名自动更新包，请前往 GitHub Releases 手动下载安装。",
+    "failed": "自动更新失败"
   }
 }

@@ -54,6 +54,12 @@
       "clear": "清空終端機"
     }
   },
+  "contextMenu": {
+    "cut": "剪下",
+    "copy": "複製",
+    "paste": "貼上",
+    "selectAll": "全選"
+  },
   "agent": {
     "title": "AI Agent",
     "subtitle": "觀察 · 推理 · 執行 · 驗證",
@@ -311,8 +317,15 @@
     "checking": "檢查更新…",
     "checkTooltip": "點擊檢查 GitHub Release 新版本",
     "dialogTitle": "發現新版本",
-    "noNotes": "GitHub Releases 已發布新版本，點擊下方按鈕前往下載。",
+    "noNotes": "GitHub Releases 已發布新版本，點擊下方按鈕即可更新。",
     "later": "稍後再說",
-    "download": "前往 GitHub 下載"
+    "download": "前往 GitHub 下載",
+    "viewRelease": "檢視發布頁",
+    "installAndRestart": "立即更新並重新啟動",
+    "downloading": "正在下載更新…",
+    "installing": "正在驗證簽章並安裝…",
+    "restarting": "安裝完成，正在重新啟動…",
+    "manualHint": "此版本未附帶簽章自動更新封包，請前往 GitHub Releases 手動下載安裝。",
+    "failed": "自動更新失敗"
   }
 }
