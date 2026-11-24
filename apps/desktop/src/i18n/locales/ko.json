@@ -23,10 +23,21 @@
     },
     "saved": "저장됨",
     "noSaved": "저장된 연결이 없습니다",
-    "filesGroup": "파일"
+    "filesGroup": "파일",
+    "quickFind": "빠른 명령…",
+    "workspace": "워크스페이스",
+    "connect": "연결",
+    "studio": "스튜디오",
+    "telemetry": "세션 상태",
+    "live": "활성"
   },
   "tabs": {
-    "close": "탭 닫기"
+    "close": "탭 닫기",
+    "closeOthers": "다른 탭 모두 닫기",
+    "rename": "탭 이름 변경",
+    "renameHint": "더블 클릭 또는 우클릭으로 이름 변경",
+    "splitHorizontal": "오른쪽 분할 (⌘D)",
+    "splitVertical": "아래쪽 분할 (⇧⌘D)"
   },
   "terminal": {
     "empty": "왼쪽의 '새 로컬 터미널'에서 시작하세요.",
@@ -36,7 +47,12 @@
     "hexSend": "보내기",
     "hexPlaceholder": "예: 0D 0A 또는 41 54 0D",
     "hexInvalid": "16진수를 짝수 자리로 입력하세요",
-    "hexEmpty": "아직 바이트가 없습니다. 장치 출력을 기다리는 중…"
+    "hexEmpty": "아직 바이트가 없습니다. 장치 출력을 기다리는 중…",
+    "menu": {
+      "copy": "복사",
+      "paste": "붙여넣기",
+      "clear": "터미널 지우기"
+    }
   },
   "agent": {
     "title": "AI Agent",
@@ -76,7 +92,30 @@
     "noHistory": "실행 기록이 없습니다",
     "replay": "재생",
     "interrupted": "사람의 입력으로 제어권이 넘어가 에이전트가 중지되었습니다",
-    "stepMode": "단계별 실행: 모든 명령 전에 확인"
+    "stepMode": "단계별 실행: 모든 명령 전에 확인",
+    "timeline": "실행 타임라인",
+    "stepsCount": "{{count}}단계",
+    "quickPromptPlaceholder": "에이전트에게 점검, 진단 또는 작업을 지시하세요…",
+    "run": "실행",
+    "recentRuns": "최근 실행",
+    "phases": {
+      "observe": "관찰",
+      "reason": "추론",
+      "act": "실행",
+      "verify": "검증"
+    },
+    "tabAcceptHint": "Tab 키를 눌러 추천 문구를 채우세요",
+    "openSettings": "설정 열기",
+    "errors": {
+      "missingKey": "현재 모델의 API 키가 저장되어 있지 않습니다. '설정 열기'에서 키를 입력하거나 로컬 Ollama / LM Studio 모델로 전환하세요.",
+      "invalidKey": "API 키가 올바르지 않거나 만료되었습니다. 설정 → 모델 및 공급자에서 확인해 주세요.",
+      "quota": "API 계정 잔액이 부족하거나 할당량을 초과했습니다. 공급자 결제 상태를 확인하세요.",
+      "forbidden": "모델 공급자가 접근을 거부했습니다. API 키 권한이나 모델을 확인해 주세요.",
+      "modelNotFound": "설정한 모델을 찾을 수 없습니다. 설정에서 모델 ID를 확인해 주세요.",
+      "rateLimited": "요청이 너무 많아 일시적으로 제한되었습니다. 잠시 후 다시 시도해 주세요.",
+      "network": "모델 서버에 연결할 수 없습니다. 네트워크, Base URL 또는 로컬 Ollama / LM Studio 실행 여부를 확인하세요.",
+      "unknown": "AI 요청을 완료하지 못했습니다. 잠시 후 다시 시도하거나 설정을 확인해 주세요."
+    }
   },
   "status": {
     "connection": "연결",
@@ -87,10 +126,51 @@
     "exited": "종료됨",
     "demo": "데모",
     "agentControl": "Agent 제어 중 · Esc로 인수",
-    "humanControl": "사람 제어 중"
+    "humanControl": "사람 제어 중",
+    "gridTooltip": "터미널 격자 크기: {{cols}}열 × {{rows}}행"
   },
   "settings": {
     "title": "설정",
+    "appearance": "화면 테마",
+    "appearanceHint": "기본적으로 시스템 테마를 따르며 언제든 라이트/다크로 전환할 수 있습니다.",
+    "theme": {
+      "system": "시스템",
+      "light": "라이트",
+      "dark": "다크"
+    },
+    "terminalTheme": {
+      "title": "터미널 색상 및 글꼴",
+      "hint": "기본 색상 프리셋을 선택하거나 배경, 텍스트, 커서 및 ANSI 색상을 직접 지정하세요.",
+      "followApp": "앱 테마 따르기",
+      "custom": "사용자 지정",
+      "reset": "초기화",
+      "fontSize": "글꼴 크기",
+      "lineHeight": "줄 간격",
+      "cursorStyle": "커서 모양",
+      "cursors": {
+        "block": "블록",
+        "bar": "막대",
+        "underline": "밑줄"
+      },
+      "colors": {
+        "background": "배경",
+        "foreground": "텍스트",
+        "cursor": "커서",
+        "selection": "선택 영역",
+        "green": "초록",
+        "blue": "파랑",
+        "cyan": "시안",
+        "yellow": "노랑",
+        "red": "빨강",
+        "magenta": "자주"
+      }
+    },
+    "hostIcon": {
+      "title": "호스트 프롬프트 아이콘",
+      "hint": "터미널 호스트 이름 앞에 표시되어 복잡한 출력 속에서도 명령줄을 한눈에 찾을 수 있습니다.",
+      "none": "숨기기",
+      "customPlaceholder": "직접 입력…"
+    },
     "language": "인터페이스 언어",
     "languageHint": "시작 시 시스템 언어로 자동 선택되며 언제든 직접 바꿀 수 있습니다.",
     "close": "닫기",
@@ -183,5 +263,56 @@
     "regenerate": "다시 생성",
     "hint": "입력만 하고 실행하지 않습니다(Enter로 실행)",
     "noSession": "터미널 세션이 없습니다"
+  },
+  "snippets": {
+    "tabTitle": "명령어 수첩",
+    "savedTitle": "자주 쓰는 명령",
+    "handbookTitle": "운영 빠른 참조",
+    "searchPlaceholder": "별칭 또는 명령 검색…",
+    "add": "명령 추가",
+    "addShort": "추가",
+    "pasteHint": "항목을 클릭하면 터미널에 바로 붙여넣습니다. 터미널에서 명령을 선택해 우클릭으로 즐겨찾기할 수 있습니다.",
+    "clickToPaste": "클릭하여 터미널에 붙여넣기",
+    "empty": "저장된 명령이 없습니다. 터미널에서 텍스트를 선택해 우클릭하거나 위 '추가'를 눌러 등록하세요.",
+    "noMatch": "일치하는 명령이 없습니다",
+    "saveSelection": "자주 쓰는 명령으로 저장",
+    "saveTitle": "명령어 저장",
+    "editTitle": "명령어 편집",
+    "alias": "별칭",
+    "aliasPlaceholder": "예: 8080 포트 확인",
+    "command": "명령어",
+    "category": "분류",
+    "description": "메모(선택)",
+    "descriptionPlaceholder": "명령어 용도 간단 설명",
+    "categories": {
+      "general": "일반",
+      "network": "네트워크",
+      "system": "시스템",
+      "logs": "로그",
+      "docker": "Docker",
+      "git": "Git"
+    },
+    "handbook": {
+      "listenPorts": "수신 대기 중인 TCP 포트 목록",
+      "checkPort": "8080 포트 사용 프로세스 확인",
+      "diskUsage": "디스크 사용량 확인",
+      "largestDirs": "현재 폴더 내 큰 파일/디렉터리",
+      "topMemory": "메모리 사용량 상위 프로세스",
+      "tailLog": "로그 파일 실시간 추적",
+      "grepErrors": "디렉터리 내 오류 로그 검색",
+      "dockerPs": "실행 중인 Docker 컨테이너",
+      "dockerLogs": "Docker 컨테이너 로그 추적",
+      "gitGraph": "최근 Git 커밋 그래프",
+      "gitDiffStat": "Git 상태 및 변경 요약"
+    }
+  },
+  "update": {
+    "availableBadge": "업데이트 가능 v{{version}}",
+    "checking": "확인 중…",
+    "checkTooltip": "클릭하여 GitHub Releases 최신 버전 확인",
+    "dialogTitle": "새 버전이 있습니다",
+    "noNotes": "GitHub Releases에 새 버전이 공개되었습니다.",
+    "later": "나중에",
+    "download": "GitHub에서 다운로드"
   }
 }

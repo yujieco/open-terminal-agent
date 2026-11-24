@@ -23,10 +23,21 @@
     },
     "saved": "已保存",
     "noSaved": "暂无已保存连接",
-    "filesGroup": "文件"
+    "filesGroup": "文件",
+    "quickFind": "快捷命令…",
+    "workspace": "工作区",
+    "connect": "连接",
+    "studio": "工作台",
+    "telemetry": "会话遥测",
+    "live": "在线"
   },
   "tabs": {
-    "close": "关闭标签页"
+    "close": "关闭标签页",
+    "closeOthers": "关闭其他标签",
+    "rename": "重命名标签",
+    "renameHint": "双击或右键重命名",
+    "splitHorizontal": "向右分屏 (⌘D)",
+    "splitVertical": "向下分屏 (⇧⌘D)"
   },
   "terminal": {
     "empty": "点击左侧「新建本地终端」开始。",
@@ -36,7 +47,12 @@
     "hexSend": "发送",
     "hexPlaceholder": "例如 0D 0A 或 41 54 0D",
     "hexInvalid": "请填写偶数位的十六进制",
-    "hexEmpty": "暂无字节，等待设备输出…"
+    "hexEmpty": "暂无字节，等待设备输出…",
+    "menu": {
+      "copy": "复制",
+      "paste": "粘贴",
+      "clear": "清空终端"
+    }
   },
   "agent": {
     "title": "AI Agent",
@@ -76,7 +92,30 @@
     "noHistory": "还没有运行记录",
     "replay": "回放",
     "interrupted": "已被人工输入接管，Agent 已停止",
-    "stepMode": "单步执行：每条命令都先问我"
+    "stepMode": "单步执行：每条命令都先问我",
+    "timeline": "执行时间线",
+    "stepsCount": "{{count}} 步",
+    "quickPromptPlaceholder": "让 Agent 检查状态、排查问题或执行任务…",
+    "run": "运行",
+    "recentRuns": "最近运行",
+    "phases": {
+      "observe": "观察",
+      "reason": "推理",
+      "act": "执行",
+      "verify": "校验"
+    },
+    "tabAcceptHint": "按 Tab 键一键填充提示内容",
+    "openSettings": "打开设置",
+    "errors": {
+      "missingKey": "还没有配置当前模型的 API Key。请点击下方「打开设置」填入密钥，或切换到本地 Ollama / LM Studio 模型。",
+      "invalidKey": "当前的 API Key 无效或已过期，请前往「设置 → 模型与 Provider」重新核对密钥。",
+      "quota": "当前 API 账户余额不足或已达到配额上限，请检查服务商账单。",
+      "forbidden": "模型服务拒绝了访问，请检查 API Key 权限或所选模型是否可用。",
+      "modelNotFound": "找不到当前配置的模型，请前往设置检查模型名称是否正确。",
+      "rateLimited": "请求过于频繁，模型服务暂时限流，请稍等几秒后重试。",
+      "network": "无法连接到模型服务，请检查网络、Base URL，或确认本地 Ollama / LM Studio 已启动。",
+      "unknown": "AI 请求未能完成，请稍后重试或检查模型设置。"
+    }
   },
   "status": {
     "connection": "连接",
@@ -87,10 +126,51 @@
     "exited": "已退出",
     "demo": "演示",
     "agentControl": "Agent 控制中 · Esc 接管",
-    "humanControl": "人工控制"
+    "humanControl": "人工控制",
+    "gridTooltip": "终端字符网格尺寸：{{cols}} 列 × {{rows}} 行"
   },
   "settings": {
     "title": "设置",
+    "appearance": "外观主题",
+    "appearanceHint": "默认跟随系统深浅色，可随时手动切换。",
+    "theme": {
+      "system": "跟随系统",
+      "light": "浅色",
+      "dark": "深色"
+    },
+    "terminalTheme": {
+      "title": "终端配色与字体",
+      "hint": "选择内置终端配色方案，或自定义背景、文字、光标及 ANSI 语法颜色。",
+      "followApp": "跟随界面",
+      "custom": "自定义配色",
+      "reset": "重置默认",
+      "fontSize": "字号",
+      "lineHeight": "行高",
+      "cursorStyle": "光标样式",
+      "cursors": {
+        "block": "块状",
+        "bar": "竖线",
+        "underline": "下划线"
+      },
+      "colors": {
+        "background": "背景色",
+        "foreground": "文字色",
+        "cursor": "光标色",
+        "selection": "选区色",
+        "green": "绿色",
+        "blue": "蓝色",
+        "cyan": "青色",
+        "yellow": "黄色",
+        "red": "红色",
+        "magenta": "洋红"
+      }
+    },
+    "hostIcon": {
+      "title": "主机提示符图标",
+      "hint": "前置显示在终端主机名之前，让你在密集输出中一眼定位每条命令行的起点（下次回车生效）。",
+      "none": "不显示",
+      "customPlaceholder": "自定义…"
+    },
     "language": "界面语言",
     "languageHint": "启动时按系统语言自动选择，可随时手动切换。",
     "close": "关闭",
@@ -183,5 +263,56 @@
     "regenerate": "重新生成",
     "hint": "命令只写入、不执行，按 Enter 才运行",
     "noSession": "当前没有终端会话"
+  },
+  "snippets": {
+    "tabTitle": "命令手册",
+    "savedTitle": "我的常用指令",
+    "handbookTitle": "运维速查手册",
+    "searchPlaceholder": "搜索别名或命令…",
+    "add": "新增常用指令",
+    "addShort": "新增",
+    "pasteHint": "点击任意条目直接粘贴到左侧终端；在终端选中命令右键即可收藏。",
+    "clickToPaste": "点击粘贴到终端",
+    "empty": "还没有收藏的指令。在终端里选中命令后右键「收藏为常用指令」，或点击上方「新增」。",
+    "noMatch": "没有匹配的命令",
+    "saveSelection": "收藏为常用指令",
+    "saveTitle": "收藏常用指令",
+    "editTitle": "编辑常用指令",
+    "alias": "别名",
+    "aliasPlaceholder": "例如：查看 8080 端口占用",
+    "command": "命令内容",
+    "category": "分类",
+    "description": "备注（可选）",
+    "descriptionPlaceholder": "简短说明这条命令的用途",
+    "categories": {
+      "general": "常用",
+      "network": "网络",
+      "system": "系统",
+      "logs": "日志",
+      "docker": "Docker",
+      "git": "Git"
+    },
+    "handbook": {
+      "listenPorts": "查看所有监听端口",
+      "checkPort": "查找占用 8080 端口的进程",
+      "diskUsage": "查看磁盘空间使用率",
+      "largestDirs": "排查当前目录最大文件/目录",
+      "topMemory": "按内存占用排行进程",
+      "tailLog": "实时追踪日志文件末尾",
+      "grepErrors": "检索目录内错误日志",
+      "dockerPs": "查看运行中的容器及端口",
+      "dockerLogs": "实时查看容器日志",
+      "gitGraph": "查看近期 Git 提交树",
+      "gitDiffStat": "查看 Git 状态与改动统计"
+    }
+  },
+  "update": {
+    "availableBadge": "有可用更新 v{{version}}",
+    "checking": "检查更新…",
+    "checkTooltip": "点击检查 GitHub Release 新版本",
+    "dialogTitle": "发现新版本",
+    "noNotes": "GitHub Releases 已发布新版本，点击下方按钮前往下载。",
+    "later": "稍后再说",
+    "download": "前往 GitHub 下载"
   }
 }

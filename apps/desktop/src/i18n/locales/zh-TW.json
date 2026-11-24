@@ -23,10 +23,21 @@
     },
     "saved": "已儲存",
     "noSaved": "尚無已儲存連線",
-    "filesGroup": "檔案"
+    "filesGroup": "檔案",
+    "quickFind": "快捷指令…",
+    "workspace": "工作區",
+    "connect": "連線",
+    "studio": "工作台",
+    "telemetry": "工作階段遙測",
+    "live": "連線中"
   },
   "tabs": {
-    "close": "關閉分頁"
+    "close": "關閉分頁",
+    "closeOthers": "關閉其他分頁",
+    "rename": "重新命名分頁",
+    "renameHint": "雙擊或右鍵重新命名",
+    "splitHorizontal": "向右分割 (⌘D)",
+    "splitVertical": "向下分割 (⇧⌘D)"
   },
   "terminal": {
     "empty": "點擊左側「新增本機終端機」開始。",
@@ -36,7 +47,12 @@
     "hexSend": "送出",
     "hexPlaceholder": "例如 0D 0A 或 41 54 0D",
     "hexInvalid": "請填寫偶數位的十六進位",
-    "hexEmpty": "尚無位元組，等待裝置輸出…"
+    "hexEmpty": "尚無位元組，等待裝置輸出…",
+    "menu": {
+      "copy": "複製",
+      "paste": "貼上",
+      "clear": "清空終端機"
+    }
   },
   "agent": {
     "title": "AI Agent",
@@ -76,7 +92,30 @@
     "noHistory": "尚無執行紀錄",
     "replay": "回放",
     "interrupted": "已由人工輸入接管，Agent 已停止",
-    "stepMode": "單步執行：每條指令都先問我"
+    "stepMode": "單步執行：每條指令都先問我",
+    "timeline": "執行時間軸",
+    "stepsCount": "{{count}} 步",
+    "quickPromptPlaceholder": "請 Agent 檢查狀態、排查問題或執行任務…",
+    "run": "執行",
+    "recentRuns": "最近執行",
+    "phases": {
+      "observe": "觀察",
+      "reason": "推理",
+      "act": "執行",
+      "verify": "驗證"
+    },
+    "tabAcceptHint": "按 Tab 鍵一鍵填入提示內容",
+    "openSettings": "開啟設定",
+    "errors": {
+      "missingKey": "尚未設定目前模型的 API Key。請點擊下方「開啟設定」填入金鑰，或切換至本機 Ollama / LM Studio 模型。",
+      "invalidKey": "目前的 API Key 無效或已過期，請前往「設定 → 模型與 Provider」重新確認金鑰。",
+      "quota": "目前 API 帳戶餘額不足或已達配額上限，請檢查服務商帳單。",
+      "forbidden": "模型服務拒絕存取，請檢查 API Key 權限或所選模型是否可用。",
+      "modelNotFound": "找不到目前設定的模型，請前往設定確認模型名稱。",
+      "rateLimited": "請求過於頻繁，模型服務暫時限流，請稍候再試。",
+      "network": "無法連線到模型服務，請檢查網路、Base URL，或確認本機 Ollama / LM Studio 已啟動。",
+      "unknown": "AI 請求未能完成，請稍後重試或檢查模型設定。"
+    }
   },
   "status": {
     "connection": "連線",
@@ -87,10 +126,51 @@
     "exited": "已結束",
     "demo": "示範",
     "agentControl": "Agent 控制中 · Esc 接管",
-    "humanControl": "人工控制"
+    "humanControl": "人工控制",
+    "gridTooltip": "終端機字元網格尺寸：{{cols}} 欄 × {{rows}} 列"
   },
   "settings": {
     "title": "設定",
+    "appearance": "外觀主題",
+    "appearanceHint": "預設跟隨系統深淺色，可隨時手動切換。",
+    "theme": {
+      "system": "跟隨系統",
+      "light": "淺色",
+      "dark": "深色"
+    },
+    "terminalTheme": {
+      "title": "終端機配色與字體",
+      "hint": "選擇內建終端機配色方案，或自訂背景、文字、游標與 ANSI 語法顏色。",
+      "followApp": "跟隨介面",
+      "custom": "自訂配色",
+      "reset": "重設預設",
+      "fontSize": "字體大小",
+      "lineHeight": "行高",
+      "cursorStyle": "游標樣式",
+      "cursors": {
+        "block": "方塊",
+        "bar": "直線",
+        "underline": "底線"
+      },
+      "colors": {
+        "background": "背景色",
+        "foreground": "文字色",
+        "cursor": "游標色",
+        "selection": "選取色",
+        "green": "綠色",
+        "blue": "藍色",
+        "cyan": "青色",
+        "yellow": "黃色",
+        "red": "紅色",
+        "magenta": "洋紅"
+      }
+    },
+    "hostIcon": {
+      "title": "主機提示符圖示",
+      "hint": "顯示在終端機主機名稱之前，讓你在密集輸出中一眼找到指令起點（下次按 Enter 生效）。",
+      "none": "不顯示",
+      "customPlaceholder": "自訂…"
+    },
     "language": "介面語言",
     "languageHint": "啟動時依系統語言自動選擇，可隨時手動切換。",
     "close": "關閉",
@@ -183,5 +263,56 @@
     "regenerate": "重新產生",
     "hint": "只寫入不執行，按 Enter 才會執行",
     "noSession": "目前沒有終端機工作階段"
+  },
+  "snippets": {
+    "tabTitle": "指令手冊",
+    "savedTitle": "我的常用指令",
+    "handbookTitle": "維運速查手冊",
+    "searchPlaceholder": "搜尋別名或指令…",
+    "add": "新增常用指令",
+    "addShort": "新增",
+    "pasteHint": "點擊任意項目直接貼到左側終端機；在終端機選取指令按右鍵即可收藏。",
+    "clickToPaste": "點擊貼到終端機",
+    "empty": "尚無收藏的指令。在終端機選取指令後按右鍵「收藏為常用指令」，或點擊上方「新增」。",
+    "noMatch": "沒有符合的指令",
+    "saveSelection": "收藏為常用指令",
+    "saveTitle": "收藏常用指令",
+    "editTitle": "編輯常用指令",
+    "alias": "別名",
+    "aliasPlaceholder": "例如：查看 8080 連接埠",
+    "command": "指令內容",
+    "category": "分類",
+    "description": "備註（選填）",
+    "descriptionPlaceholder": "簡短說明這條指令的用途",
+    "categories": {
+      "general": "常用",
+      "network": "網路",
+      "system": "系統",
+      "logs": "日誌",
+      "docker": "Docker",
+      "git": "Git"
+    },
+    "handbook": {
+      "listenPorts": "查看所有監聽連接埠",
+      "checkPort": "找出佔用 8080 埠的程序",
+      "diskUsage": "查看磁碟空間使用率",
+      "largestDirs": "排查目前目錄最大檔案/資料夾",
+      "topMemory": "依記憶體佔用排行程序",
+      "tailLog": "即時追蹤日誌檔尾端",
+      "grepErrors": "搜尋目錄內錯誤日誌",
+      "dockerPs": "查看執行中的容器與連接埠",
+      "dockerLogs": "即時查看容器日誌",
+      "gitGraph": "查看近期 Git 提交樹",
+      "gitDiffStat": "查看 Git 狀態與變更統計"
+    }
+  },
+  "update": {
+    "availableBadge": "有可用更新 v{{version}}",
+    "checking": "檢查更新…",
+    "checkTooltip": "點擊檢查 GitHub Release 新版本",
+    "dialogTitle": "發現新版本",
+    "noNotes": "GitHub Releases 已發布新版本，點擊下方按鈕前往下載。",
+    "later": "稍後再說",
+    "download": "前往 GitHub 下載"
   }
 }

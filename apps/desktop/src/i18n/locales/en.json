@@ -23,10 +23,21 @@
     },
     "saved": "Saved",
     "noSaved": "No saved connections yet",
-    "filesGroup": "Files"
+    "filesGroup": "Files",
+    "quickFind": "Quick command…",
+    "workspace": "Workspace",
+    "connect": "Connect",
+    "studio": "Studio",
+    "telemetry": "Session telemetry",
+    "live": "Live"
   },
   "tabs": {
-    "close": "Close tab"
+    "close": "Close tab",
+    "closeOthers": "Close other tabs",
+    "rename": "Rename tab",
+    "renameHint": "Double-click or right-click to rename",
+    "splitHorizontal": "Split right (⌘D)",
+    "splitVertical": "Split down (⇧⌘D)"
   },
   "terminal": {
     "empty": "Start a local terminal from the sidebar to begin.",
@@ -36,7 +47,12 @@
     "hexSend": "Send",
     "hexPlaceholder": "e.g. 0D 0A or 41 54 0D",
     "hexInvalid": "Enter an even number of hex digits",
-    "hexEmpty": "No bytes yet; waiting for the device…"
+    "hexEmpty": "No bytes yet; waiting for the device…",
+    "menu": {
+      "copy": "Copy",
+      "paste": "Paste",
+      "clear": "Clear terminal"
+    }
   },
   "agent": {
     "title": "AI Agent",
@@ -76,7 +92,30 @@
     "noHistory": "No runs recorded yet",
     "replay": "Replay",
     "interrupted": "Taken over by human input; the agent stopped",
-    "stepMode": "Step through: ask before every command"
+    "stepMode": "Step through: ask before every command",
+    "timeline": "Agent timeline",
+    "stepsCount": "{{count}} steps",
+    "quickPromptPlaceholder": "Ask agent to inspect, diagnose, or run a task…",
+    "run": "Run",
+    "recentRuns": "Recent runs",
+    "phases": {
+      "observe": "Observe",
+      "reason": "Reason",
+      "act": "Act",
+      "verify": "Verify"
+    },
+    "tabAcceptHint": "Press Tab to fill this suggestion",
+    "openSettings": "Open Settings",
+    "errors": {
+      "missingKey": "No API key is saved for the current model yet. Open Settings → Model & Provider to add your key, or switch to a local Ollama / LM Studio model.",
+      "invalidKey": "Your API key appears to be invalid or expired. Please check it in Settings → Model & Provider.",
+      "quota": "This API account has insufficient balance or reached its quota limit. Please check your provider billing.",
+      "forbidden": "Access was denied by the model provider. Check your API key permissions or selected model.",
+      "modelNotFound": "The configured model was not found on this provider. Please choose a valid model ID in Settings.",
+      "rateLimited": "The model provider is temporarily rate-limiting requests. Please wait a moment and try again.",
+      "network": "Could not reach the model provider. Check your internet connection, Base URL, or make sure your local Ollama / LM Studio server is running.",
+      "unknown": "The AI request could not be completed. Please try again or check Settings."
+    }
   },
   "status": {
     "connection": "Connection",
@@ -87,10 +126,51 @@
     "exited": "Exited",
     "demo": "Demo",
     "agentControl": "agent in control · Esc to take over",
-    "humanControl": "human in control"
+    "humanControl": "human in control",
+    "gridTooltip": "Terminal grid size: {{cols}} columns × {{rows}} rows"
   },
   "settings": {
     "title": "Settings",
+    "appearance": "Appearance",
+    "appearanceHint": "Follows your OS theme by default; override light or dark at any time.",
+    "theme": {
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "terminalTheme": {
+      "title": "Terminal theme & colors",
+      "hint": "Choose a preset color scheme or customize background, text, cursor, and ANSI colors.",
+      "followApp": "Follow app",
+      "custom": "Custom colors",
+      "reset": "Reset",
+      "fontSize": "Font size",
+      "lineHeight": "Line height",
+      "cursorStyle": "Cursor style",
+      "cursors": {
+        "block": "Block",
+        "bar": "Bar",
+        "underline": "Underline"
+      },
+      "colors": {
+        "background": "Background",
+        "foreground": "Text",
+        "cursor": "Cursor",
+        "selection": "Selection",
+        "green": "Green",
+        "blue": "Blue",
+        "cyan": "Cyan",
+        "yellow": "Yellow",
+        "red": "Red",
+        "magenta": "Magenta"
+      }
+    },
+    "hostIcon": {
+      "title": "Host prompt icon",
+      "hint": "Placed right before your hostname on every terminal prompt so commands stand out instantly in dense output.",
+      "none": "Hide icon",
+      "customPlaceholder": "Custom…"
+    },
     "language": "Interface language",
     "languageHint": "Selected from the OS locale on launch; switch any time.",
     "close": "Close",
@@ -183,5 +263,56 @@
     "regenerate": "Regenerate",
     "hint": "Written, not run — press Enter yourself",
     "noSession": "No terminal session"
+  },
+  "snippets": {
+    "tabTitle": "Handbook",
+    "savedTitle": "My snippets",
+    "handbookTitle": "Ops quick reference",
+    "searchPlaceholder": "Search alias or command…",
+    "add": "New snippet",
+    "addShort": "New",
+    "pasteHint": "Click any item to paste into the active terminal. Select text in the terminal and right-click to bookmark it.",
+    "clickToPaste": "Click to paste into terminal",
+    "empty": "No saved commands yet. Select a command in the terminal and right-click to favorite it, or click New above.",
+    "noMatch": "No matching commands",
+    "saveSelection": "Favorite as snippet",
+    "saveTitle": "Save command snippet",
+    "editTitle": "Edit snippet",
+    "alias": "Alias",
+    "aliasPlaceholder": "e.g. Check port 8080",
+    "command": "Command",
+    "category": "Category",
+    "description": "Note (optional)",
+    "descriptionPlaceholder": "Short reminder of what this command does",
+    "categories": {
+      "general": "General",
+      "network": "Network",
+      "system": "System",
+      "logs": "Logs",
+      "docker": "Docker",
+      "git": "Git"
+    },
+    "handbook": {
+      "listenPorts": "List listening TCP ports",
+      "checkPort": "Find process using port 8080",
+      "diskUsage": "Check disk space",
+      "largestDirs": "Largest files & folders here",
+      "topMemory": "Top processes by memory",
+      "tailLog": "Follow log file tail",
+      "grepErrors": "Search errors in directory",
+      "dockerPs": "Running Docker containers",
+      "dockerLogs": "Follow Docker container logs",
+      "gitGraph": "Recent Git commit graph",
+      "gitDiffStat": "Git status & diff summary"
+    }
+  },
+  "update": {
+    "availableBadge": "Update available v{{version}}",
+    "checking": "Checking…",
+    "checkTooltip": "Click to check GitHub Releases for updates",
+    "dialogTitle": "New version available",
+    "noNotes": "A new release is available on GitHub Releases.",
+    "later": "Later",
+    "download": "Download on GitHub"
   }
 }

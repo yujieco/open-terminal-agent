@@ -23,10 +23,21 @@
     },
     "saved": "保存済み",
     "noSaved": "保存された接続はまだありません",
-    "filesGroup": "ファイル"
+    "filesGroup": "ファイル",
+    "quickFind": "クイックコマンド…",
+    "workspace": "ワークスペース",
+    "connect": "接続",
+    "studio": "スタジオ",
+    "telemetry": "セッション状態",
+    "live": "稼働中"
   },
   "tabs": {
-    "close": "タブを閉じる"
+    "close": "タブを閉じる",
+    "closeOthers": "他のタブを閉じる",
+    "rename": "タブ名を変更",
+    "renameHint": "ダブルクリックまたは右クリックで名前を変更",
+    "splitHorizontal": "右に分割 (⌘D)",
+    "splitVertical": "下に分割 (⇧⌘D)"
   },
   "terminal": {
     "empty": "左側の「新しいローカルターミナル」から開始してください。",
@@ -36,7 +47,12 @@
     "hexSend": "送信",
     "hexPlaceholder": "例: 0D 0A または 41 54 0D",
     "hexInvalid": "16 進数を偶数桁で入力してください",
-    "hexEmpty": "まだバイトがありません。デバイスの出力を待っています…"
+    "hexEmpty": "まだバイトがありません。デバイスの出力を待っています…",
+    "menu": {
+      "copy": "コピー",
+      "paste": "貼り付け",
+      "clear": "ターミナルをクリア"
+    }
   },
   "agent": {
     "title": "AI Agent",
@@ -76,7 +92,30 @@
     "noHistory": "実行履歴はまだありません",
     "replay": "再生",
     "interrupted": "人手の入力により引き継がれ、エージェントは停止しました",
-    "stepMode": "1 ステップずつ：毎回確認する"
+    "stepMode": "1 ステップずつ：毎回確認する",
+    "timeline": "実行タイムライン",
+    "stepsCount": "{{count}} ステップ",
+    "quickPromptPlaceholder": "エージェントに確認・調査・作業を依頼…",
+    "run": "実行",
+    "recentRuns": "最近の実行",
+    "phases": {
+      "observe": "観察",
+      "reason": "推論",
+      "act": "実行",
+      "verify": "検証"
+    },
+    "tabAcceptHint": "Tab キーでこの候補を入力します",
+    "openSettings": "設定を開く",
+    "errors": {
+      "missingKey": "現在のモデルの API キーがまだ設定されていません。「設定を開く」からキーを登録するか、ローカルの Ollama / LM Studio に切り替えてください。",
+      "invalidKey": "API キーが無効または期限切れです。「設定 → モデルとプロバイダー」で確認してください。",
+      "quota": "API アカウントの残高不足または利用上限に達しています。プロバイダーの請求状況を確認してください。",
+      "forbidden": "モデルプロバイダーによりアクセスが拒否されました。API キーの権限やモデルを確認してください。",
+      "modelNotFound": "設定されたモデルが見つかりません。設定でモデル ID を確認してください。",
+      "rateLimited": "リクエストが集中しており一時的に制限されています。少し待ってから再試行してください。",
+      "network": "モデルサーバーに接続できません。ネットワーク、Base URL、またはローカルの Ollama / LM Studio の起動状態を確認してください。",
+      "unknown": "AI リクエストを完了できませんでした。しばらくしてから再試行するか、設定を確認してください。"
+    }
   },
   "status": {
     "connection": "接続",
@@ -87,10 +126,51 @@
     "exited": "終了",
     "demo": "デモ",
     "agentControl": "Agent が操作中 · Esc で引き継ぎ",
-    "humanControl": "人が操作中"
+    "humanControl": "人が操作中",
+    "gridTooltip": "ターミナルグリッド: {{cols}} 列 × {{rows}} 行"
   },
   "settings": {
     "title": "設定",
+    "appearance": "外観テーマ",
+    "appearanceHint": "デフォルトでシステム設定に従います。いつでもライト/ダークを切り替えられます。",
+    "theme": {
+      "system": "システム",
+      "light": "ライト",
+      "dark": "ダーク"
+    },
+    "terminalTheme": {
+      "title": "ターミナル配色・フォント",
+      "hint": "プリセット配色を選ぶか、背景・文字・カーソル・ANSI カラーを自由に調整できます。",
+      "followApp": "アプリに連動",
+      "custom": "カスタム配色",
+      "reset": "リセット",
+      "fontSize": "文字サイズ",
+      "lineHeight": "行間",
+      "cursorStyle": "カーソル形状",
+      "cursors": {
+        "block": "ブロック",
+        "bar": "バー",
+        "underline": "下線"
+      },
+      "colors": {
+        "background": "背景",
+        "foreground": "文字",
+        "cursor": "カーソル",
+        "selection": "選択範囲",
+        "green": "緑",
+        "blue": "青",
+        "cyan": "シアン",
+        "yellow": "黄",
+        "red": "赤",
+        "magenta": "マゼンタ"
+      }
+    },
+    "hostIcon": {
+      "title": "ホストプロンプトアイコン",
+      "hint": "ターミナルのホスト名の前に表示され、長い出力の中でもコマンド行をすぐに見つけられます。",
+      "none": "非表示",
+      "customPlaceholder": "カスタム…"
+    },
     "language": "表示言語",
     "languageHint": "起動時にシステム言語から自動選択され、いつでも切り替えられます。",
     "close": "閉じる",
@@ -183,5 +263,56 @@
     "regenerate": "再生成",
     "hint": "書き込むだけで実行はしません（Enter で実行）",
     "noSession": "ターミナルセッションがありません"
+  },
+  "snippets": {
+    "tabTitle": "コマンド集",
+    "savedTitle": "お気に入りコマンド",
+    "handbookTitle": "運用リファレンス",
+    "searchPlaceholder": "別名またはコマンドを検索…",
+    "add": "コマンドを追加",
+    "addShort": "追加",
+    "pasteHint": "クリックすると左のターミナルに貼り付けます。ターミナルで文字を選択し右クリックでお気に入り登録できます。",
+    "clickToPaste": "クリックしてターミナルに貼り付け",
+    "empty": "登録済みコマンドはまだありません。ターミナルでコマンドを選択して右クリックするか、上の「追加」を押してください。",
+    "noMatch": "一致するコマンドがありません",
+    "saveSelection": "よく使うコマンドに登録",
+    "saveTitle": "コマンドを登録",
+    "editTitle": "コマンドを編集",
+    "alias": "別名",
+    "aliasPlaceholder": "例: 8080 番ポート確認",
+    "command": "コマンド",
+    "category": "カテゴリ",
+    "description": "メモ（任意）",
+    "descriptionPlaceholder": "このコマンドの用途を簡潔に記載",
+    "categories": {
+      "general": "全般",
+      "network": "ネットワーク",
+      "system": "システム",
+      "logs": "ログ",
+      "docker": "Docker",
+      "git": "Git"
+    },
+    "handbook": {
+      "listenPorts": "待ち受け中の TCP ポート一覧",
+      "checkPort": "8080 番ポートのプロセス確認",
+      "diskUsage": "ディスク使用状況を確認",
+      "largestDirs": "容量の大きいファイル/ディレクトリ",
+      "topMemory": "メモリ使用量上位プロセス",
+      "tailLog": "ログ末尾をリアルタイム追跡",
+      "grepErrors": "エラーログを横断検索",
+      "dockerPs": "稼働中の Docker コンテナ一覧",
+      "dockerLogs": "Docker コンテナのログ追跡",
+      "gitGraph": "最近の Git コミット履歴",
+      "gitDiffStat": "Git 状態と差分サマリー"
+    }
+  },
+  "update": {
+    "availableBadge": "アップデートあり v{{version}}",
+    "checking": "確認中…",
+    "checkTooltip": "クリックして GitHub Releases の最新版を確認",
+    "dialogTitle": "新しいバージョンがあります",
+    "noNotes": "GitHub Releases に新しいバージョンが公開されています。",
+    "later": "あとで",
+    "download": "GitHub でダウンロード"
   }
 }
