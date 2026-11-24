@@ -4,17 +4,17 @@
 /**
  * Session backends.
  *
- * A backend is what a terminal pane talks to. Inside Tauri it forwards to a Rust
- * transport (PTY, SSH or serial) over IPC; in a plain browser it runs a tiny echo
- * shell so the UI can be reviewed with `npm run dev` alone. Both satisfy the same
- * interface, so the pane never branches on the host.
+ * Inside Tauri each session owns a dedicated Tauri v2 IPC Channel so batched
+ * terminal frames flow point-to-point without global broadcast overhead or
+ * startup listener races. In a plain browser a tiny echo shell lets the UI be
+ * reviewed with `npm run dev` alone.
  */
+
+import { Channel } from "@tauri-apps/api/core";
 
 import {
   ipc,
   isTauri,
-  onTerminalExit,
-  onTerminalOutput,
   type SerialConnectInput,
   type SerialFlowControl,
   type SerialParity,
@@ -22,6 +22,7 @@ import {
   type SessionInfo,
   type SessionKind,
   type SshAuthInput,
+  type TerminalStreamEvent,
 } from "./ipc";
 
 export interface TerminalBackend {
@@ -72,29 +73,145 @@ export interface SerialSessionSpec {
 
 export type SessionSpec = LocalSessionSpec | SshSessionSpec | SerialSessionSpec;
 
+interface StreamHub {
+  channel: Channel<TerminalStreamEvent>;
+  attach(info: SessionInfo): TerminalBackend;
+}
+
+/** Creates a point-to-point channel hub before spawning so early bytes buffer cleanly. */
+function createStreamHub(): StreamHub {
+  const outputListeners = new Set<(text: string) => void>();
+  const rawListeners = new Set<(bytes: Uint8Array) => void>();
+  const exitListeners = new Set<() => void>();
+  const decoder = new TextDecoder("utf-8");
+
+  const earlyText: string[] = [];
+  const earlyRaw: Uint8Array[] = [];
+  let earlyExited = false;
+  let disposed = false;
+
+  const channel = new Channel<TerminalStreamEvent>((message) => {
+    if (disposed) return;
+    if (message.event === "exited") {
+      if (exitListeners.size === 0) {
+        earlyExited = true;
+      } else {
+        for (const listener of exitListeners) listener();
+      }
+      return;
+    }
+
+    const bytes = decodeBase64(message.data.dataBase64);
+    if (rawListeners.size === 0) {
+      earlyRaw.push(bytes);
+      if (earlyRaw.length > 64) earlyRaw.shift();
+    } else {
+      for (const listener of rawListeners) listener(bytes);
+    }
+
+    const text = decoder.decode(bytes, { stream: true });
+    if (text.length > 0) {
+      if (outputListeners.size === 0) {
+        earlyText.push(text);
+        if (earlyText.length > 128) earlyText.shift();
+      } else {
+        for (const listener of outputListeners) listener(text);
+      }
+    }
+  });
+
+  return {
+    channel,
+    attach(info: SessionInfo): TerminalBackend {
+      return {
+        sessionId: info.sessionId,
+        kind: info.kind,
+        label: info.label,
+        write(data) {
+          void ipc.writeKeystrokes(info.sessionId, data).catch(console.error);
+        },
+        writeBytes(data) {
+          void ipc
+            .writeSessionBytes(info.sessionId, encodeBase64(data))
+            .catch(console.error);
+        },
+        resize(cols, rows) {
+          void ipc.resizeSession(info.sessionId, cols, rows).catch(console.error);
+        },
+        onOutput(listener) {
+          outputListeners.add(listener);
+          if (earlyText.length > 0) {
+            const buffered = earlyText.splice(0, earlyText.length);
+            for (const chunk of buffered) listener(chunk);
+          }
+          return () => outputListeners.delete(listener);
+        },
+        onRawOutput(listener) {
+          rawListeners.add(listener);
+          if (earlyRaw.length > 0) {
+            const buffered = earlyRaw.splice(0, earlyRaw.length);
+            for (const chunk of buffered) listener(chunk);
+          }
+          return () => rawListeners.delete(listener);
+        },
+        onExit(listener) {
+          exitListeners.add(listener);
+          if (earlyExited) {
+            earlyExited = false;
+            listener();
+          }
+          return () => exitListeners.delete(listener);
+        },
+        dispose() {
+          disposed = true;
+          outputListeners.clear();
+          rawListeners.clear();
+          exitListeners.clear();
+          earlyText.length = 0;
+          earlyRaw.length = 0;
+          void ipc.closeSession(info.sessionId).catch(console.error);
+        },
+      };
+    },
+  };
+}
+
 export async function createTerminalBackend(spec: SessionSpec): Promise<TerminalBackend> {
   if (!isTauri()) {
     return createDemoBackend(spec.cols, spec.rows);
   }
 
-  const info = await spawnSession(spec);
-  return terminalBackendFor(info);
+  const hub = createStreamHub();
+  const info = await spawnSession(spec, hub.channel);
+  return hub.attach(info);
 }
 
-async function spawnSession(spec: SessionSpec): Promise<SessionInfo> {
+export async function connectSavedTerminalBackend(id: string): Promise<TerminalBackend> {
+  const hub = createStreamHub();
+  const info = await ipc.connectSavedSession(id, hub.channel);
+  return hub.attach(info);
+}
+
+async function spawnSession(
+  spec: SessionSpec,
+  channel: Channel<TerminalStreamEvent>,
+): Promise<SessionInfo> {
   switch (spec.kind) {
     case "local":
-      return ipc.spawnSession(spec.cols, spec.rows, spec.shell);
+      return ipc.spawnSession(spec.cols, spec.rows, channel, spec.shell);
     case "ssh":
-      return ipc.connectSsh({
-        host: spec.host,
-        port: spec.port,
-        username: spec.username,
-        auth: spec.auth,
-        cols: spec.cols,
-        rows: spec.rows,
-        trustFingerprint: spec.trustFingerprint,
-      });
+      return ipc.connectSsh(
+        {
+          host: spec.host,
+          port: spec.port,
+          username: spec.username,
+          auth: spec.auth,
+          cols: spec.cols,
+          rows: spec.rows,
+          trustFingerprint: spec.trustFingerprint,
+        },
+        channel,
+      );
     case "serial": {
       const request: SerialConnectInput = {
         path: spec.path,
@@ -107,87 +224,18 @@ async function spawnSession(spec: SessionSpec): Promise<SessionInfo> {
         rows: spec.rows,
         logPath: spec.logPath,
       };
-      return ipc.openSerial(request);
+      return ipc.openSerial(request, channel);
     }
   }
 }
 
-export function terminalBackendFor(info: SessionInfo): TerminalBackend {
-  const outputListeners = new Set<(text: string) => void>();
-  const rawListeners = new Set<(bytes: Uint8Array) => void>();
-  const exitListeners = new Set<() => void>();
-  // A single streaming decoder keeps multi-byte UTF-8 glyphs intact even when a
-  // character is split across two batched frames.
-  const decoder = new TextDecoder("utf-8");
-
-  let unlistenOutput: (() => void) | null = null;
-  let unlistenExit: (() => void) | null = null;
-  let disposed = false;
-
-  void onTerminalOutput((payload) => {
-    if (payload.sessionId !== info.sessionId) return;
-    const bytes = decodeBase64(payload.dataBase64);
-    for (const listener of rawListeners) listener(bytes);
-    const text = decoder.decode(bytes, { stream: true });
-    if (text.length > 0) {
-      for (const listener of outputListeners) listener(text);
-    }
-  }).then((stop) => {
-    if (disposed) stop();
-    else unlistenOutput = stop;
-  });
-
-  void onTerminalExit((payload) => {
-    if (payload.sessionId !== info.sessionId) return;
-    for (const listener of exitListeners) listener();
-  }).then((stop) => {
-    if (disposed) stop();
-    else unlistenExit = stop;
-  });
-
-  return {
-    sessionId: info.sessionId,
-    kind: info.kind,
-    label: info.label,
-    write(data) {
-      void ipc.writeKeystrokes(info.sessionId, data).catch(console.error);
-    },
-    writeBytes(data) {
-      void ipc
-        .writeSessionBytes(info.sessionId, encodeBase64(data))
-        .catch(console.error);
-    },
-    resize(cols, rows) {
-      void ipc.resizeSession(info.sessionId, cols, rows).catch(console.error);
-    },
-    onOutput(listener) {
-      outputListeners.add(listener);
-      return () => outputListeners.delete(listener);
-    },
-    onRawOutput(listener) {
-      rawListeners.add(listener);
-      return () => rawListeners.delete(listener);
-    },
-    onExit(listener) {
-      exitListeners.add(listener);
-      return () => exitListeners.delete(listener);
-    },
-    dispose() {
-      disposed = true;
-      outputListeners.clear();
-      rawListeners.clear();
-      exitListeners.clear();
-      unlistenOutput?.();
-      unlistenExit?.();
-      void ipc.closeSession(info.sessionId).catch(console.error);
-    },
-  };
-}
+let demoCounter = 1;
 
 function createDemoBackend(cols: number, rows: number): TerminalBackend {
+  const sessionId = `demo-${String(demoCounter++).padStart(4, "0")}`;
   const outputListeners = new Set<(text: string) => void>();
   const exitListeners = new Set<() => void>();
-  const prompt = "\r\n\x1b[38;5;51mota\x1b[0m \x1b[38;5;245mdemo\x1b[0m $ ";
+  const prompt = "\r\n\x1b[38;5;208mota\x1b[0m \x1b[38;5;244mdemo\x1b[0m $ ";
   let line = "";
 
   const emit = (text: string) => {
@@ -195,7 +243,7 @@ function createDemoBackend(cols: number, rows: number): TerminalBackend {
   };
 
   const banner =
-    `\x1b[38;5;51mOpen Terminal Agent\x1b[0m — browser demo shell (${cols}×${rows}).\r\n` +
+    `\x1b[38;5;208mOpen Terminal Agent\x1b[0m — browser demo shell (${cols}×${rows}).\r\n` +
     "No transport is attached: SSH, serial and local PTY sessions need the desktop app.\r\n" +
     "Try `help`, `date` or `clear`.";
 
@@ -222,7 +270,7 @@ function createDemoBackend(cols: number, rows: number): TerminalBackend {
   };
 
   return {
-    sessionId: "demo-0001",
+    sessionId,
     kind: "local",
     label: "demo-shell",
     write(data) {
@@ -256,10 +304,12 @@ function createDemoBackend(cols: number, rows: number): TerminalBackend {
     },
     onOutput(listener) {
       outputListeners.add(listener);
+      if (!booted) {
+        queueMicrotask(boot);
+      }
       return () => outputListeners.delete(listener);
     },
     onRawOutput() {
-      // The demo shell has no raw byte stream.
       return () => {};
     },
     onExit(listener) {

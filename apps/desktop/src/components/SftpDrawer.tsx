@@ -108,19 +108,23 @@ export function SftpDrawer({ saved, onClose }: SftpDrawerProps) {
   );
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-start bg-slate-950/60" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-40 flex justify-start backdrop-blur-[2px]"
+      style={{ backgroundColor: "var(--overlay)" }}
+      onClick={onClose}
+    >
       <aside
-        className="flex h-full w-[26rem] flex-col border-r border-slate-800 bg-slate-900/95 shadow-2xl"
+        className="flex h-full w-[26rem] flex-col border-r border-[var(--border-strong)] bg-[var(--bg-surface)] shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <header className="flex items-center justify-between border-b border-slate-800 px-3 py-2">
-          <h2 className="text-sm font-medium text-slate-200">{t("sftp.title")}</h2>
-          <div className="flex items-center gap-1">
+        <header className="flex items-center justify-between border-b border-[var(--border-subtle)] px-4 py-3">
+          <h2 className="text-sm font-semibold text-[var(--text-primary)]">{t("sftp.title")}</h2>
+          <div className="flex items-center gap-1.5">
             {session ? (
               <button
                 type="button"
                 onClick={() => void disconnect()}
-                className="rounded px-2 py-0.5 text-[11px] text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                className="rounded-md border border-[var(--border-subtle)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
               >
                 {t("sftp.disconnect")}
               </button>
@@ -129,53 +133,69 @@ export function SftpDrawer({ saved, onClose }: SftpDrawerProps) {
               type="button"
               onClick={onClose}
               aria-label={t("common.close")}
-              className="rounded px-2 py-0.5 text-slate-500 hover:bg-slate-800 hover:text-slate-200"
+              className="inline-flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
             >
-              ×
+              <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                <path d="M4 4l8 8M12 4l-8 8" />
+              </svg>
             </button>
           </div>
         </header>
 
         {!session ? (
-          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-            <p className="text-[11px] text-slate-500">{t("sftp.connectHint")}</p>
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3.5">
+            <p className="text-xs text-[var(--text-muted)]">{t("sftp.connectHint")}</p>
             {profiles.length === 0 ? (
-              <p className="mt-2 text-[11px] text-amber-300/80">{t("sftp.noProfiles")}</p>
+              <p className="mt-2 text-xs" style={{ color: "var(--accent)" }}>
+                {t("sftp.noProfiles")}
+              </p>
             ) : (
-              <ul className="mt-2 space-y-1">
+              <ul className="mt-3 space-y-1">
                 {profiles.map((profile) => (
                   <li key={profile.id}>
                     <button
                       type="button"
                       disabled={busy}
                       onClick={() => void connect(profile.id)}
-                      className="w-full rounded px-2 py-1.5 text-left text-xs text-slate-300 hover:bg-slate-800/70 disabled:opacity-50"
+                      className="flex w-full items-center gap-2 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-3 py-2 text-left text-xs text-[var(--text-primary)] transition hover:border-[var(--accent-border)] disabled:opacity-50"
                     >
+                      <span
+                        className="h-1.5 w-1.5 rounded-full"
+                        style={{ backgroundColor: "var(--accent)" }}
+                      />
                       <span className="font-mono">{profile.name}</span>
-                      <span className="ml-2 text-[10px] text-slate-600">{profile.kind}</span>
+                      <span className="ml-auto font-mono text-[10px] text-[var(--text-muted)] uppercase">
+                        {profile.kind}
+                      </span>
                     </button>
                   </li>
                 ))}
               </ul>
             )}
-            {error ? <p className="mt-2 text-[11px] text-rose-300">{error}</p> : null}
+            {error ? (
+              <p className="mt-2 text-[11px]" style={{ color: "var(--status-danger)" }}>
+                {error}
+              </p>
+            ) : null}
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-1 border-b border-slate-800/70 px-2 py-1.5">
+            <div className="flex items-center gap-2 border-b border-[var(--border-subtle)] bg-[var(--bg-chrome)] px-3 py-2">
               <button
                 type="button"
                 onClick={() => void browse(session.connectionId, parentOf(cwd))}
-                className="rounded px-1.5 py-0.5 text-[11px] text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 py-0.5 font-mono text-xs text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
               >
                 ↑
               </button>
-              <span className="truncate font-mono text-[11px] text-cyan-200/90">{cwd}</span>
+              <span className="truncate font-mono text-[11px] text-[var(--text-primary)]">
+                {cwd}
+              </span>
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => void transfer("upload")}
-                className="ml-auto rounded bg-cyan-500/15 px-2 py-0.5 text-[11px] text-cyan-100 hover:bg-cyan-500/25 disabled:opacity-50"
+                className="ota-btn-primary ml-auto rounded-md px-2.5 py-1 text-[11px]"
               >
                 {t("sftp.upload")}
               </button>
@@ -183,38 +203,43 @@ export function SftpDrawer({ saved, onClose }: SftpDrawerProps) {
 
             <div className="min-h-0 flex-1 overflow-y-auto">
               {entries.length === 0 ? (
-                <p className="px-3 py-2 text-[11px] text-slate-600">{t("sftp.empty")}</p>
+                <p className="px-4 py-3 text-xs text-[var(--text-muted)]">{t("sftp.empty")}</p>
               ) : (
-                <table className="w-full text-[11px]">
+                <table className="w-full text-[11.5px]">
                   <tbody>
                     {entries.map((entry) => (
-                      <tr key={entry.path} className="border-b border-slate-800/40 hover:bg-slate-800/40">
-                        <td className="px-2 py-1">
+                      <tr
+                        key={entry.path}
+                        className="border-b border-[var(--border-subtle)] transition hover:bg-[var(--bg-hover)]"
+                      >
+                        <td className="px-3 py-1.5">
                           {entry.directory ? (
                             <button
                               type="button"
                               onClick={() => void browse(session.connectionId, entry.path)}
-                              className="text-cyan-200/90 hover:underline"
+                              className="font-medium hover:underline"
+                              style={{ color: "var(--accent)" }}
                             >
                               {entry.name}/
                             </button>
                           ) : (
-                            <span className="text-slate-300">
+                            <span className="text-[var(--text-primary)]">
                               {entry.name}
                               {entry.symlink ? " →" : ""}
                             </span>
                           )}
                         </td>
-                        <td className="w-16 px-2 py-1 text-right font-mono text-slate-600">
+                        <td className="w-20 px-2 py-1.5 text-right font-mono text-[10.5px] text-[var(--text-muted)]">
                           {entry.size ?? "—"}
                         </td>
-                        <td className="w-16 px-2 py-1 text-right">
+                        <td className="w-20 px-3 py-1.5 text-right">
                           {entry.directory ? null : (
                             <button
                               type="button"
                               disabled={busy}
                               onClick={() => void transfer("download", entry)}
-                              className="text-[10px] text-sky-300/80 hover:text-sky-200 disabled:opacity-50"
+                              className="font-mono text-[10.5px] transition hover:underline disabled:opacity-50"
+                              style={{ color: "var(--accent)" }}
                             >
                               {t("sftp.download")}
                             </button>
@@ -227,10 +252,20 @@ export function SftpDrawer({ saved, onClose }: SftpDrawerProps) {
               )}
             </div>
 
-            <footer className="border-t border-slate-800 px-3 py-1.5 text-[10px] text-slate-500">
-              {session.username}@{session.host}
-              {note ? <span className="ml-2 text-emerald-300/80">{note}</span> : null}
-              {error ? <span className="ml-2 text-rose-300">{error}</span> : null}
+            <footer className="border-t border-[var(--border-subtle)] bg-[var(--bg-chrome)] px-4 py-2 font-mono text-[10.5px] text-[var(--text-muted)]">
+              <span>
+                {session.username}@{session.host}
+              </span>
+              {note ? (
+                <span className="ml-2" style={{ color: "var(--status-ok)" }}>
+                  {note}
+                </span>
+              ) : null}
+              {error ? (
+                <span className="ml-2" style={{ color: "var(--status-danger)" }}>
+                  {error}
+                </span>
+              ) : null}
             </footer>
           </>
         )}

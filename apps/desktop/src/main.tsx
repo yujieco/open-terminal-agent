@@ -7,8 +7,11 @@ import { createRoot } from "react-dom/client";
 import "@xterm/xterm/css/xterm.css";
 
 import App from "./App";
+import { initTheme } from "./hooks/useTheme";
 import { initI18n } from "./i18n";
 import "./styles.css";
+
+initTheme();
 
 const container = document.getElementById("root");
 if (!container) {

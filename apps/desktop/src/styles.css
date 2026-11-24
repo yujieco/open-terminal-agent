@@ -14,6 +14,77 @@
     "Consolas", monospace;
 }
 
+/* Studio Light Theme — warm editorial paper & crisp ink */
+:root,
+:root[data-theme="light"] {
+  --bg-canvas: #faf9f6;
+  --bg-sidebar: #f2f0eb;
+  --bg-chrome: #f5f3ee;
+  --bg-surface: #ffffff;
+  --bg-elevated: #eae7e0;
+  --bg-hover: #e5e1d8;
+  --bg-terminal: #faf9f6;
+
+  --border-subtle: #e3dfd7;
+  --border-strong: #cbc6bb;
+
+  --text-primary: #17181c;
+  --text-secondary: #585b64;
+  --text-muted: #868992;
+
+  --accent: #e86f16;
+  --accent-hover: #d3600b;
+  --accent-soft: rgba(232, 111, 22, 0.11);
+  --accent-border: rgba(232, 111, 22, 0.45);
+  --accent-fg: #ffffff;
+
+  --status-ok: #15803d;
+  --status-ok-soft: rgba(21, 128, 61, 0.1);
+  --status-warn: #b45309;
+  --status-warn-soft: rgba(180, 83, 9, 0.11);
+  --status-danger: #dc2626;
+  --status-danger-soft: rgba(220, 38, 38, 0.1);
+
+  --overlay: rgba(20, 21, 26, 0.34);
+  --scrollbar-thumb: #d2cdc3;
+  --scrollbar-thumb-hover: #b8b2a6;
+}
+
+/* Studio Dark Theme — deep obsidian charcoal & single warm orange accent */
+:root[data-theme="dark"] {
+  --bg-canvas: #0e0f12;
+  --bg-sidebar: #111216;
+  --bg-chrome: #131419;
+  --bg-surface: #17191f;
+  --bg-elevated: #1e2128;
+  --bg-hover: #252831;
+  --bg-terminal: #0e0f12;
+
+  --border-subtle: #20222a;
+  --border-strong: #2f333f;
+
+  --text-primary: #f2f3f5;
+  --text-secondary: #989da8;
+  --text-muted: #636875;
+
+  --accent: #f58220;
+  --accent-hover: #fb943a;
+  --accent-soft: rgba(245, 130, 32, 0.14);
+  --accent-border: rgba(245, 130, 32, 0.48);
+  --accent-fg: #12100e;
+
+  --status-ok: #4ade80;
+  --status-ok-soft: rgba(74, 222, 128, 0.12);
+  --status-warn: #fbbf24;
+  --status-warn-soft: rgba(251, 191, 36, 0.14);
+  --status-danger: #f87171;
+  --status-danger-soft: rgba(248, 113, 113, 0.14);
+
+  --overlay: rgba(6, 7, 10, 0.72);
+  --scrollbar-thumb: #262932;
+  --scrollbar-thumb-hover: #383d4a;
+}
+
 html,
 body,
 #root {
@@ -22,16 +93,15 @@ body,
 
 body {
   margin: 0;
-  background-color: #0b1220;
-  color: #e2e8f0;
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
   font-family: var(--font-sans);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* The terminal paints its own background; keep the viewport transparent so the
-   app surface shows through and wide CJK glyphs never clip against a border. */
+/* Keep xterm viewport transparent so the themed canvas shows through cleanly. */
 .xterm .xterm-viewport {
   background-color: transparent !important;
 }
@@ -40,9 +110,18 @@ body {
   image-rendering: auto;
 }
 
+/* Subtle left-gutter indicator on OSC 133 prompt lines (zero text clutter). */
+.ota-prompt-gutter {
+  pointer-events: none;
+  margin-left: -8px;
+  border-left: 2.5px solid var(--accent);
+  border-radius: 1px;
+  opacity: 0.85;
+}
+
 *::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 
 *::-webkit-scrollbar-track {
@@ -50,17 +129,65 @@ body {
 }
 
 *::-webkit-scrollbar-thumb {
-  background-color: #1e293b;
+  background-color: var(--scrollbar-thumb);
   border: 2px solid transparent;
   border-radius: 9999px;
   background-clip: content-box;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background-color: #334155;
+  background-color: var(--scrollbar-thumb-hover);
 }
 
-:focus-visible {
-  outline: 2px solid #22d3ee;
-  outline-offset: 1px;
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 1.5px solid var(--border-strong);
+  outline-offset: 2px;
+}
+
+/* Shared semantic form control style */
+.ota-input {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-subtle);
+  background-color: var(--bg-canvas);
+  padding: 0.42rem 0.65rem;
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  outline: none;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    background-color 150ms ease;
+}
+
+.ota-input::placeholder {
+  color: var(--text-muted);
+}
+
+.ota-input:focus {
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.ota-btn-primary {
+  background-color: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+  transition: background-color 140ms ease, opacity 140ms ease;
+}
+
+.ota-btn-primary:hover:not(:disabled) {
+  background-color: var(--accent-hover);
+}
+
+.ota-btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }

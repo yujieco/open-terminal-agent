@@ -4,18 +4,28 @@
 /**
  * Thin, typed wrapper over the Tauri command surface.
  *
- * Every payload mirrors a `#[tauri::command]` in
- * `apps/desktop/src-tauri/src/commands.rs`; keeping the names in one place makes
+ * Every payload mirrors a `#[tauri::command]` under
+ * `apps/desktop/src-tauri/src/commands/`; keeping the names in one place makes
  * a rename a compile error instead of a runtime surprise.
  */
 
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-
-export const TERMINAL_OUTPUT_EVENT = "terminal://output";
-export const TERMINAL_EXIT_EVENT = "terminal://exit";
+import { Channel, invoke } from "@tauri-apps/api/core";
 
 export type SessionKind = "local" | "ssh" | "serial";
+
+/** Per-session stream event delivered over a dedicated Tauri v2 IPC Channel. */
+export type TerminalStreamEvent =
+  | {
+      event: "output";
+      data: {
+        sequence: number;
+        dataBase64: string;
+        bytes: number;
+      };
+    }
+  | {
+      event: "exited";
+    };
 
 export interface LocaleInfo {
   raw: string;
@@ -29,17 +39,6 @@ export interface SessionInfo {
   label: string;
   cols: number;
   rows: number;
-}
-
-export interface OutputPayload {
-  sessionId: string;
-  sequence: number;
-  dataBase64: string;
-  bytes: number;
-}
-
-export interface ExitPayload {
-  sessionId: string;
 }
 
 export interface ShellProfile {
@@ -139,6 +138,25 @@ export interface KnownHost {
   firstSeen: number;
 }
 
+export interface CommandSnippet {
+  id: string;
+  alias: string;
+  command: string;
+  category: string;
+  description: string;
+  usageCount: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface SaveSnippetInput {
+  id?: string;
+  alias: string;
+  command: string;
+  category?: string;
+  description?: string;
+}
+
 export interface SavedSession {
   id: string;
   name: string;
@@ -173,22 +191,46 @@ export interface SftpEntry {
   size: number | null;
 }
 
+export interface UpdateInfo {
+  currentVersion: string;
+  latestVersion: string;
+  available: boolean;
+  releaseUrl: string;
+  releaseName: string;
+  notes: string;
+  publishedAt: string | null;
+}
+
 /** True when the page runs inside the Tauri WebView rather than a browser. */
 export function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
 export const ipc = {
-  spawnSession(cols: number, rows: number, shell?: string): Promise<SessionInfo> {
-    return invoke<SessionInfo>("spawn_session", { request: { cols, rows, shell } });
+  spawnSession(
+    cols: number,
+    rows: number,
+    onEvent: Channel<TerminalStreamEvent>,
+    shell?: string,
+  ): Promise<SessionInfo> {
+    return invoke<SessionInfo>("spawn_session", {
+      request: { cols, rows, shell },
+      onEvent,
+    });
   },
 
-  connectSsh(input: SshConnectInput): Promise<SessionInfo> {
-    return invoke<SessionInfo>("connect_ssh", { request: input });
+  connectSsh(
+    input: SshConnectInput,
+    onEvent: Channel<TerminalStreamEvent>,
+  ): Promise<SessionInfo> {
+    return invoke<SessionInfo>("connect_ssh", { request: input, onEvent });
   },
 
-  openSerial(input: SerialConnectInput): Promise<SessionInfo> {
-    return invoke<SessionInfo>("open_serial", { request: input });
+  openSerial(
+    input: SerialConnectInput,
+    onEvent: Channel<TerminalStreamEvent>,
+  ): Promise<SessionInfo> {
+    return invoke<SessionInfo>("open_serial", { request: input, onEvent });
   },
 
   serialPorts(): Promise<SerialPortDescriptor[]> {
@@ -231,6 +273,22 @@ export const ipc = {
     return invoke<ShellProfile[]>("shell_profiles");
   },
 
+  listSnippets(): Promise<CommandSnippet[]> {
+    return invoke<CommandSnippet[]>("list_snippets");
+  },
+
+  saveSnippet(input: SaveSnippetInput): Promise<CommandSnippet> {
+    return invoke<CommandSnippet>("save_snippet", { request: input });
+  },
+
+  deleteSnippet(id: string): Promise<boolean> {
+    return invoke<boolean>("delete_snippet", { id });
+  },
+
+  bumpSnippetUsage(id: string): Promise<void> {
+    return invoke<void>("bump_snippet_usage", { id });
+  },
+
   agentCapabilities(): Promise<AgentCapabilities> {
     return invoke<AgentCapabilities>("agent_capabilities");
   },
@@ -247,8 +305,11 @@ export const ipc = {
     return invoke<boolean>("delete_saved_session", { id });
   },
 
-  connectSavedSession(id: string): Promise<SessionInfo> {
-    return invoke<SessionInfo>("connect_saved_session", { id });
+  connectSavedSession(
+    id: string,
+    onEvent: Channel<TerminalStreamEvent>,
+  ): Promise<SessionInfo> {
+    return invoke<SessionInfo>("connect_saved_session", { id, onEvent });
   },
 
   probeHostKey(host: string, port: number): Promise<string> {
@@ -298,14 +359,12 @@ export const ipc = {
   sftpClose(connectionId: string): Promise<void> {
     return invoke<void>("sftp_close", { connectionId });
   },
+
+  checkForUpdates(): Promise<UpdateInfo> {
+    return invoke<UpdateInfo>("check_for_updates");
+  },
+
+  openExternalUrl(url: string): Promise<void> {
+    return invoke<void>("open_external_url", { url });
+  },
 };
-
-export function onTerminalOutput(
-  handler: (payload: OutputPayload) => void,
-): Promise<UnlistenFn> {
-  return listen<OutputPayload>(TERMINAL_OUTPUT_EVENT, (event) => handler(event.payload));
-}
-
-export function onTerminalExit(handler: (payload: ExitPayload) => void): Promise<UnlistenFn> {
-  return listen<ExitPayload>(TERMINAL_EXIT_EVENT, (event) => handler(event.payload));
-}

@@ -18,9 +18,6 @@ interface SshConnectDialogProps {
 
 type AuthMethod = "password" | "privateKey";
 
-const FIELD =
-  "w-full rounded border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-cyan-500/60";
-
 export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectDialogProps) {
   const { t } = useTranslation();
   const [host, setHost] = useState("");
@@ -107,31 +104,36 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-[2px]"
+      style={{ backgroundColor: "var(--overlay)" }}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm overflow-hidden rounded-lg border border-slate-800 bg-slate-900/95 shadow-2xl"
+        className="w-full max-w-sm overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)] shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <header className="flex items-center justify-between border-b border-slate-800 px-4 py-2.5">
-          <h2 className="text-sm font-medium text-slate-200">{t("ssh.title")}</h2>
+        <header className="flex items-center justify-between border-b border-[var(--border-subtle)] px-4 py-3">
+          <h2 className="text-sm font-semibold text-[var(--text-primary)]">{t("ssh.title")}</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label={t("common.close")}
-            className="rounded px-2 py-0.5 text-slate-500 transition hover:bg-slate-800 hover:text-slate-200"
+            className="inline-flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
           >
-            ×
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+              <path d="M4 4l8 8M12 4l-8 8" />
+            </svg>
           </button>
         </header>
 
-        <div className="space-y-2.5 px-4 py-3">
+        <div className="space-y-3 px-4 py-3.5">
           <div className="flex gap-2">
             <label className="flex-1">
-              <span className="text-[11px] text-slate-400">{t("ssh.host")}</span>
+              <span className="mb-1 block text-[10px] font-medium text-[var(--text-muted)] uppercase">
+                {t("ssh.host")}
+              </span>
               <input
-                className={FIELD}
+                className="ota-input font-mono"
                 value={host}
                 placeholder="10.0.0.12"
                 autoFocus
@@ -139,9 +141,11 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
               />
             </label>
             <label className="w-20">
-              <span className="text-[11px] text-slate-400">{t("ssh.port")}</span>
+              <span className="mb-1 block text-[10px] font-medium text-[var(--text-muted)] uppercase">
+                {t("ssh.port")}
+              </span>
               <input
-                className={FIELD}
+                className="ota-input font-mono"
                 value={port}
                 inputMode="numeric"
                 onChange={(event) => setPort(event.target.value)}
@@ -150,9 +154,11 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
           </div>
 
           <label className="block">
-            <span className="text-[11px] text-slate-400">{t("ssh.username")}</span>
+            <span className="mb-1 block text-[10px] font-medium text-[var(--text-muted)] uppercase">
+              {t("ssh.username")}
+            </span>
             <input
-              className={FIELD}
+              className="ota-input font-mono"
               value={username}
               placeholder="root"
               onChange={(event) => setUsername(event.target.value)}
@@ -160,30 +166,37 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
           </label>
 
           <div>
-            <span className="text-[11px] text-slate-400">{t("ssh.auth")}</span>
-            <div className="mt-1 flex gap-1">
-              {(["password", "privateKey"] as AuthMethod[]).map((candidate) => (
-                <button
-                  key={candidate}
-                  type="button"
-                  onClick={() => setMethod(candidate)}
-                  className={`flex-1 rounded px-2 py-1 text-[11px] transition ${
-                    method === candidate
-                      ? "bg-cyan-500/20 text-cyan-100"
-                      : "text-slate-400 hover:bg-slate-800/60"
-                  }`}
-                >
-                  {candidate === "password" ? t("ssh.authPassword") : t("ssh.authKey")}
-                </button>
-              ))}
+            <span className="mb-1 block text-[10px] font-medium text-[var(--text-muted)] uppercase">
+              {t("ssh.auth")}
+            </span>
+            <div className="grid grid-cols-2 gap-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-canvas)] p-1">
+              {(["password", "privateKey"] as AuthMethod[]).map((candidate) => {
+                const selected = method === candidate;
+                return (
+                  <button
+                    key={candidate}
+                    type="button"
+                    onClick={() => setMethod(candidate)}
+                    className="rounded-md px-2 py-1 text-[11px] font-medium transition"
+                    style={{
+                      backgroundColor: selected ? "var(--bg-elevated)" : "transparent",
+                      color: selected ? "var(--text-primary)" : "var(--text-muted)",
+                    }}
+                  >
+                    {candidate === "password" ? t("ssh.authPassword") : t("ssh.authKey")}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           {method === "password" ? (
             <label className="block">
-              <span className="text-[11px] text-slate-400">{t("ssh.password")}</span>
+              <span className="mb-1 block text-[10px] font-medium text-[var(--text-muted)] uppercase">
+                {t("ssh.password")}
+              </span>
               <input
-                className={FIELD}
+                className="ota-input"
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
@@ -192,17 +205,21 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
           ) : (
             <>
               <label className="block">
-                <span className="text-[11px] text-slate-400">{t("ssh.keyPath")}</span>
+                <span className="mb-1 block text-[10px] font-medium text-[var(--text-muted)] uppercase">
+                  {t("ssh.keyPath")}
+                </span>
                 <input
-                  className={FIELD}
+                  className="ota-input font-mono"
                   value={keyPath}
                   onChange={(event) => setKeyPath(event.target.value)}
                 />
               </label>
               <label className="block">
-                <span className="text-[11px] text-slate-400">{t("ssh.passphrase")}</span>
+                <span className="mb-1 block text-[10px] font-medium text-[var(--text-muted)] uppercase">
+                  {t("ssh.passphrase")}
+                </span>
                 <input
-                  className={FIELD}
+                  className="ota-input"
                   type="password"
                   value={passphrase}
                   onChange={(event) => setPassphrase(event.target.value)}
@@ -212,23 +229,31 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
           )}
 
           {pendingFingerprint ? (
-            <div className="rounded border border-amber-500/40 bg-amber-500/10 p-2">
-              <p className="text-[11px] text-amber-100">{t("ssh.firstContact")}</p>
-              <pre className="mt-1 font-mono text-[10px] break-all whitespace-pre-wrap text-amber-200">
+            <div
+              className="rounded-lg border p-3"
+              style={{
+                borderColor: "var(--accent-border)",
+                backgroundColor: "var(--accent-soft)",
+              }}
+            >
+              <p className="text-[11px] font-medium text-[var(--text-primary)]">
+                {t("ssh.firstContact")}
+              </p>
+              <pre className="mt-1.5 rounded border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 py-1.5 font-mono text-[10px] break-all whitespace-pre-wrap text-[var(--text-primary)]">
                 {pendingFingerprint}
               </pre>
-              <div className="mt-1.5 flex gap-1">
+              <div className="mt-2 flex gap-1.5">
                 <button
                   type="button"
                   onClick={() => submit(pendingFingerprint)}
-                  className="flex-1 rounded bg-emerald-500/20 px-2 py-1 text-[11px] text-emerald-100 hover:bg-emerald-500/30"
+                  className="ota-btn-primary flex-1 rounded-md px-2 py-1.5 text-[11px]"
                 >
                   {t("ssh.trustAndConnect")}
                 </button>
                 <button
                   type="button"
                   onClick={() => setPendingFingerprint(null)}
-                  className="flex-1 rounded border border-slate-700 px-2 py-1 text-[11px] text-slate-300 hover:bg-slate-800"
+                  className="flex-1 rounded-md border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2 py-1.5 text-[11px] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
                 >
                   {t("common.cancel")}
                 </button>
@@ -236,21 +261,23 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
             </div>
           ) : null}
 
-          <label className="flex cursor-pointer items-center gap-2 text-[11px] text-slate-400">
+          <label className="flex cursor-pointer items-center gap-2 text-[11px] text-[var(--text-secondary)]">
             <input
               type="checkbox"
               checked={save}
               onChange={(event) => setSave(event.target.checked)}
-              className="h-3 w-3 accent-cyan-400"
+              className="h-3.5 w-3.5 accent-[var(--accent)]"
             />
             {t("ssh.remember")}
           </label>
 
           {save ? (
             <label className="block">
-              <span className="text-[11px] text-slate-400">{t("ssh.sessionName")}</span>
+              <span className="mb-1 block text-[10px] font-medium text-[var(--text-muted)] uppercase">
+                {t("ssh.sessionName")}
+              </span>
               <input
-                className={FIELD}
+                className="ota-input"
                 value={sessionName}
                 placeholder={`${username || "user"}@${host || "host"}`}
                 onChange={(event) => setSessionName(event.target.value)}
@@ -258,14 +285,18 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
             </label>
           ) : null}
 
-          {error ? <p className="text-[11px] text-rose-300">{error}</p> : null}
+          {error ? (
+            <p className="text-[11px]" style={{ color: "var(--status-danger)" }}>
+              {error}
+            </p>
+          ) : null}
         </div>
 
-        <footer className="flex items-center justify-end gap-2 border-t border-slate-800 px-4 py-2.5">
+        <footer className="flex items-center justify-end gap-2 border-t border-[var(--border-subtle)] bg-[var(--bg-chrome)] px-4 py-2.5">
           <button
             type="button"
             onClick={onClose}
-            className="rounded px-3 py-1 text-xs text-slate-400 transition hover:bg-slate-800 hover:text-slate-200"
+            className="rounded-md px-3 py-1.5 text-xs text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
           >
             {t("common.cancel")}
           </button>
@@ -273,7 +304,7 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
             type="button"
             disabled={busy || !ready || pendingFingerprint !== null}
             onClick={() => void start()}
-            className="rounded bg-cyan-500/20 px-3 py-1 text-xs text-cyan-100 transition hover:bg-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+            className="ota-btn-primary rounded-md px-3.5 py-1.5 text-xs"
           >
             {busy ? t("common.connecting") : t("common.connect")}
           </button>

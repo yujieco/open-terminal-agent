@@ -13,11 +13,13 @@ import {
   type ApprovalPayload,
   type LlmStatus,
 } from "../lib/agent";
+import { formatLlmError, type FriendlyError } from "../lib/friendlyError";
 import type { AgentRunSummary } from "../lib/ipc";
 import { isTauri } from "../lib/ipc";
 import type { PermissionMode } from "../types";
 
-const MODES: PermissionMode[] = ["ask", "supervised", "autonomous"];
+type LoopPhase = "observe" | "reason" | "act" | "verify";
+const PHASES: LoopPhase[] = ["observe", "reason", "act", "verify"];
 
 interface ToolCard {
   callId: string;
@@ -30,10 +32,18 @@ interface ToolCard {
   timedOut: boolean;
 }
 
+export interface ExternalTaskTrigger {
+  id: number;
+  text: string;
+}
+
 interface AgentSidebarProps {
   sessionId: string | null;
   mode: PermissionMode;
-  onModeChange: (mode: PermissionMode) => void;
+  suggestedPrompt: string | null;
+  externalTask: ExternalTaskTrigger | null;
+  onNextSuggestion: (sessionId: string, suggestion: string | null) => void;
+  onOpenSettings: () => void;
   /** Tells the shell whether an agent owns this session, for Esc take-over. */
   onRunningChange: (sessionId: string, running: boolean) => void;
 }
@@ -41,30 +51,42 @@ interface AgentSidebarProps {
 export function AgentSidebar({
   sessionId,
   mode,
-  onModeChange,
+  suggestedPrompt,
+  externalTask,
+  onNextSuggestion,
+  onOpenSettings,
   onRunningChange,
 }: AgentSidebarProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [task, setTask] = useState("");
   const [running, setRunning] = useState(false);
+  const [phase, setPhase] = useState<LoopPhase | null>(null);
   const [answer, setAnswer] = useState("");
   const [thinking, setThinking] = useState("");
-  const [showThinking, setShowThinking] = useState(false);
+  const [showThinking, setShowThinking] = useState(true);
   const [cards, setCards] = useState<ToolCard[]>([]);
   const [approval, setApproval] = useState<ApprovalPayload | null>(null);
-  const [failure, setFailure] = useState<string | null>(null);
+  const [failure, setFailure] = useState<FriendlyError | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
   const [llm, setLlm] = useState<LlmStatus | null>(null);
-  const [historyOpen, setHistoryOpen] = useState(false);
   const [runs, setRuns] = useState<AgentRunSummary[]>([]);
   const [replaying, setReplaying] = useState<string | null>(null);
   const [stepApproval, setStepApproval] = useState(false);
   const [keyDraft, setKeyDraft] = useState("");
+
   const sessionRef = useRef<string | null>(sessionId);
+  const lastExternalIdRef = useRef<number>(0);
+  const lastTaskRef = useRef<string>("");
+  const timelineEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     sessionRef.current = sessionId;
   }, [sessionId]);
+
+  // Always keep the newest card, reasoning update, answer, or approval prompt in view.
+  useEffect(() => {
+    timelineEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [cards, approval, answer, thinking, failure, running]);
 
   const refreshStatus = useCallback(async () => {
     if (!isTauri()) return;
@@ -75,9 +97,38 @@ export function AgentSidebar({
     }
   }, []);
 
+  const refreshRuns = useCallback(async () => {
+    if (!isTauri()) return;
+    try {
+      setRuns(await agentIpc.runs(undefined, 8));
+    } catch (cause) {
+      console.warn("[ota] could not list recent runs", cause);
+    }
+  }, []);
+
+  const fetchNextSuggestion = useCallback(
+    async (targetSessionId: string, previousTask: string) => {
+      if (!isTauri()) return;
+      try {
+        const next = await agentIpc.suggestNextTask({
+          sessionId: targetSessionId,
+          lastTask: previousTask,
+          language: i18n.language,
+        });
+        if (next && next.trim().length > 0) {
+          onNextSuggestion(targetSessionId, next.trim());
+        }
+      } catch {
+        // Suggestion is best-effort; never interrupt the user on failure.
+      }
+    },
+    [i18n.language, onNextSuggestion],
+  );
+
   useEffect(() => {
     void refreshStatus();
-  }, [refreshStatus]);
+    void refreshRuns();
+  }, [refreshStatus, refreshRuns]);
 
   // A new session starts with a clean timeline: mixing two terminals would
   // misrepresent what actually ran where.
@@ -88,8 +139,94 @@ export function AgentSidebar({
     setApproval(null);
     setFailure(null);
     setSummary(null);
+    setPhase(null);
     setRunning(false);
+    setReplaying(null);
   }, [sessionId]);
+
+  const apply = useCallback(
+    (event: AgentEvent) => {
+      switch (event.type) {
+        case "runStarted":
+          setRunning(true);
+          setSummary(null);
+          setFailure(null);
+          lastTaskRef.current = event.task;
+          break;
+        case "phaseChanged":
+          setPhase(event.phase);
+          break;
+        case "thinking":
+          setThinking((previous) => previous + event.delta);
+          break;
+        case "message":
+          setAnswer((previous) => previous + event.delta);
+          break;
+        case "toolRequested":
+          setCards((previous) => [
+            ...previous,
+            {
+              callId: event.call_id,
+              command: event.command ?? event.tool,
+              risk: event.risk,
+              status: "running",
+              exitCode: null,
+              output: "",
+              durationMs: 0,
+              timedOut: false,
+            },
+          ]);
+          break;
+        case "toolFinished":
+          setCards((previous) =>
+            previous.map((card) =>
+              card.callId === event.call_id
+                ? {
+                    ...card,
+                    status: "done",
+                    exitCode: event.exit_code,
+                    output: event.output,
+                    durationMs: event.duration_ms,
+                    timedOut: event.timed_out,
+                  }
+                : card,
+            ),
+          );
+          break;
+        case "toolDenied":
+          setCards((previous) =>
+            previous.map((card) =>
+              card.callId === event.call_id ? { ...card, status: "denied" } : card,
+            ),
+          );
+          setApproval((current) => (current?.callId === event.call_id ? null : current));
+          break;
+        case "runFinished": {
+          setRunning(false);
+          setApproval(null);
+          setPhase(null);
+          setSummary(`${event.reason} · ${event.steps}`);
+          const finishedSession = sessionRef.current;
+          if (finishedSession) {
+            onRunningChange(finishedSession, false);
+            void fetchNextSuggestion(finishedSession, lastTaskRef.current);
+          }
+          void refreshRuns();
+          break;
+        }
+        case "failed":
+          setRunning(false);
+          setPhase(null);
+          setFailure(formatLlmError(event.message, t));
+          if (sessionRef.current) onRunningChange(sessionRef.current, false);
+          void refreshRuns();
+          break;
+        default:
+          break;
+      }
+    },
+    [fetchNextSuggestion, onRunningChange, refreshRuns, t],
+  );
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -106,117 +243,54 @@ export function AgentSidebar({
       setApproval(payload);
     }).then((stop) => (disposed ? stop() : stops.push(stop)));
 
-    // Whoever types takes the terminal back; the runtime aborts on its own side.
     void onAgentInterrupted((payload) => {
       if (disposed || payload.sessionId !== sessionRef.current) return;
       setRunning(false);
+      setPhase(null);
       setApproval(null);
-      setFailure(t("agent.interrupted"));
+      setFailure({ message: t("agent.interrupted"), openSettings: false });
       onRunningChange(payload.sessionId, false);
+      void refreshRuns();
     }).then((stop) => (disposed ? stop() : stops.push(stop)));
 
     return () => {
       disposed = true;
       for (const stop of stops) stop();
     };
-  }, []);
+  }, [apply, onRunningChange, refreshRuns, t]);
 
-  const apply = useCallback((event: AgentEvent) => {
-    switch (event.type) {
-      case "runStarted":
-        setRunning(true);
-        setSummary(null);
-        setFailure(null);
-        break;
-      case "thinking":
-        setThinking((previous) => previous + event.delta);
-        break;
-      case "message":
-        setAnswer((previous) => previous + event.delta);
-        break;
-      case "toolRequested":
-        setCards((previous) => [
-          ...previous,
-          {
-            callId: event.call_id,
-            command: event.command ?? event.tool,
-            risk: event.risk,
-            status: "running",
-            exitCode: null,
-            output: "",
-            durationMs: 0,
-            timedOut: false,
-          },
-        ]);
-        break;
-      case "toolFinished":
-        setCards((previous) =>
-          previous.map((card) =>
-            card.callId === event.call_id
-              ? {
-                  ...card,
-                  status: "done",
-                  exitCode: event.exit_code,
-                  output: event.output,
-                  durationMs: event.duration_ms,
-                  timedOut: event.timed_out,
-                }
-              : card,
-          ),
-        );
-        break;
-      case "toolDenied":
-        setCards((previous) =>
-          previous.map((card) =>
-            card.callId === event.call_id ? { ...card, status: "denied" } : card,
-          ),
-        );
-        setApproval((current) => (current?.callId === event.call_id ? null : current));
-        break;
-      case "runFinished":
+  const startTask = useCallback(
+    async (promptText: string) => {
+      const trimmed = promptText.trim();
+      if (!sessionId || trimmed.length === 0) return;
+      lastTaskRef.current = trimmed;
+      setAnswer("");
+      setThinking("");
+      setCards([]);
+      setSummary(null);
+      setFailure(null);
+      setRunning(true);
+      setPhase("observe");
+      setReplaying(null);
+      onRunningChange(sessionId, true);
+      try {
+        await agentIpc.run({ sessionId, task: trimmed, mode, stepApproval });
+      } catch (cause) {
         setRunning(false);
-        setApproval(null);
-        setSummary(`${event.reason} · ${event.steps}`);
-        if (sessionRef.current) onRunningChange(sessionRef.current, false);
-        break;
-      case "failed":
-        setRunning(false);
-        setFailure(event.message);
-        if (sessionRef.current) onRunningChange(sessionRef.current, false);
-        break;
-      default:
-        break;
-    }
-  }, []);
+        setPhase(null);
+        onRunningChange(sessionId, false);
+        setFailure(formatLlmError(cause, t));
+      }
+    },
+    [mode, onRunningChange, sessionId, stepApproval, t],
+  );
 
-  const start = useCallback(async () => {
-    if (!sessionId || task.trim().length === 0) return;
-    setAnswer("");
-    setThinking("");
-    setCards([]);
-    setSummary(null);
-    setFailure(null);
-    setRunning(true);
-    setReplaying(null);
-    onRunningChange(sessionId, true);
-    try {
-      await agentIpc.run({ sessionId, task: task.trim(), mode, stepApproval });
-      setTask("");
-    } catch (cause) {
-      setRunning(false);
-      setFailure(cause instanceof Error ? cause.message : String(cause));
-    }
-  }, [mode, sessionId, stepApproval, task]);
-
-  const loadHistory = useCallback(async () => {
-    if (!sessionId) return;
-    try {
-      setRuns(await agentIpc.runs(sessionId, 20));
-      setHistoryOpen(true);
-    } catch (cause) {
-      setFailure(cause instanceof Error ? cause.message : String(cause));
-    }
-  }, [sessionId]);
+  // Triggered when the user submits from the center quick-prompt bar.
+  useEffect(() => {
+    if (!externalTask || externalTask.id === lastExternalIdRef.current) return;
+    lastExternalIdRef.current = externalTask.id;
+    void startTask(externalTask.text);
+  }, [externalTask, startTask]);
 
   const replay = useCallback(
     async (id: string) => {
@@ -230,16 +304,16 @@ export function AgentSidebar({
         setFailure(null);
         setSummary(`${record.status} · ${record.commands}`);
         setRunning(false);
+        setPhase(null);
         setReplaying(record.task);
-        setHistoryOpen(false);
         for (const raw of record.events) {
           apply(raw as AgentEvent);
         }
       } catch (cause) {
-        setFailure(cause instanceof Error ? cause.message : String(cause));
+        setFailure(formatLlmError(cause, t));
       }
     },
-    [apply],
+    [apply, t],
   );
 
   const decide = useCallback(
@@ -248,12 +322,12 @@ export function AgentSidebar({
       try {
         await agentIpc.approve(approval.callId, approved);
       } catch (cause) {
-        setFailure(cause instanceof Error ? cause.message : String(cause));
+        setFailure(formatLlmError(cause, t));
       } finally {
         setApproval(null);
       }
     },
-    [approval],
+    [approval, t],
   );
 
   const cancel = useCallback(async () => {
@@ -261,83 +335,88 @@ export function AgentSidebar({
     try {
       await agentIpc.cancel(sessionId);
     } catch (cause) {
-      setFailure(cause instanceof Error ? cause.message : String(cause));
+      setFailure(formatLlmError(cause, t));
     }
-  }, [sessionId]);
+  }, [sessionId, t]);
+
+  const activePlaceholder = suggestedPrompt ?? t("agent.placeholder");
 
   return (
-    <aside className="flex w-80 shrink-0 flex-col border-l border-slate-800/80 bg-slate-950/40">
-      <header className="border-b border-slate-800/60 px-3 py-2">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-[11px] font-semibold tracking-widest text-slate-400 uppercase">
-            {t("agent.title")}
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* Header */}
+      <header className="border-b border-[var(--border-subtle)] px-4 py-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-[10px] font-semibold tracking-[0.12em] text-[var(--text-muted)] uppercase">
+            {t("agent.timeline")}
           </h2>
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-[10px] text-slate-600">
-              {llm ? `${llm.provider}/${llm.model}` : t("agent.noProvider")}
-            </span>
-            <button
-              type="button"
-              onClick={() => (historyOpen ? setHistoryOpen(false) : void loadHistory())}
-              className="rounded px-1 py-0.5 text-[10px] text-slate-500 hover:bg-slate-800/70 hover:text-slate-200"
-            >
-              {t("agent.history")}
-            </button>
-          </div>
+          <span className="font-mono text-[10.5px] text-[var(--text-muted)]">
+            {t("agent.stepsCount", { count: cards.length })}
+          </span>
+        </div>
+
+        {/* Observe -> Reason -> Act -> Verify live phase strip */}
+        <div className="mt-2.5 flex items-center gap-1">
+          {PHASES.map((item) => {
+            const active = phase === item;
+            return (
+              <span
+                key={item}
+                className="flex-1 rounded px-1.5 py-0.5 text-center font-mono text-[9.5px] uppercase transition"
+                style={{
+                  backgroundColor: active ? "var(--accent-soft)" : "var(--bg-surface)",
+                  color: active ? "var(--accent)" : "var(--text-muted)",
+                  border: `1px solid ${active ? "var(--accent-border)" : "var(--border-subtle)"}`,
+                }}
+              >
+                {t(`agent.phases.${item}`)}
+              </span>
+            );
+          })}
+        </div>
+
+        <div className="mt-2 flex items-center justify-between gap-2 text-[10.5px]">
+          <span className="truncate font-mono text-[var(--text-muted)]">
+            {llm ? `${llm.provider}/${llm.model}` : t("agent.noProvider")}
+          </span>
+          <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-[var(--text-secondary)]">
+            <input
+              type="checkbox"
+              checked={stepApproval}
+              onChange={(event) => setStepApproval(event.target.checked)}
+              className="h-3 w-3 accent-[var(--accent)]"
+            />
+            <span className="text-[10px]">{t("agent.modes.ask")}</span>
+          </label>
         </div>
       </header>
 
-      <section className="border-b border-slate-800/60 px-3 py-2">
-        <div className="flex gap-1">
-          {MODES.map((candidate) => (
-            <button
-              key={candidate}
-              type="button"
-              onClick={() => onModeChange(candidate)}
-              className={`flex-1 rounded px-1.5 py-1 text-[11px] transition ${
-                candidate === mode
-                  ? "bg-cyan-500/20 text-cyan-200"
-                  : "text-slate-400 hover:bg-slate-800/60 hover:text-slate-200"
-              }`}
-            >
-              {t(`agent.modes.${candidate}`)}
-            </button>
-          ))}
-        </div>
-        <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-          {t(`agent.modesHint.${mode}`)}
-        </p>
-        <label className="mt-1.5 flex cursor-pointer items-center gap-1.5 text-[10px] text-slate-400">
-          <input
-            type="checkbox"
-            checked={stepApproval}
-            onChange={(event) => setStepApproval(event.target.checked)}
-            className="h-3 w-3 accent-cyan-400"
-          />
-          {t("agent.stepMode")}
-        </label>
-      </section>
-
+      {/* Missing API key friendly notice */}
       {llm && !llm.configured ? (
-        <section className="border-b border-slate-800/60 bg-amber-500/5 px-3 py-2">
-          <p className="text-[11px] text-amber-200/90">{t("agent.keyHint")}</p>
-          <div className="mt-1.5 flex gap-1">
+        <section
+          className="border-b border-[var(--border-subtle)] px-4 py-2.5"
+          style={{ backgroundColor: "var(--accent-soft)" }}
+        >
+          <p className="text-[11px] leading-snug text-[var(--text-primary)]">
+            {t("agent.keyHint")}
+          </p>
+          <div className="mt-2 flex gap-1.5">
             <input
               type="password"
               value={keyDraft}
               placeholder="sk-..."
               onChange={(event) => setKeyDraft(event.target.value)}
-              className="min-w-0 flex-1 rounded border border-slate-700 bg-slate-950/70 px-2 py-1 font-mono text-[11px] text-slate-100 outline-none focus:border-cyan-500/60"
+              className="ota-input flex-1 font-mono"
             />
             <button
               type="button"
               onClick={() => {
                 void agentIpc.saveKey(keyDraft).then(() => {
                   setKeyDraft("");
+                  setFailure(null);
                   void refreshStatus();
                 });
               }}
-              className="rounded bg-cyan-500/20 px-2 py-1 text-[11px] text-cyan-100 hover:bg-cyan-500/30"
+              className="ota-btn-primary rounded-md px-2.5 py-1 text-[11px]"
             >
               {t("agent.saveKey")}
             </button>
@@ -345,143 +424,184 @@ export function AgentSidebar({
         </section>
       ) : null}
 
-      {historyOpen ? (
-        <section className="max-h-48 space-y-1 overflow-y-auto border-b border-slate-800/60 px-3 py-2">
-          {runs.length === 0 ? (
-            <p className="text-[11px] text-slate-600">{t("agent.noHistory")}</p>
-          ) : (
-            runs.map((run) => (
-              <button
-                key={run.id}
-                type="button"
-                onClick={() => void replay(run.id)}
-                className="block w-full rounded px-1.5 py-1 text-left hover:bg-slate-800/60"
-              >
-                <span className="flex items-center gap-1.5 text-[11px] text-slate-300">
-                  <span className="rounded bg-slate-800/80 px-1 text-[9px] uppercase text-slate-400">
-                    {run.status}
-                  </span>
-                  <span className="truncate">{run.task}</span>
-                </span>
-                <span className="font-mono text-[10px] text-slate-600">
-                  {run.commands} cmds · {new Date(run.startedAt).toLocaleString()}
-                </span>
-              </button>
-            ))
-          )}
-        </section>
-      ) : null}
-
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-2">
+      {/* Scrollable numbered step cards + approval + log (auto-scrolls to newest) */}
+      <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3.5 py-3">
         {replaying ? (
-          <div className="flex items-start gap-2 rounded border border-sky-500/30 bg-sky-500/10 px-2 py-1">
-            <span className="text-[10px] text-sky-200">{t("agent.replay")}: {replaying}</span>
+          <div className="flex items-center gap-2 rounded-md border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2.5 py-1.5 text-[11px] text-[var(--text-secondary)]">
+            <span className="truncate">
+              {t("agent.replay")}: {replaying}
+            </span>
             <button
               type="button"
               onClick={() => {
                 setReplaying(null);
                 setCards([]);
                 setAnswer("");
+                setThinking("");
                 setSummary(null);
               }}
-              className="ml-auto text-[10px] text-sky-300/80 hover:text-sky-100"
+              className="ml-auto text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             >
               ×
             </button>
           </div>
         ) : null}
-        {cards.length === 0 && answer.length === 0 && !running ? (
-          <p className="text-xs leading-relaxed text-slate-500">{t("agent.empty")}</p>
-        ) : null}
-
-        {cards.map((card) => (
-          <article
-            key={card.callId}
-            className={`rounded border ${
-              card.status === "denied"
-                ? "border-rose-500/40 bg-rose-500/5"
-                : card.status === "done" && card.exitCode === 0
-                  ? "border-emerald-500/25 bg-emerald-500/5"
-                  : "border-slate-700/70 bg-slate-900/60"
-            }`}
-          >
-            <header className="flex items-center gap-1.5 border-b border-slate-800/60 px-2 py-1">
-              <span className="rounded bg-slate-800/80 px-1 py-0.5 text-[9px] tracking-wider text-slate-400 uppercase">
-                {t("agent.command")}
-              </span>
-              {card.risk ? (
-                <span
-                  className={`rounded px-1 py-0.5 text-[9px] uppercase ${
-                    card.risk === "readonly"
-                      ? "bg-emerald-500/15 text-emerald-300"
-                      : card.risk === "mutating"
-                        ? "bg-amber-500/15 text-amber-300"
-                        : "bg-rose-500/15 text-rose-300"
-                  }`}
-                >
-                  {t(`agent.risk.${card.risk}`)}
-                </span>
-              ) : null}
-              <span className="ml-auto font-mono text-[10px] text-slate-500">
-                {card.status === "running"
-                  ? t("agent.running")
-                  : card.status === "denied"
-                    ? t("agent.rejected")
-                    : `${card.exitCode ?? "-"} · ${card.durationMs}ms`}
-              </span>
-            </header>
-            <pre className="px-2 py-1 font-mono text-[11px] whitespace-pre-wrap break-all text-cyan-200/90">
-              {card.command}
-            </pre>
-            {card.output.length > 0 ? (
-              <pre className="max-h-40 overflow-y-auto border-t border-slate-800/60 px-2 py-1 font-mono text-[10px] whitespace-pre-wrap text-slate-400">
-                {card.output}
-              </pre>
-            ) : null}
-          </article>
-        ))}
-
-        {answer.length > 0 ? (
-          <div className="rounded border border-slate-800/60 bg-slate-900/40 px-2 py-1.5 text-xs leading-relaxed whitespace-pre-wrap text-slate-200">
-            {answer}
-          </div>
-        ) : null}
 
         {thinking.length > 0 ? (
-          <div>
+          <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
             <button
               type="button"
               onClick={() => setShowThinking((open) => !open)}
-              className="text-[10px] tracking-wider text-slate-500 uppercase hover:text-slate-300"
+              className="flex w-full items-center gap-2 px-3 py-2 text-left font-mono text-[10.5px] text-[var(--text-secondary)]"
             >
-              {t("agent.thinking")} {showThinking ? "▾" : "▸"}
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: running ? "var(--accent)" : "var(--status-ok)" }}
+              />
+              <span className="uppercase tracking-wider">{t("agent.thinking")}</span>
+              <span className="ml-auto text-[10px] text-[var(--text-muted)]">
+                {showThinking ? "▾" : "▸"}
+              </span>
             </button>
             {showThinking ? (
-              <pre className="mt-1 max-h-32 overflow-y-auto font-mono text-[10px] whitespace-pre-wrap text-slate-500">
+              <pre className="max-h-32 overflow-y-auto border-t border-[var(--border-subtle)] px-3 py-2 font-mono text-[10.5px] leading-relaxed whitespace-pre-wrap text-[var(--text-muted)]">
                 {thinking}
               </pre>
             ) : null}
           </div>
         ) : null}
 
+        {cards.length === 0 && answer.length === 0 && !running && !approval && !failure ? (
+          <div className="rounded-lg border border-dashed border-[var(--border-subtle)] px-3.5 py-4 text-xs leading-relaxed text-[var(--text-muted)]">
+            {t("agent.empty")}
+          </div>
+        ) : null}
+
+        {/* Numbered step cards (01, 02, 03…) */}
+        {cards.map((card, index) => {
+          const isRunningCard = card.status === "running";
+          const isDenied = card.status === "denied";
+          const isOk = card.status === "done" && card.exitCode === 0;
+          const badgeNum = String(index + 1).padStart(2, "0");
+
+          return (
+            <article
+              key={card.callId}
+              className="overflow-hidden rounded-lg border bg-[var(--bg-surface)] transition"
+              style={{
+                borderColor: isRunningCard
+                  ? "var(--accent-border)"
+                  : isDenied
+                    ? "var(--status-danger)"
+                    : "var(--border-subtle)",
+              }}
+            >
+              <header className="flex items-center gap-2 px-3 py-2">
+                <span
+                  className="rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold"
+                  style={{
+                    backgroundColor: isRunningCard ? "var(--accent)" : "var(--bg-elevated)",
+                    color: isRunningCard ? "var(--accent-fg)" : "var(--text-secondary)",
+                  }}
+                >
+                  {badgeNum}
+                </span>
+
+                {card.risk ? (
+                  <span
+                    className="rounded px-1.5 py-0.5 font-mono text-[9.5px] uppercase"
+                    style={{
+                      backgroundColor:
+                        card.risk === "readonly"
+                          ? "var(--status-ok-soft)"
+                          : card.risk === "mutating"
+                            ? "var(--accent-soft)"
+                            : "var(--status-danger-soft)",
+                      color:
+                        card.risk === "readonly"
+                          ? "var(--status-ok)"
+                          : card.risk === "mutating"
+                            ? "var(--accent)"
+                            : "var(--status-danger)",
+                    }}
+                  >
+                    {t(`agent.risk.${card.risk}`)}
+                  </span>
+                ) : null}
+
+                <span
+                  className="ml-auto font-mono text-[10px]"
+                  style={{
+                    color: isRunningCard
+                      ? "var(--accent)"
+                      : isOk
+                        ? "var(--status-ok)"
+                        : isDenied
+                          ? "var(--status-danger)"
+                          : "var(--text-muted)",
+                  }}
+                >
+                  {isRunningCard
+                    ? t("agent.running")
+                    : isDenied
+                      ? t("agent.rejected")
+                      : `exit ${card.exitCode ?? "-"} · ${card.durationMs}ms`}
+                </span>
+              </header>
+
+              <pre className="border-t border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-3 py-2 font-mono text-[11px] whitespace-pre-wrap break-all text-[var(--text-primary)]">
+                $ {card.command}
+              </pre>
+
+              {card.output.length > 0 ? (
+                <pre className="max-h-36 overflow-y-auto border-t border-[var(--border-subtle)] px-3 py-2 font-mono text-[10px] leading-relaxed whitespace-pre-wrap text-[var(--text-secondary)]">
+                  {card.output}
+                </pre>
+              ) : null}
+            </article>
+          );
+        })}
+
+        {/* Highlighted inline approval card */}
         {approval ? (
-          <div className="rounded border border-amber-500/40 bg-amber-500/10 p-2">
-            <p className="text-[11px] text-amber-100">{t("agent.approvalNeeded")}</p>
-            <pre className="mt-1 font-mono text-[11px] whitespace-pre-wrap break-all text-amber-200">
+          <div
+            className="rounded-lg border p-3"
+            style={{
+              borderColor: "var(--accent-border)",
+              backgroundColor: "var(--accent-soft)",
+            }}
+          >
+            <div className="flex items-center gap-2">
+              <span
+                className="rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold"
+                style={{
+                  backgroundColor: "var(--accent)",
+                  color: "var(--accent-fg)",
+                }}
+              >
+                !
+              </span>
+              <span className="text-xs font-medium text-[var(--text-primary)]">
+                {t("agent.approvalNeeded")}
+              </span>
+            </div>
+
+            <pre className="mt-2 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-2 font-mono text-[11px] whitespace-pre-wrap break-all text-[var(--text-primary)]">
               {approval.command}
             </pre>
-            <div className="mt-1.5 flex gap-1">
+
+            <div className="mt-2.5 flex gap-2">
               <button
                 type="button"
                 onClick={() => void decide(true)}
-                className="flex-1 rounded bg-emerald-500/20 px-2 py-1 text-[11px] text-emerald-100 hover:bg-emerald-500/30"
+                className="ota-btn-primary flex-1 rounded-md px-3 py-1.5 text-xs"
               >
                 {t("agent.approve")}
               </button>
               <button
                 type="button"
                 onClick={() => void decide(false)}
-                className="flex-1 rounded bg-rose-500/20 px-2 py-1 text-[11px] text-rose-100 hover:bg-rose-500/30"
+                className="flex-1 rounded-md border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs text-[var(--text-secondary)] transition hover:border-[var(--status-danger)] hover:text-[var(--status-danger)]"
               >
                 {t("agent.reject")}
               </button>
@@ -489,43 +609,143 @@ export function AgentSidebar({
           </div>
         ) : null}
 
-        {failure ? <p className="text-[11px] text-rose-300">{failure}</p> : null}
-        {summary ? <p className="text-[10px] text-slate-600">{summary}</p> : null}
+        {answer.length > 0 ? (
+          <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2.5 text-xs leading-relaxed whitespace-pre-wrap text-[var(--text-primary)]">
+            {answer}
+          </div>
+        ) : null}
+
+        {/* Human-friendly failure notice with optional Open Settings shortcut */}
+        {failure ? (
+          <div
+            className="rounded-lg border px-3 py-2.5 text-xs leading-relaxed"
+            style={{
+              borderColor: "var(--border-strong)",
+              backgroundColor: "var(--status-danger-soft)",
+              color: "var(--text-primary)",
+            }}
+          >
+            <p style={{ color: "var(--status-danger)" }}>{failure.message}</p>
+            {failure.openSettings ? (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="mt-2 rounded-md border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-primary)] transition hover:border-[var(--accent-border)] hover:text-[var(--accent)]"
+              >
+                {t("agent.openSettings")}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {summary ? (
+          <p className="font-mono text-[10px] text-[var(--text-muted)]">{summary}</p>
+        ) : null}
+
+        <div ref={timelineEndRef} />
       </div>
 
-      <footer className="border-t border-slate-800/60 p-2">
-        <textarea
-          value={task}
-          onChange={(event) => setTask(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              void start();
-            }
-          }}
-          rows={2}
-          placeholder={t("agent.placeholder")}
-          className="w-full resize-none rounded border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-cyan-500/60"
-        />
-        <div className="mt-1.5 flex gap-1">
+      {/* Bottom section: RECENT RUNS */}
+      <section className="max-h-36 shrink-0 overflow-y-auto border-t border-[var(--border-subtle)] px-3.5 py-2.5">
+        <div className="flex items-center justify-between text-[10px] font-semibold tracking-[0.12em] text-[var(--text-muted)] uppercase">
+          <span>{t("agent.recentRuns")}</span>
+          <span className="font-mono">{runs.length}</span>
+        </div>
+
+        {runs.length === 0 ? (
+          <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">{t("agent.noHistory")}</p>
+        ) : (
+          <ul className="mt-1.5 space-y-0.5">
+            {runs.map((run) => {
+              const lower = run.status.toLowerCase();
+              const statusColor = lower.includes("complet")
+                ? "var(--status-ok)"
+                : lower.includes("fail")
+                  ? "var(--status-danger)"
+                  : "var(--accent)";
+              const stamp = new Date(run.startedAt).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              });
+              return (
+                <li key={run.id}>
+                  <button
+                    type="button"
+                    onClick={() => void replay(run.id)}
+                    className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[11px] transition hover:bg-[var(--bg-hover)]"
+                  >
+                    <span className="shrink-0 font-mono text-[10px] text-[var(--text-muted)]">
+                      {stamp}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-[var(--text-secondary)]">
+                      {run.task}
+                    </span>
+                    <span className="shrink-0 font-mono text-[10px]" style={{ color: statusColor }}>
+                      {run.status}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      {/* Sidebar composer with Tab-to-accept placeholder */}
+      <footer className="border-t border-[var(--border-subtle)] bg-[var(--bg-chrome)] p-3">
+        <div className="relative">
+          <textarea
+            value={task}
+            onChange={(event) => setTask(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Tab" && task.length === 0 && activePlaceholder.length > 0) {
+                event.preventDefault();
+                setTask(activePlaceholder);
+                return;
+              }
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                void startTask(task).then(() => setTask(""));
+              }
+            }}
+            rows={2}
+            placeholder={activePlaceholder}
+            className="ota-input resize-none pr-12"
+          />
+          {task.length === 0 && !running ? (
+            <kbd
+              title={t("agent.tabAcceptHint")}
+              className="pointer-events-none absolute right-2 bottom-2 rounded border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-1 py-0.5 font-mono text-[9px] text-[var(--text-muted)]"
+            >
+              Tab ⇥
+            </kbd>
+          ) : null}
+        </div>
+        <div className="mt-2 flex gap-1.5">
           <button
             type="button"
-            onClick={() => void start()}
+            onClick={() => void startTask(task).then(() => setTask(""))}
             disabled={running || !sessionId || task.trim().length === 0}
-            className="flex-1 rounded bg-cyan-500/20 px-2 py-1 text-[11px] text-cyan-100 hover:bg-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+            className="ota-btn-primary flex-1 rounded-md px-3 py-1.5 text-xs"
           >
             {running ? t("agent.running") : t("agent.send")}
           </button>
-          <button
-            type="button"
-            onClick={() => void cancel()}
-            disabled={!running}
-            className="rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1 text-[11px] text-rose-200 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {t("agent.takeOver")}
-          </button>
+          {running ? (
+            <button
+              type="button"
+              onClick={() => void cancel()}
+              className="rounded-md border px-2.5 py-1.5 text-xs font-medium transition"
+              style={{
+                borderColor: "var(--status-danger)",
+                backgroundColor: "var(--status-danger-soft)",
+                color: "var(--status-danger)",
+              }}
+            >
+              {t("agent.takeOver")}
+            </button>
+          ) : null}
         </div>
       </footer>
-    </aside>
+    </div>
   );
 }

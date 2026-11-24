@@ -23,9 +23,6 @@ const PRESETS: Preset[] = [
   { provider: "lmstudio", baseUrl: "http://localhost:1234/v1", models: [] },
 ];
 
-const FIELD =
-  "w-full rounded border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-cyan-500/60";
-
 export function LlmSettings() {
   const { t } = useTranslation();
   const [status, setStatus] = useState<LlmStatus | null>(null);
@@ -75,16 +72,22 @@ export function LlmSettings() {
   };
 
   return (
-    <section className="border-t border-slate-800 px-4 py-3">
-      <h3 className="text-xs font-medium text-slate-300">{t("settings.model")}</h3>
-      <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+    <section className="border-t border-[var(--border-subtle)] px-4 py-3.5">
+      <h3 className="text-xs font-semibold text-[var(--text-primary)]">{t("settings.model")}</h3>
+      <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-muted)]">
         {t("settings.modelHint")}
       </p>
 
-      <div className="mt-2 grid grid-cols-2 gap-2">
+      <div className="mt-2.5 grid grid-cols-2 gap-2">
         <label className="block">
-          <span className="text-[10px] text-slate-500">{t("settings.provider")}</span>
-          <select className={FIELD} value={provider} onChange={(event) => pick(event.target.value)}>
+          <span className="mb-1 block text-[10px] font-medium text-[var(--text-muted)] uppercase">
+            {t("settings.provider")}
+          </span>
+          <select
+            className="ota-input"
+            value={provider}
+            onChange={(event) => pick(event.target.value)}
+          >
             {PRESETS.map((entry) => (
               <option key={entry.provider} value={entry.provider}>
                 {entry.provider}
@@ -93,9 +96,15 @@ export function LlmSettings() {
           </select>
         </label>
         <label className="block">
-          <span className="text-[10px] text-slate-500">{t("settings.modelId")}</span>
+          <span className="mb-1 block text-[10px] font-medium text-[var(--text-muted)] uppercase">
+            {t("settings.modelId")}
+          </span>
           {models.length > 0 ? (
-            <select className={FIELD} value={model} onChange={(event) => setModel(event.target.value)}>
+            <select
+              className="ota-input"
+              value={model}
+              onChange={(event) => setModel(event.target.value)}
+            >
               {models.map((id) => (
                 <option key={id} value={id}>
                   {id}
@@ -104,7 +113,7 @@ export function LlmSettings() {
             </select>
           ) : (
             <input
-              className={FIELD}
+              className="ota-input"
               value={model}
               placeholder={t("settings.noLocal")}
               onChange={(event) => setModel(event.target.value)}
@@ -113,18 +122,24 @@ export function LlmSettings() {
         </label>
       </div>
 
-      <label className="mt-2 block">
-        <span className="text-[10px] text-slate-500">{t("settings.baseUrl")}</span>
-        <input className={FIELD} value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} />
+      <label className="mt-2.5 block">
+        <span className="mb-1 block text-[10px] font-medium text-[var(--text-muted)] uppercase">
+          {t("settings.baseUrl")}
+        </span>
+        <input
+          className="ota-input font-mono"
+          value={baseUrl}
+          onChange={(event) => setBaseUrl(event.target.value)}
+        />
       </label>
 
-      <label className="mt-2 block">
-        <span className="text-[10px] text-slate-500">
+      <label className="mt-2.5 block">
+        <span className="mb-1 block text-[10px] font-medium text-[var(--text-muted)] uppercase">
           {t("settings.apiKey")}
           {status?.configured ? ` · ${t("settings.keyStored")}` : ""}
         </span>
         <input
-          className={FIELD}
+          className="ota-input font-mono"
           type="password"
           value={apiKey}
           placeholder="sk-..."
@@ -132,7 +147,7 @@ export function LlmSettings() {
         />
       </label>
 
-      <div className="mt-2 flex items-center gap-2">
+      <div className="mt-3 flex items-center gap-2">
         <button
           type="button"
           onClick={() => {
@@ -145,7 +160,7 @@ export function LlmSettings() {
               })
               .catch((cause) => setNote(String(cause)));
           }}
-          className="rounded bg-cyan-500/20 px-3 py-1 text-[11px] text-cyan-100 hover:bg-cyan-500/30"
+          className="ota-btn-primary rounded-md px-3 py-1.5 text-[11px]"
         >
           {t("settings.save")}
         </button>
@@ -160,11 +175,15 @@ export function LlmSettings() {
               })
               .catch((cause) => setNote(String(cause)));
           }}
-          className="rounded border border-slate-700 px-3 py-1 text-[11px] text-slate-300 hover:bg-slate-800"
+          className="rounded-md border border-[var(--border-strong)] bg-[var(--bg-canvas)] px-3 py-1.5 text-[11px] text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         >
           {t("settings.discover")}
         </button>
-        {note ? <span className="text-[10px] text-emerald-300/80">{note}</span> : null}
+        {note ? (
+          <span className="font-mono text-[10px]" style={{ color: "var(--status-ok)" }}>
+            {note}
+          </span>
+        ) : null}
       </div>
     </section>
   );

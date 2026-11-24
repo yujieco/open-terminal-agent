@@ -1,10 +1,10 @@
 // Copyright 2026 yujieco
 // SPDX-License-Identifier: Apache-2.0
 
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { SavedSession, SessionKind } from "../lib/ipc";
-import type { ShellProfile } from "../lib/ipc";
+import type { SavedSession, SessionKind, ShellProfile } from "../lib/ipc";
 import type { SessionView } from "../types";
 
 interface SessionSidebarProps {
@@ -13,19 +13,24 @@ interface SessionSidebarProps {
   shells: ShellProfile[];
   saved: SavedSession[];
   creating: boolean;
+  agentRunning: boolean;
   onSelect: (sessionId: string) => void;
+  onRename: (sessionId: string, nextLabel: string) => void;
+  onCloseSession: (sessionId: string) => void;
   onCreate: (shell?: string) => void;
   onOpenSaved: (id: string) => void;
   onDeleteSaved: (id: string) => void;
   onOpenSsh: () => void;
   onOpenSerial: () => void;
   onOpenSftp: () => void;
+  onOpenPalette: () => void;
+  onOpenSettings: () => void;
 }
 
-const KIND_BADGE: Record<SessionKind, string> = {
-  local: "bg-emerald-500/15 text-emerald-300",
-  ssh: "bg-sky-500/15 text-sky-300",
-  serial: "bg-violet-500/15 text-violet-300",
+const KIND_DOT_COLOR: Record<SessionKind, string> = {
+  local: "var(--status-ok)",
+  ssh: "var(--accent)",
+  serial: "var(--status-warn)",
 };
 
 export function SessionSidebar({
@@ -34,116 +39,281 @@ export function SessionSidebar({
   shells,
   saved,
   creating,
+  agentRunning,
   onSelect,
+  onRename,
+  onCloseSession,
   onCreate,
   onOpenSaved,
   onDeleteSaved,
   onOpenSsh,
   onOpenSerial,
   onOpenSftp,
+  onOpenPalette,
+  onOpenSettings,
 }: SessionSidebarProps) {
   const { t } = useTranslation();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draftLabel, setDraftLabel] = useState("");
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    session: SessionView;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setContextMenu(null);
+    };
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [contextMenu]);
+
+  const activeSession = sessions.find((session) => session.id === activeId) ?? null;
+  const localCount = sessions.filter((s) => s.kind === "local").length;
+  const sshCount = sessions.filter((s) => s.kind === "ssh").length;
+  const serialCount = sessions.filter((s) => s.kind === "serial").length;
+
+  const beginEdit = (session: SessionView) => {
+    setEditingId(session.id);
+    setDraftLabel(session.label);
+  };
+
+  const commitEdit = (sessionId: string) => {
+    const trimmed = draftLabel.trim();
+    if (trimmed.length > 0) {
+      onRename(sessionId, trimmed);
+    }
+    setEditingId(null);
+  };
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-slate-800/80 bg-slate-950/40">
-      <div className="flex items-center justify-between px-3 py-2 text-[11px] font-semibold tracking-widest text-slate-500 uppercase">
-        <span>{t("sidebar.sessions")}</span>
-        <span className="rounded bg-slate-800/80 px-1.5 py-0.5 font-mono text-[10px] text-slate-400">
-          {sessions.length}
-        </span>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
-        {sessions.length === 0 ? (
-          <p className="px-2 py-3 text-xs leading-relaxed text-slate-500">
-            {t("sidebar.noSessions")}
-          </p>
-        ) : (
-          <ul className="space-y-1">
-            {sessions.map((session) => {
-              const active = session.id === activeId;
-              return (
-                <li key={session.id}>
-                  <button
-                    type="button"
-                    onClick={() => onSelect(session.id)}
-                    className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition ${
-                      active
-                        ? "bg-slate-800/80 text-slate-100"
-                        : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
-                    }`}
-                  >
-                    <span
-                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                        session.exited ? "bg-rose-400" : "bg-emerald-400"
-                      }`}
-                    />
-                    <span className="truncate font-mono">{session.label}</span>
-                    <span className="ml-auto shrink-0 font-mono text-[10px] text-slate-500">
-                      {session.size.cols}×{session.size.rows}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-
+    <aside className="flex w-60 shrink-0 flex-col border-r border-[var(--border-subtle)] bg-[var(--bg-sidebar)]">
+      {/* Quick find / Command palette trigger */}
+      <div className="px-3 pt-3 pb-2">
         <button
           type="button"
-          onClick={() => onCreate()}
-          disabled={creating}
-          className="mt-3 w-full rounded border border-cyan-500/30 bg-cyan-500/10 px-2 py-1.5 text-xs text-cyan-200 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={onOpenPalette}
+          className="flex w-full items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-1.5 text-left text-xs text-[var(--text-muted)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-secondary)]"
         >
-          {creating ? t("sidebar.creating") : t("sidebar.newSession")}
+          <svg
+            viewBox="0 0 16 16"
+            className="h-3.5 w-3.5 shrink-0 opacity-70"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          >
+            <circle cx="7" cy="7" r="4.5" />
+            <path d="M10.5 10.5L14 14" strokeLinecap="round" />
+          </svg>
+          <span className="truncate">{t("sidebar.quickFind")}</span>
+          <kbd className="ml-auto rounded border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-1 py-0.5 font-mono text-[9px] text-[var(--text-muted)]">
+            ⌘K
+          </kbd>
         </button>
+      </div>
 
-        <div className="mt-2 grid grid-cols-2 gap-1.5">
-          <button
-            type="button"
-            onClick={onOpenSsh}
-            className="rounded border border-sky-500/30 bg-sky-500/10 px-2 py-1.5 text-xs text-sky-200 transition hover:bg-sky-500/20"
-          >
-            {t("sidebar.ssh")}
-          </button>
-          <button
-            type="button"
-            onClick={onOpenSerial}
-            className="rounded border border-violet-500/30 bg-violet-500/10 px-2 py-1.5 text-xs text-violet-200 transition hover:bg-violet-500/20"
-          >
-            {t("sidebar.serial")}
-          </button>
-        </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-3">
+        {/* WORKSPACE: active sessions */}
+        <section className="mt-2">
+          <div className="flex items-center justify-between px-2 py-1 text-[10px] font-medium tracking-[0.12em] text-[var(--text-muted)] uppercase">
+            <span>{t("sidebar.workspace")}</span>
+            <span className="font-mono text-[10px]">{sessions.length}</span>
+          </div>
 
+          {sessions.length === 0 ? (
+            <p className="px-2 py-2 text-xs leading-relaxed text-[var(--text-muted)]">
+              {t("sidebar.noSessions")}
+            </p>
+          ) : (
+            <ul className="mt-0.5 space-y-0.5">
+              {sessions.map((session) => {
+                const active = session.id === activeId;
+                const editing = editingId === session.id;
+                return (
+                  <li key={session.id}>
+                    {editing ? (
+                      <input
+                        autoFocus
+                        value={draftLabel}
+                        onChange={(event) => setDraftLabel(event.target.value)}
+                        onBlur={() => commitEdit(session.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            commitEdit(session.id);
+                          } else if (event.key === "Escape") {
+                            event.preventDefault();
+                            setEditingId(null);
+                          }
+                        }}
+                        className="ota-input py-1 font-mono text-[11.5px]"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onSelect(session.id)}
+                        onDoubleClick={() => beginEdit(session)}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          setContextMenu({
+                            x: Math.min(event.clientX, window.innerWidth - 180),
+                            y: Math.min(event.clientY, window.innerHeight - 110),
+                            session,
+                          });
+                        }}
+                        title={t("tabs.renameHint")}
+                        className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition ${
+                          active
+                            ? "bg-[var(--bg-elevated)] font-medium text-[var(--text-primary)]"
+                            : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                        }`}
+                      >
+                        <span
+                          className="h-1.5 w-1.5 shrink-0 rounded-full"
+                          style={{
+                            backgroundColor: session.exited
+                              ? "var(--status-danger)"
+                              : KIND_DOT_COLOR[session.kind],
+                          }}
+                        />
+                        <span className="truncate font-mono text-[11.5px]">{session.label}</span>
+                        <span className="ml-auto shrink-0 font-mono text-[9.5px] text-[var(--text-muted)] uppercase">
+                          {t(`sidebar.kinds.${session.kind}`)}
+                        </span>
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {/* Quick connect navigation */}
+          <div className="mt-2 space-y-0.5">
+            <button
+              type="button"
+              onClick={() => onCreate()}
+              disabled={creating}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
+            >
+              <svg
+                viewBox="0 0 16 16"
+                className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <path d="M3 4.5L6.5 8L3 11.5" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M8 11.5H13" strokeLinecap="round" />
+              </svg>
+              <span className="truncate">
+                {creating ? t("sidebar.creating") : t("sidebar.newSession")}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onOpenSsh}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            >
+              <svg
+                viewBox="0 0 16 16"
+                className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.4"
+              >
+                <rect x="2.5" y="3" width="11" height="7" rx="1.5" />
+                <path d="M5.5 13H10.5M8 10V13" strokeLinecap="round" />
+              </svg>
+              <span className="truncate">{t("sidebar.ssh")}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onOpenSerial}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            >
+              <svg
+                viewBox="0 0 16 16"
+                className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.4"
+              >
+                <rect x="3" y="4.5" width="10" height="7" rx="1.5" />
+                <path d="M5.5 7.5H6.5M9.5 7.5H10.5M7 9.5H9" strokeLinecap="round" />
+              </svg>
+              <span className="truncate">{t("sidebar.serial")}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onOpenSftp}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            >
+              <svg
+                viewBox="0 0 16 16"
+                className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.4"
+              >
+                <path
+                  d="M2.5 4.5A1.5 1.5 0 014 3h2.6l1.3 1.5H12A1.5 1.5 0 0113.5 6v5.5A1.5 1.5 0 0112 13H4a1.5 1.5 0 01-1.5-1.5v-7z"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span className="truncate">{t("sidebar.sftp")}</span>
+            </button>
+          </div>
+        </section>
+
+        {/* SAVED */}
         <section className="mt-5">
-          <h2 className="px-2 text-[10px] tracking-widest text-slate-600 uppercase">
-            {t("sidebar.saved")}
-          </h2>
+          <div className="flex items-center justify-between px-2 py-1 text-[10px] font-medium tracking-[0.12em] text-[var(--text-muted)] uppercase">
+            <span>{t("sidebar.saved")}</span>
+            {saved.length > 0 ? <span className="font-mono">{saved.length}</span> : null}
+          </div>
+
           {saved.length === 0 ? (
-            <p className="px-2 py-1 text-[11px] leading-relaxed text-slate-600">
+            <p className="px-2 py-1 text-[11px] leading-relaxed text-[var(--text-muted)]">
               {t("sidebar.noSaved")}
             </p>
           ) : (
-            <ul className="mt-1 space-y-0.5">
+            <ul className="mt-0.5 space-y-0.5">
               {saved.map((entry) => (
                 <li key={entry.id} className="group flex items-center gap-1">
                   <button
                     type="button"
                     onClick={() => onOpenSaved(entry.id)}
-                    className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-2 py-1 text-left text-xs text-slate-400 transition hover:bg-slate-800/60 hover:text-slate-200"
+                    className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
                   >
-                    <span className={`rounded px-1 py-0.5 text-[9px] uppercase ${KIND_BADGE[entry.kind]}`}>
+                    <span
+                      className="h-1.5 w-1.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: KIND_DOT_COLOR[entry.kind] }}
+                    />
+                    <span className="truncate">{entry.name}</span>
+                    <span className="ml-auto font-mono text-[9px] text-[var(--text-muted)] uppercase">
                       {t(`sidebar.kinds.${entry.kind}`)}
                     </span>
-                    <span className="truncate">{entry.name}</span>
                   </button>
                   <button
                     type="button"
                     aria-label={t("common.delete")}
                     onClick={() => onDeleteSaved(entry.id)}
-                    className="rounded px-1 text-slate-600 opacity-0 transition group-hover:opacity-100 hover:text-rose-300"
+                    className="inline-flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] opacity-0 transition group-hover:opacity-100 hover:text-[var(--status-danger)]"
                   >
-                    ×
+                    <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                      <path d="M4 4l8 8M12 4l-8 8" />
+                    </svg>
                   </button>
                 </li>
               ))}
@@ -151,56 +321,147 @@ export function SessionSidebar({
           )}
         </section>
 
+        {/* STUDIO: extra shells + settings */}
         <section className="mt-5">
-          <h2 className="px-2 text-[10px] tracking-widest text-slate-600 uppercase">
-            {t("sidebar.filesGroup")}
-          </h2>
-          <button
-            type="button"
-            onClick={onOpenSftp}
-            className="mt-1 w-full truncate rounded border border-sky-500/25 bg-sky-500/5 px-2 py-1.5 text-left text-xs text-sky-200/90 transition hover:bg-sky-500/15"
-          >
-            {t("sidebar.sftp")}
-          </button>
+          <div className="px-2 py-1 text-[10px] font-medium tracking-[0.12em] text-[var(--text-muted)] uppercase">
+            {t("sidebar.studio")}
+          </div>
+          <ul className="mt-0.5 space-y-0.5">
+            {shells
+              .filter((profile) => !profile.default)
+              .map((profile) => (
+                <li key={profile.command}>
+                  <button
+                    type="button"
+                    title={profile.command}
+                    onClick={() => onCreate(profile.command)}
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                  >
+                    <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center font-mono text-[11px] text-[var(--text-muted)]">
+                      $
+                    </span>
+                    <span className="truncate">{profile.label}</span>
+                  </button>
+                </li>
+              ))}
+            <li>
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+                <span>{t("settings.title")}</span>
+              </button>
+            </li>
+          </ul>
         </section>
-
-        {shells.length > 1 ? (
-          <section className="mt-5">
-            <h2 className="px-2 text-[10px] tracking-widest text-slate-600 uppercase">
-              {t("sidebar.shells")}
-            </h2>
-            <ul className="mt-1 space-y-0.5">
-              {shells
-                .filter((profile) => !profile.default)
-                .map((profile) => (
-                  <li key={profile.command}>
-                    <button
-                      type="button"
-                      title={profile.command}
-                      onClick={() => onCreate(profile.command)}
-                      className="w-full truncate rounded px-2 py-1 text-left text-xs text-slate-400 transition hover:bg-slate-800/60 hover:text-slate-200"
-                    >
-                      {profile.label}
-                    </button>
-                  </li>
-                ))}
-            </ul>
-          </section>
-        ) : null}
       </div>
 
-      <div className="border-t border-slate-800/60 px-2 py-2">
-        <div className="flex flex-wrap gap-1">
-          {(Object.keys(KIND_BADGE) as SessionKind[]).map((kind) => (
+      {/* Bottom honest session overview card (real protocol counts, no decorative fake bar) */}
+      <div className="p-2.5">
+        <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3">
+          <div className="flex items-center justify-between text-[10px] tracking-[0.1em] uppercase">
+            <span className="font-medium text-[var(--text-muted)]">{t("sidebar.telemetry")}</span>
             <span
-              key={kind}
-              className={`rounded px-1.5 py-0.5 text-[9px] tracking-wider uppercase ${KIND_BADGE[kind]}`}
+              className="flex items-center gap-1.5 font-mono"
+              style={{ color: agentRunning ? "var(--accent)" : "var(--status-ok)" }}
             >
-              {t(`sidebar.kinds.${kind}`)}
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: agentRunning ? "var(--accent)" : "var(--status-ok)" }}
+              />
+              {agentRunning ? t("agent.running") : t("sidebar.live")}
             </span>
-          ))}
+          </div>
+
+          <div className="mt-2 grid grid-cols-3 gap-1.5 text-center font-mono">
+            <div className="rounded-md bg-[var(--bg-canvas)] px-1.5 py-1">
+              <div className="text-xs font-semibold text-[var(--text-primary)]">{localCount}</div>
+              <div className="text-[9px] text-[var(--text-muted)] uppercase">
+                {t("sidebar.kinds.local")}
+              </div>
+            </div>
+            <div className="rounded-md bg-[var(--bg-canvas)] px-1.5 py-1">
+              <div className="text-xs font-semibold text-[var(--text-primary)]">{sshCount}</div>
+              <div className="text-[9px] text-[var(--text-muted)] uppercase">
+                {t("sidebar.kinds.ssh")}
+              </div>
+            </div>
+            <div className="rounded-md bg-[var(--bg-canvas)] px-1.5 py-1">
+              <div className="text-xs font-semibold text-[var(--text-primary)]">{serialCount}</div>
+              <div className="text-[9px] text-[var(--text-muted)] uppercase">
+                {t("sidebar.kinds.serial")}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-2 flex items-center justify-between font-mono text-[10px] text-[var(--text-muted)]">
+            <span className="truncate">{activeSession ? activeSession.label : "—"}</span>
+            {activeSession ? (
+              <span
+                className="shrink-0"
+                title={t("status.gridTooltip", {
+                  cols: activeSession.size.cols,
+                  rows: activeSession.size.rows,
+                })}
+              >
+                {activeSession.size.cols}×{activeSession.size.rows}
+              </span>
+            ) : null}
+          </div>
         </div>
       </div>
+
+      {/* Localized right-click menu for sidebar sessions */}
+      {contextMenu ? (
+        <div
+          onMouseDown={(event) => event.stopPropagation()}
+          className="fixed z-50 w-40 overflow-hidden rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] py-1 shadow-xl"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              const target = contextMenu.session;
+              setContextMenu(null);
+              beginEdit(target);
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--text-primary)] transition hover:bg-[var(--bg-hover)]"
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11.2 2.8l2 2L5.5 12.5 3 13l.5-2.5 7.7-7.7z" />
+            </svg>
+            <span>{t("tabs.rename")}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const targetId = contextMenu.session.id;
+              setContextMenu(null);
+              onCloseSession(targetId);
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition hover:bg-[var(--bg-hover)]"
+            style={{ color: "var(--status-danger)" }}
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+              <path d="M4 4l8 8M12 4l-8 8" />
+            </svg>
+            <span>{t("tabs.close")}</span>
+          </button>
+        </div>
+      ) : null}
     </aside>
   );
 }

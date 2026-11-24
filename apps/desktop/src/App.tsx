@@ -4,57 +4,126 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { AgentSidebar } from "./components/AgentSidebar";
+import { AgentSidebar, type ExternalTaskTrigger } from "./components/AgentSidebar";
+import { CommandPalette } from "./components/CommandPalette";
+import { SaveSnippetDialog } from "./components/SaveSnippetDialog";
 import { SerialConnectDialog } from "./components/SerialConnectDialog";
 import { SessionSidebar } from "./components/SessionSidebar";
-import { CommandPalette } from "./components/CommandPalette";
-import { SftpDrawer } from "./components/SftpDrawer";
 import { SettingsDialog } from "./components/SettingsDialog";
+import { SftpDrawer } from "./components/SftpDrawer";
+import { SnippetsPanel } from "./components/SnippetsPanel";
 import { SshConnectDialog } from "./components/SshConnectDialog";
 import { StatusBar } from "./components/StatusBar";
 import { TerminalWorkspace } from "./components/TerminalWorkspace";
+import { UpdateDialog } from "./components/UpdateDialog";
+import { useTerminalConfig } from "./hooks/useTerminalConfig";
+import { useTheme } from "./hooks/useTheme";
 import { changeLanguage } from "./i18n";
 import { agentIpc } from "./lib/agent";
-import { leaf, remove, sessionIds, split } from "./lib/panes";
-import { createTerminalBackend, terminalBackendFor, type SessionSpec } from "./lib/backend";
+import {
+  connectSavedTerminalBackend,
+  createTerminalBackend,
+  type SessionSpec,
+} from "./lib/backend";
 import {
   ipc,
   isTauri,
+  type CommandSnippet,
   type SavedSession,
+  type SaveSnippetInput,
   type SerialConnectInput,
   type ShellProfile,
   type SshConnectInput,
+  type UpdateInfo,
 } from "./lib/ipc";
 import { resolveLanguage } from "./lib/locale";
+import { leaf, remove, sessionIds, split } from "./lib/panes";
 import type { PermissionMode, SessionView, TabView } from "./types";
 
 const DEFAULT_COLS = 100;
 const DEFAULT_ROWS = 30;
+const MODES: PermissionMode[] = ["ask", "supervised", "autonomous"];
+const DEMO_SNIPPETS_KEY = "ota.demo.snippets";
 
 type DialogKind = "ssh" | "serial" | null;
+type RightTabKind = "agent" | "snippets";
+
+interface TabContextMenu {
+  x: number;
+  y: number;
+  tabId: string;
+  leadSessionId: string;
+  leadLabel: string;
+  allSessionIds: string[];
+}
+
+interface SnippetModalState {
+  initialCommand: string;
+  editing: CommandSnippet | null;
+}
+
+function shortShellLabel(raw: string, ordinal: number): string {
+  const base = raw.split(/[\\/]/).filter(Boolean).pop() ?? raw;
+  return ordinal <= 1 ? base : `${base} ${ordinal}`;
+}
+
+function readDemoSnippets(): CommandSnippet[] {
+  try {
+    const raw = window.localStorage.getItem(DEMO_SNIPPETS_KEY);
+    return raw ? (JSON.parse(raw) as CommandSnippet[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 export default function App() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const { preference: themePreference, resolved: resolvedTheme, setPreference, cycleTheme } =
+    useTheme();
+  const {
+    config: terminalConfig,
+    setPreset: setTerminalPreset,
+    setFontSize: setTerminalFontSize,
+    setLineHeight: setTerminalLineHeight,
+    setCursorStyle: setTerminalCursorStyle,
+    setCustomColor: setTerminalCustomColor,
+    cloneCurrentToCustom: cloneTerminalToCustom,
+    resetTerminalConfig,
+  } = useTerminalConfig();
+
   const [sessions, setSessions] = useState<SessionView[]>([]);
   const [tabs, setTabs] = useState<TabView[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [shells, setShells] = useState<ShellProfile[]>([]);
   const [saved, setSaved] = useState<SavedSession[]>([]);
+  const [snippets, setSnippets] = useState<CommandSnippet[]>([]);
   const [mode, setMode] = useState<PermissionMode>("supervised");
-  const [agentOpen, setAgentOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(true);
+  const [rightTab, setRightTab] = useState<RightTabKind>("agent");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sftpOpen, setSftpOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
+  const [snippetModal, setSnippetModal] = useState<SnippetModalState | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [agentRunning, setAgentRunning] = useState<Record<string, boolean>>({});
+  const [externalTask, setExternalTask] = useState<ExternalTaskTrigger | null>(null);
+  const [suggestions, setSuggestions] = useState<Record<string, string>>({});
+  const [editingTabId, setEditingTabId] = useState<string | null>(null);
+  const [tabNameDraft, setTabNameDraft] = useState("");
+  const [tabMenu, setTabMenu] = useState<TabContextMenu | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateModalOpen, setUpdateModalOpen] = useState(false);
 
   const demo = useMemo(() => !isTauri(), []);
   const bootstrapped = useRef(false);
   const sessionsRef = useRef<SessionView[]>([]);
   const tabsRef = useRef<TabView[]>([]);
+  const taskCounterRef = useRef(1);
+  const localCounterRef = useRef(0);
 
   useEffect(() => {
     sessionsRef.current = sessions;
@@ -64,42 +133,179 @@ export default function App() {
     tabsRef.current = tabs;
   }, [tabs]);
 
-  const registerView = useCallback(
-    (view: SessionView) => {
-      setSessions((previous) => [...previous, view]);
-      setTabs((previous) => [
-        ...previous,
-        { id: view.id, panes: leaf(view.id), activeSessionId: view.id },
-      ]);
-      setActiveId(view.id);
+  useEffect(() => {
+    if (!tabMenu) return;
+    const close = () => setTabMenu(null);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setTabMenu(null);
+    };
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [tabMenu]);
+
+  const refreshSnippets = useCallback(async () => {
+    if (!isTauri()) {
+      setSnippets(readDemoSnippets());
+      return;
+    }
+    try {
+      setSnippets(await ipc.listSnippets());
+    } catch (cause) {
+      console.warn("[ota] could not list command snippets", cause);
+    }
+  }, []);
+
+  const saveSnippet = useCallback(
+    async (input: SaveSnippetInput) => {
+      if (!isTauri()) {
+        const now = Date.now();
+        setSnippets((previous) => {
+          const next = input.id
+            ? previous.map((item) =>
+                item.id === input.id
+                  ? {
+                      ...item,
+                      alias: input.alias,
+                      command: input.command,
+                      category: input.category ?? "general",
+                      description: input.description ?? "",
+                      updatedAt: now,
+                    }
+                  : item,
+              )
+            : [
+                {
+                  id: `demo-snip-${now}`,
+                  alias: input.alias,
+                  command: input.command,
+                  category: input.category ?? "general",
+                  description: input.description ?? "",
+                  usageCount: 0,
+                  createdAt: now,
+                  updatedAt: now,
+                },
+                ...previous,
+              ];
+          try {
+            window.localStorage.setItem(DEMO_SNIPPETS_KEY, JSON.stringify(next));
+          } catch {
+            // Ignore storage errors.
+          }
+          return next;
+        });
+        setRightOpen(true);
+        setRightTab("snippets");
+        return;
+      }
+
+      await ipc.saveSnippet(input);
+      await refreshSnippets();
+      setRightOpen(true);
+      setRightTab("snippets");
     },
-    [],
+    [refreshSnippets],
   );
 
-  const openSession = useCallback(async (spec: SessionSpec) => {
-    setCreating(true);
-    setError(null);
-    try {
-      const backend = await createTerminalBackend(spec);
-      registerView({
-        id: backend.sessionId,
-        kind: backend.kind,
-        backend,
-        label: backend.label,
-        title: `${backend.label} · ${spec.cols}×${spec.rows}`,
-        exited: false,
-        size: { cols: spec.cols, rows: spec.rows },
-      });
-      return true;
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : String(cause);
-      setDialogError(message);
-      setError(message);
-      return false;
-    } finally {
-      setCreating(false);
-    }
-  }, [registerView]);
+  const deleteSnippet = useCallback(
+    async (id: string) => {
+      if (!isTauri()) {
+        setSnippets((previous) => {
+          const next = previous.filter((item) => item.id !== id);
+          try {
+            window.localStorage.setItem(DEMO_SNIPPETS_KEY, JSON.stringify(next));
+          } catch {
+            // Ignore storage errors.
+          }
+          return next;
+        });
+        return;
+      }
+      try {
+        await ipc.deleteSnippet(id);
+        await refreshSnippets();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
+    },
+    [refreshSnippets],
+  );
+
+  const pasteSnippetToTerminal = useCallback(
+    (command: string, snippetId?: string) => {
+      const target = sessionsRef.current.find((session) => session.id === activeId);
+      if (!target) return;
+      // Paste into the active terminal without trailing newline so the user stays in control.
+      target.backend.write(command);
+      if (snippetId && isTauri()) {
+        void ipc
+          .bumpSnippetUsage(snippetId)
+          .then(() => refreshSnippets())
+          .catch(console.warn);
+      }
+    },
+    [activeId, refreshSnippets],
+  );
+
+  const registerView = useCallback((view: SessionView) => {
+    setSessions((previous) => [...previous, view]);
+    setTabs((previous) => [
+      ...previous,
+      { id: view.id, panes: leaf(view.id), activeSessionId: view.id },
+    ]);
+    setActiveId(view.id);
+  }, []);
+
+  const renameSession = useCallback((sessionId: string, nextLabel: string) => {
+    const trimmed = nextLabel.trim();
+    if (!trimmed) return;
+    setSessions((previous) =>
+      previous.map((session) =>
+        session.id === sessionId
+          ? {
+              ...session,
+              label: trimmed,
+              title: `${trimmed} · ${session.size.cols}×${session.size.rows}`,
+            }
+          : session,
+      ),
+    );
+  }, []);
+
+  const openSession = useCallback(
+    async (spec: SessionSpec) => {
+      setCreating(true);
+      setError(null);
+      try {
+        const backend = await createTerminalBackend(spec);
+        const displayLabel =
+          backend.kind === "local"
+            ? shortShellLabel(backend.label, ++localCounterRef.current)
+            : backend.label;
+        registerView({
+          id: backend.sessionId,
+          kind: backend.kind,
+          backend,
+          label: displayLabel,
+          title: `${displayLabel} · ${spec.cols}×${spec.rows}`,
+          exited: false,
+          size: { cols: spec.cols, rows: spec.rows },
+        });
+        return true;
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : String(cause);
+        setDialogError(message);
+        setError(message);
+        return false;
+      } finally {
+        setCreating(false);
+      }
+    },
+    [registerView],
+  );
 
   const refreshSaved = useCallback(async () => {
     if (!isTauri()) return;
@@ -115,16 +321,19 @@ export default function App() {
       setCreating(true);
       setError(null);
       try {
-        const info = await ipc.connectSavedSession(id);
-        const backend = terminalBackendFor(info);
+        const backend = await connectSavedTerminalBackend(id);
+        const displayLabel =
+          backend.kind === "local"
+            ? shortShellLabel(backend.label, ++localCounterRef.current)
+            : backend.label;
         registerView({
           id: backend.sessionId,
           kind: backend.kind,
           backend,
-          label: backend.label,
-          title: `${backend.label} · ${info.cols}×${info.rows}`,
+          label: displayLabel,
+          title: `${displayLabel} · ${DEFAULT_COLS}×${DEFAULT_ROWS}`,
           exited: false,
-          size: { cols: info.cols, rows: info.rows },
+          size: { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
         });
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : String(cause));
@@ -218,7 +427,30 @@ export default function App() {
     });
   }, []);
 
-  // Ctrl+K opens the command palette from anywhere.
+  const handleNextSuggestion = useCallback((sessionId: string, suggestion: string | null) => {
+    setSuggestions((previous) => {
+      const next = { ...previous };
+      if (suggestion && suggestion.length > 0) {
+        next[sessionId] = suggestion;
+      } else {
+        delete next[sessionId];
+      }
+      return next;
+    });
+  }, []);
+
+  const handleQuickRun = useCallback((text: string) => {
+    setRightOpen(true);
+    setRightTab("agent");
+    setExternalTask({ id: taskCounterRef.current++, text });
+  }, []);
+
+  const handleTakeOver = useCallback(() => {
+    if (!activeId) return;
+    void agentIpc.cancel(activeId);
+  }, [activeId]);
+
+  // Ctrl+K / Cmd+K opens the command palette from anywhere.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -243,8 +475,8 @@ export default function App() {
   }, [activeId, agentRunning]);
 
   const splitActive = useCallback(
-    async (direction: "row" | "column") => {
-      const target = activeId;
+    async (direction: "row" | "column", targetOverride?: string) => {
+      const target = targetOverride ?? activeId;
       if (!target) return;
 
       setCreating(true);
@@ -255,18 +487,18 @@ export default function App() {
           cols: DEFAULT_COLS,
           rows: DEFAULT_ROWS,
         });
+        const displayLabel = shortShellLabel(backend.label, ++localCounterRef.current);
         const view: SessionView = {
           id: backend.sessionId,
           kind: backend.kind,
           backend,
-          label: backend.label,
-          title: `${backend.label} · ${DEFAULT_COLS}×${DEFAULT_ROWS}`,
+          label: displayLabel,
+          title: `${displayLabel} · ${DEFAULT_COLS}×${DEFAULT_ROWS}`,
           exited: false,
           size: { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
         };
         setSessions((previous) => [...previous, view]);
 
-        // Pure placement: read the current trees, never mutate inside an updater.
         let placed = false;
         const nextTabs = tabsRef.current.map((tab) => {
           if (placed) return tab;
@@ -299,7 +531,6 @@ export default function App() {
     const remaining = sessionsRef.current.filter((session) => session.id !== sessionId);
     setSessions(remaining);
 
-    // The pane tree owns closing: removing the last pane drops the tab.
     setTabs((previous) =>
       previous.flatMap((tab) => {
         const panes = remove(tab.panes, sessionId);
@@ -314,13 +545,26 @@ export default function App() {
         ];
       }),
     );
-    setActiveId((current) =>
-      current === sessionId ? (remaining[0]?.id ?? null) : current,
-    );
+    setActiveId((current) => (current === sessionId ? (remaining[0]?.id ?? null) : current));
   }, []);
 
-  // Split and close shortcuts. ⌘D is taken by the WebView on macOS, so both the
-  // meta and control modifiers are accepted to keep one muscle memory.
+  const closeOtherTabs = useCallback((keepTabId: string) => {
+    const keepTab = tabsRef.current.find((tab) => tab.id === keepTabId);
+    if (!keepTab) return;
+    const keepIds = new Set(sessionIds(keepTab.panes));
+    for (const session of sessionsRef.current) {
+      if (!keepIds.has(session.id)) {
+        session.backend.dispose();
+      }
+    }
+    setSessions((previous) => previous.filter((session) => keepIds.has(session.id)));
+    setTabs([keepTab]);
+    if (keepTab.activeSessionId) {
+      setActiveId(keepTab.activeSessionId);
+    }
+  }, []);
+
+  // Split and close shortcuts.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const modifier = event.metaKey || event.ctrlKey;
@@ -357,14 +601,25 @@ export default function App() {
     );
   }, []);
 
-  // Boot once: read the OS locale and shell list on the Rust side, then open the
-  // first terminal. The ref guard keeps React StrictMode from spawning two PTYs.
+  const checkUpdates = useCallback(async () => {
+    if (!isTauri()) return;
+    setCheckingUpdate(true);
+    try {
+      setUpdateInfo(await ipc.checkForUpdates());
+    } catch (cause) {
+      console.warn("[ota] update check skipped", cause);
+    } finally {
+      setCheckingUpdate(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (bootstrapped.current) return;
     bootstrapped.current = true;
 
     void (async () => {
       if (!isTauri()) {
+        await refreshSnippets();
         await createLocalSession();
         return;
       }
@@ -380,13 +635,12 @@ export default function App() {
       } catch (cause) {
         console.warn("[ota] could not read locale, shells or agent capabilities", cause);
       }
-      await refreshSaved();
+      await Promise.all([refreshSaved(), refreshSnippets()]);
       await createLocalSession();
+      void checkUpdates();
     })();
-  }, [createLocalSession, refreshSaved]);
+  }, [checkUpdates, createLocalSession, refreshSaved, refreshSnippets]);
 
-  // Visual order comes from the tab trees, not from insertion order, so a future
-  // split renders panes in the order the tree describes.
   const orderedSessions = useMemo(() => {
     const byId = new Map(sessions.map((session) => [session.id, session]));
     return tabs
@@ -396,79 +650,268 @@ export default function App() {
   }, [sessions, tabs]);
 
   const activeSession = sessions.find((session) => session.id === activeId) ?? null;
+  const activeTab = tabs.find((tab) => tab.activeSessionId === activeId) ?? tabs[0] ?? null;
+  const activeAgentRunning = activeId ? Boolean(agentRunning[activeId]) : false;
+  const activeSuggestion = activeId ? (suggestions[activeId] ?? null) : null;
 
   return (
-    <div className="flex h-full flex-col bg-[#0b1220] text-slate-200">
-      <header className="flex h-11 shrink-0 items-center justify-between border-b border-slate-800/80 bg-slate-950/60 px-3">
-        <div className="flex items-center gap-2.5">
-          <span className="font-mono text-sm font-semibold tracking-tight text-cyan-300">
-            ota
-          </span>
-          <span className="hidden text-xs text-slate-500 sm:inline">{t("app.tagline")}</span>
+    <div className="flex h-full flex-col bg-[var(--bg-canvas)] text-[var(--text-primary)]">
+      {/* Clean top chrome: inline renamable tabs + autonomy mode + accent CTA + theme + settings */}
+      <header className="flex h-11 shrink-0 items-center border-b border-[var(--border-subtle)] bg-[var(--bg-chrome)]">
+        {/* Session tabs start cleanly from the left */}
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-3">
           {demo ? (
-            <span className="rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] tracking-wider text-amber-300 uppercase">
-              {t("app.demoBadge")}
+            <span
+              className="mr-1 shrink-0 rounded px-1.5 py-0.5 font-mono text-[9.5px] font-medium uppercase"
+              style={{
+                backgroundColor: "var(--accent-soft)",
+                color: "var(--accent)",
+              }}
+            >
+              {t("status.demo")}
             </span>
           ) : null}
+
+          {tabs.map((tab) => {
+            const tabIds = sessionIds(tab.panes);
+            const lead = orderedSessions.find((s) => s.id === tabIds[0]);
+            const isActive = tab === activeTab;
+            const isEditing = editingTabId === tab.id && lead !== undefined;
+
+            return (
+              <div
+                key={tab.id}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  if (!lead) return;
+                  setTabMenu({
+                    x: Math.min(event.clientX, window.innerWidth - 190),
+                    y: Math.min(event.clientY, window.innerHeight - 190),
+                    tabId: tab.id,
+                    leadSessionId: lead.id,
+                    leadLabel: lead.label,
+                    allSessionIds: tabIds,
+                  });
+                }}
+                className={`group flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2.5 transition ${
+                  isActive
+                    ? "border-[var(--border-strong)] bg-[var(--bg-elevated)] text-[var(--text-primary)]"
+                    : "border-transparent text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
+                }`}
+              >
+                {isEditing && lead ? (
+                  <input
+                    autoFocus
+                    value={tabNameDraft}
+                    onChange={(event) => setTabNameDraft(event.target.value)}
+                    onBlur={() => {
+                      renameSession(lead.id, tabNameDraft);
+                      setEditingTabId(null);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        renameSession(lead.id, tabNameDraft);
+                        setEditingTabId(null);
+                      } else if (event.key === "Escape") {
+                        event.preventDefault();
+                        setEditingTabId(null);
+                      }
+                    }}
+                    className="w-28 rounded bg-[var(--bg-surface)] px-1.5 py-0.5 font-mono text-[11.5px] text-[var(--text-primary)] outline-none"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (tab.activeSessionId) setActiveId(tab.activeSessionId);
+                    }}
+                    onDoubleClick={() => {
+                      if (!lead) return;
+                      setEditingTabId(tab.id);
+                      setTabNameDraft(lead.label);
+                    }}
+                    title={t("tabs.renameHint")}
+                    className="flex items-center gap-1.5 font-mono text-[11.5px]"
+                  >
+                    <span className="max-w-[11rem] truncate">{lead?.label ?? "terminal"}</span>
+                    {tabIds.length > 1 ? (
+                      <span className="rounded bg-[var(--bg-surface)] px-1 text-[9.5px] text-[var(--text-muted)]">
+                        ×{tabIds.length}
+                      </span>
+                    ) : null}
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  aria-label={t("tabs.close")}
+                  onClick={() => {
+                    for (const id of tabIds) closeSession(id);
+                  }}
+                  className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-[var(--text-muted)] opacity-0 transition group-hover:opacity-100 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
+                >
+                  <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+                    <path d="M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6" />
+                  </svg>
+                </button>
+              </div>
+            );
+          })}
+
+          {/* Optically centered SVG + button */}
+          <button
+            type="button"
+            onClick={() => void createLocalSession()}
+            disabled={creating}
+            title={t("sidebar.newSession")}
+            aria-label={t("sidebar.newSession")}
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+              <path d="M8 3.2v9.6M3.2 8h9.6" />
+            </svg>
+          </button>
         </div>
-        <div className="flex items-center gap-1.5">
+
+        {/* Right studio controls */}
+        <div className="flex shrink-0 items-center gap-2 px-3">
+          <div className="hidden items-center rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-0.5 lg:flex">
+            {MODES.map((candidate) => {
+              const selected = candidate === mode;
+              return (
+                <button
+                  key={candidate}
+                  type="button"
+                  onClick={() => setMode(candidate)}
+                  className={`rounded px-2 py-1 text-[11px] font-medium transition ${
+                    selected
+                      ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                  }`}
+                >
+                  {t(`agent.modes.${candidate}`)}
+                </button>
+              );
+            })}
+          </div>
+
+          {activeAgentRunning ? (
+            <button
+              type="button"
+              onClick={handleTakeOver}
+              className="ota-btn-primary inline-flex h-7 items-center justify-center gap-1.5 rounded-md px-3 text-xs"
+            >
+              <svg viewBox="0 0 16 16" className="h-3 w-3 shrink-0" fill="currentColor">
+                <rect x="3.5" y="3.5" width="9" height="9" rx="1.5" />
+              </svg>
+              <span>{t("agent.takeOver")}</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setRightOpen((open) => !open)}
+              className={`inline-flex h-7 items-center justify-center gap-1.5 rounded-md px-3 text-xs transition ${
+                rightOpen
+                  ? "ota-btn-primary"
+                  : "border border-[var(--border-strong)] bg-[var(--bg-surface)] font-medium text-[var(--text-primary)] hover:border-[var(--accent-border)]"
+              }`}
+            >
+              {rightOpen ? (
+                <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3.5 8.5L6.5 11.5L12.5 5" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M8 2.5L9.4 6.6L13.5 8L9.4 9.4L8 13.5L6.6 9.4L2.5 8L6.6 6.6L8 2.5z" />
+                </svg>
+              )}
+              <span>{t("agent.title")}</span>
+            </button>
+          )}
+
+          {/* Theme toggle always reflects current resolved Light (Sun) or Dark (Moon) */}
           <button
             type="button"
-            onClick={() => {
-              setDialogError(null);
-              setDialog("ssh");
-            }}
-            className="rounded px-2.5 py-1 text-xs text-slate-400 transition hover:bg-slate-800/70 hover:text-slate-200"
+            onClick={cycleTheme}
+            title={`${t("settings.appearance")}: ${t(`settings.theme.${themePreference}`)} (${t(`settings.theme.${resolvedTheme}`)})`}
+            aria-label={t("settings.appearance")}
+            className="relative inline-flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-secondary)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
           >
-            {t("sidebar.ssh")}
+            {resolvedTheme === "light" ? (
+              <svg
+                viewBox="0 0 24 24"
+                className="h-3.5 w-3.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.9"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+              </svg>
+            ) : (
+              <svg
+                viewBox="0 0 24 24"
+                className="h-3.5 w-3.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.9"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+              </svg>
+            )}
+            {themePreference === "system" ? (
+              <span
+                className="absolute right-0.5 bottom-0.5 h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: "var(--accent)" }}
+              />
+            ) : null}
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              setDialogError(null);
-              setDialog("serial");
-            }}
-            className="rounded px-2.5 py-1 text-xs text-slate-400 transition hover:bg-slate-800/70 hover:text-slate-200"
-          >
-            {t("sidebar.serial")}
-          </button>
-          <button
-            type="button"
-            onClick={() => setSftpOpen(true)}
-            className="rounded px-2.5 py-1 text-xs text-slate-400 transition hover:bg-slate-800/70 hover:text-slate-200"
-          >
-            {t("sidebar.sftp")}
-          </button>
-          <button
-            type="button"
-            onClick={() => setAgentOpen((open) => !open)}
-            className={`rounded px-2.5 py-1 text-xs transition ${
-              agentOpen
-                ? "bg-cyan-500/15 text-cyan-200"
-                : "text-slate-400 hover:bg-slate-800/70 hover:text-slate-200"
-            }`}
-          >
-            {t("agent.title")}
-          </button>
+
+          {/* Settings cog/gear button */}
           <button
             type="button"
             onClick={() => setSettingsOpen(true)}
-            className="rounded px-2.5 py-1 text-xs text-slate-400 transition hover:bg-slate-800/70 hover:text-slate-200"
+            title={t("settings.title")}
+            aria-label={t("settings.title")}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-secondary)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
           >
-            {t("settings.title")}
+            <svg
+              viewBox="0 0 24 24"
+              className="h-3.5 w-3.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.9"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
           </button>
         </div>
       </header>
 
       {error ? (
-        <div className="flex items-center justify-between gap-3 border-b border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-200">
+        <div
+          className="flex items-center justify-between gap-3 border-b px-4 py-1.5 text-xs"
+          style={{
+            borderColor: "var(--status-danger)",
+            backgroundColor: "var(--status-danger-soft)",
+            color: "var(--status-danger)",
+          }}
+        >
           <span className="truncate">
             {t("common.error")}: {error}
           </span>
           <button
             type="button"
             onClick={() => setError(null)}
-            className="rounded px-2 py-0.5 text-rose-200/80 hover:bg-rose-500/20"
+            className="rounded px-2 py-0.5 text-xs font-medium hover:opacity-80"
           >
             {t("common.dismiss")}
           </button>
@@ -482,7 +925,10 @@ export default function App() {
           shells={shells}
           saved={saved}
           creating={creating}
+          agentRunning={activeAgentRunning}
           onSelect={setActiveId}
+          onRename={renameSession}
+          onCloseSession={closeSession}
           onCreate={createLocalSession}
           onOpenSaved={(id) => void openSaved(id)}
           onDeleteSaved={(id) => void deleteSaved(id)}
@@ -495,6 +941,8 @@ export default function App() {
             setDialog("serial");
           }}
           onOpenSftp={() => setSftpOpen(true)}
+          onOpenPalette={() => setPaletteOpen(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
         />
 
         <main className="flex min-w-0 flex-1 flex-col">
@@ -502,45 +950,237 @@ export default function App() {
             sessions={orderedSessions}
             tabs={tabs}
             activeId={activeId}
+            theme={resolvedTheme}
+            terminalConfig={terminalConfig}
+            suggestedPrompt={activeSuggestion}
+            agentRunning={activeAgentRunning}
             exitedLabel={t("terminal.exited")}
             emptyLabel={t("terminal.empty")}
-            closeLabel={t("tabs.close")}
             onSelect={setActiveId}
-            onClose={closeSession}
             onResize={handleResize}
             onExit={markExited}
+            onSplit={(direction) => void splitActive(direction)}
+            onQuickRun={handleQuickRun}
+            onTakeOver={handleTakeOver}
+            onOpenPalette={() => setPaletteOpen(true)}
+            onFavoriteCommand={(command) =>
+              setSnippetModal({ initialCommand: command, editing: null })
+            }
           />
         </main>
 
-        {agentOpen ? (
-          <AgentSidebar
-            sessionId={activeId}
-            mode={mode}
-            onModeChange={setMode}
-            onRunningChange={handleAgentRunning}
-          />
+        {/* Right collapsible dual-tab panel: AI Agent | Command Handbook (Snippets) */}
+        {rightOpen ? (
+          <aside className="flex w-[21rem] shrink-0 flex-col border-l border-[var(--border-subtle)] bg-[var(--bg-sidebar)]">
+            <div className="border-b border-[var(--border-subtle)] bg-[var(--bg-chrome)] px-3 py-2">
+              <div className="grid grid-cols-2 gap-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setRightTab("agent")}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition"
+                  style={{
+                    backgroundColor: rightTab === "agent" ? "var(--bg-elevated)" : "transparent",
+                    color: rightTab === "agent" ? "var(--text-primary)" : "var(--text-muted)",
+                  }}
+                >
+                  <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M8 2.5L9.4 6.6L13.5 8L9.4 9.4L8 13.5L6.6 9.4L2.5 8L6.6 6.6L8 2.5z" />
+                  </svg>
+                  <span>{t("agent.title")}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRightTab("snippets")}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition"
+                  style={{
+                    backgroundColor:
+                      rightTab === "snippets" ? "var(--bg-elevated)" : "transparent",
+                    color: rightTab === "snippets" ? "var(--text-primary)" : "var(--text-muted)",
+                  }}
+                >
+                  <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 3h4.5A1.5 1.5 0 019 4.5V13a1.2 1.2 0 00-1.2-1.2H3V3zM13 3H8.5A1.5 1.5 0 007 4.5V13a1.2 1.2 0 011.2-1.2H13V3z" />
+                  </svg>
+                  <span>{t("snippets.tabTitle")}</span>
+                  {snippets.length > 0 ? (
+                    <span className="rounded bg-[var(--bg-canvas)] px-1 font-mono text-[9.5px] text-[var(--text-muted)]">
+                      {snippets.length}
+                    </span>
+                  ) : null}
+                </button>
+              </div>
+            </div>
+
+            <div className={rightTab === "agent" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
+              <AgentSidebar
+                sessionId={activeId}
+                mode={mode}
+                suggestedPrompt={activeSuggestion}
+                externalTask={externalTask}
+                onNextSuggestion={handleNextSuggestion}
+                onOpenSettings={() => setSettingsOpen(true)}
+                onRunningChange={handleAgentRunning}
+              />
+            </div>
+
+            {rightTab === "snippets" ? (
+              <SnippetsPanel
+                snippets={snippets}
+                hasSession={activeSession !== null}
+                onPaste={pasteSnippetToTerminal}
+                onAddNew={() => setSnippetModal({ initialCommand: "", editing: null })}
+                onEdit={(snippet) =>
+                  setSnippetModal({ initialCommand: snippet.command, editing: snippet })
+                }
+                onDelete={(id) => void deleteSnippet(id)}
+                onFavoriteHandbook={(command) =>
+                  setSnippetModal({ initialCommand: command, editing: null })
+                }
+              />
+            ) : null}
+          </aside>
         ) : null}
       </div>
 
       <StatusBar
         label={activeSession?.label ?? null}
-        kind={activeSession?.kind ?? null}
         size={activeSession?.size ?? null}
         exited={activeSession?.exited ?? false}
-        mode={mode}
-        locale={i18n.language}
-        sessionCount={orderedSessions.length}
         demo={demo}
-        agentRunning={activeId ? Boolean(agentRunning[activeId]) : false}
+        agentRunning={activeAgentRunning}
+        updateInfo={updateInfo}
+        checkingUpdate={checkingUpdate}
+        onCheckUpdate={() => void checkUpdates()}
+        onOpenUpdate={() => setUpdateModalOpen(true)}
       />
 
-      {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
+      {updateModalOpen && updateInfo ? (
+        <UpdateDialog info={updateInfo} onClose={() => setUpdateModalOpen(false)} />
+      ) : null}
+
+      {/* Localized Tab right-click context menu */}
+      {tabMenu ? (
+        <div
+          onMouseDown={(event) => event.stopPropagation()}
+          className="fixed z-50 w-44 overflow-hidden rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] py-1 shadow-xl"
+          style={{ left: tabMenu.x, top: tabMenu.y }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              const { tabId, leadLabel } = tabMenu;
+              setTabMenu(null);
+              setEditingTabId(tabId);
+              setTabNameDraft(leadLabel);
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--text-primary)] transition hover:bg-[var(--bg-hover)]"
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11.2 2.8l2 2L5.5 12.5 3 13l.5-2.5 7.7-7.7z" />
+            </svg>
+            <span>{t("tabs.rename")}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const target = tabMenu.leadSessionId;
+              setTabMenu(null);
+              void splitActive("row", target);
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--text-primary)] transition hover:bg-[var(--bg-hover)]"
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" fill="none" stroke="currentColor" strokeWidth="1.4">
+              <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
+              <path d="M8 2.5V13.5" />
+            </svg>
+            <span>{t("tabs.splitHorizontal")}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const target = tabMenu.leadSessionId;
+              setTabMenu(null);
+              void splitActive("column", target);
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--text-primary)] transition hover:bg-[var(--bg-hover)]"
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" fill="none" stroke="currentColor" strokeWidth="1.4">
+              <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
+              <path d="M2 8H14" />
+            </svg>
+            <span>{t("tabs.splitVertical")}</span>
+          </button>
+
+          <div className="my-1 border-t border-[var(--border-subtle)]" />
+
+          <button
+            type="button"
+            disabled={tabs.length <= 1}
+            onClick={() => {
+              const keepTabId = tabMenu.tabId;
+              setTabMenu(null);
+              closeOtherTabs(keepTabId);
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+              <path d="M3 4.5h10M4.5 8h7M6 11.5h4" />
+            </svg>
+            <span>{t("tabs.closeOthers")}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const ids = tabMenu.allSessionIds;
+              setTabMenu(null);
+              for (const id of ids) closeSession(id);
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition hover:bg-[var(--bg-hover)]"
+            style={{ color: "var(--status-danger)" }}
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+              <path d="M4 4l8 8M12 4l-8 8" />
+            </svg>
+            <span>{t("tabs.close")}</span>
+          </button>
+        </div>
+      ) : null}
+
+      {snippetModal ? (
+        <SaveSnippetDialog
+          initialCommand={snippetModal.initialCommand}
+          editing={snippetModal.editing}
+          onSave={saveSnippet}
+          onClose={() => setSnippetModal(null)}
+        />
+      ) : null}
+
+      {settingsOpen ? (
+        <SettingsDialog
+          themePreference={themePreference}
+          resolvedTheme={resolvedTheme}
+          onThemeChange={setPreference}
+          terminalConfig={terminalConfig}
+          onTerminalPresetChange={setTerminalPreset}
+          onTerminalFontSizeChange={setTerminalFontSize}
+          onTerminalLineHeightChange={setTerminalLineHeight}
+          onTerminalCursorStyleChange={setTerminalCursorStyle}
+          onTerminalCustomColorChange={setTerminalCustomColor}
+          onTerminalCloneToCustom={() => cloneTerminalToCustom(resolvedTheme)}
+          onTerminalReset={resetTerminalConfig}
+          onClose={() => setSettingsOpen(false)}
+        />
+      ) : null}
 
       {sftpOpen ? <SftpDrawer saved={saved} onClose={() => setSftpOpen(false)} /> : null}
 
       {paletteOpen ? (
         <CommandPalette
           backend={activeSession?.backend ?? null}
+          onOpenSettings={() => setSettingsOpen(true)}
           onClose={() => setPaletteOpen(false)}
         />
       ) : null}

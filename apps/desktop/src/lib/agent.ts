@@ -16,6 +16,7 @@ export const AGENT_INTERRUPTED = "agent://interrupted";
 /** One runtime event, mirroring `term_agent::AgentEvent`. */
 export type AgentEvent =
   | { type: "runStarted"; task: string; mode: string; model: string }
+  | { type: "phaseChanged"; phase: "observe" | "reason" | "act" | "verify" }
   | { type: "thinking"; delta: string }
   | { type: "message"; delta: string }
   | {
@@ -99,6 +100,14 @@ export const agentIpc = {
 
   suggest(input: { prompt: string; context?: string }): Promise<string> {
     return invoke<string>("suggest_command", { request: input });
+  },
+
+  suggestNextTask(input: {
+    sessionId: string;
+    lastTask?: string;
+    language?: string;
+  }): Promise<string | null> {
+    return invoke<string | null>("suggest_next_task", { request: input });
   },
 
   discover(): Promise<LocalModel[]> {
