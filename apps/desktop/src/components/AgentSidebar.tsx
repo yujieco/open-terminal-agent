@@ -346,10 +346,10 @@ export function AgentSidebar({
       {/* Header */}
       <header className="border-b border-[var(--border-subtle)] px-4 py-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-[10px] font-semibold tracking-[0.12em] text-[var(--text-muted)] uppercase">
+          <h2 className="text-[12.5px] font-semibold text-[var(--text-primary)]">
             {t("agent.timeline")}
           </h2>
-          <span className="font-mono text-[10.5px] text-[var(--text-muted)]">
+          <span className="ota-tabular text-[11px] text-[var(--text-muted)]">
             {t("agent.stepsCount", { count: cards.length })}
           </span>
         </div>
@@ -361,7 +361,7 @@ export function AgentSidebar({
             return (
               <span
                 key={item}
-                className="flex-1 rounded px-1.5 py-0.5 text-center font-mono text-[9.5px] uppercase transition"
+                className="flex-1 rounded-md px-1.5 py-1 text-center text-[11px] font-medium transition"
                 style={{
                   backgroundColor: active ? "var(--accent-soft)" : "var(--bg-surface)",
                   color: active ? "var(--accent)" : "var(--text-muted)",
@@ -374,7 +374,7 @@ export function AgentSidebar({
           })}
         </div>
 
-        <div className="mt-2 flex items-center justify-between gap-2 text-[10.5px]">
+        <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
           <span className="truncate font-mono text-[var(--text-muted)]">
             {llm ? `${llm.provider}/${llm.model}` : t("agent.noProvider")}
           </span>
@@ -383,9 +383,9 @@ export function AgentSidebar({
               type="checkbox"
               checked={stepApproval}
               onChange={(event) => setStepApproval(event.target.checked)}
-              className="h-3 w-3 accent-[var(--accent)]"
+              className="h-3.5 w-3.5 accent-[var(--accent)]"
             />
-            <span className="text-[10px]">{t("agent.modes.ask")}</span>
+            <span className="text-[11px]">{t("agent.modes.ask")}</span>
           </label>
         </div>
       </header>
@@ -452,19 +452,19 @@ export function AgentSidebar({
             <button
               type="button"
               onClick={() => setShowThinking((open) => !open)}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left font-mono text-[10.5px] text-[var(--text-secondary)]"
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-[11px] font-medium text-[var(--text-secondary)]"
             >
               <span
                 className="h-1.5 w-1.5 rounded-full"
                 style={{ backgroundColor: running ? "var(--accent)" : "var(--status-ok)" }}
               />
-              <span className="uppercase tracking-wider">{t("agent.thinking")}</span>
-              <span className="ml-auto text-[10px] text-[var(--text-muted)]">
+              <span>{t("agent.thinking")}</span>
+              <span className="ml-auto text-[11px] text-[var(--text-muted)]">
                 {showThinking ? "▾" : "▸"}
               </span>
             </button>
             {showThinking ? (
-              <pre className="max-h-32 overflow-y-auto border-t border-[var(--border-subtle)] px-3 py-2 font-mono text-[10.5px] leading-relaxed whitespace-pre-wrap text-[var(--text-muted)]">
+              <pre className="max-h-32 overflow-y-auto border-t border-[var(--border-subtle)] px-3 py-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-[var(--text-muted)]">
                 {thinking}
               </pre>
             ) : null}
@@ -472,7 +472,7 @@ export function AgentSidebar({
         ) : null}
 
         {cards.length === 0 && answer.length === 0 && !running && !approval && !failure ? (
-          <div className="rounded-lg border border-dashed border-[var(--border-subtle)] px-3.5 py-4 text-xs leading-relaxed text-[var(--text-muted)]">
+          <div className="rounded-lg border border-dashed border-[var(--border-subtle)] px-3.5 py-4 text-[12px] leading-relaxed text-[var(--text-muted)]">
             {t("agent.empty")}
           </div>
         ) : null}
@@ -498,7 +498,7 @@ export function AgentSidebar({
             >
               <header className="flex items-center gap-2 px-3 py-2">
                 <span
-                  className="rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold"
+                  className="ota-tabular rounded px-1.5 py-0.5 text-[11px] font-semibold"
                   style={{
                     backgroundColor: isRunningCard ? "var(--accent)" : "var(--bg-elevated)",
                     color: isRunningCard ? "var(--accent-fg)" : "var(--text-secondary)",
@@ -509,7 +509,7 @@ export function AgentSidebar({
 
                 {card.risk ? (
                   <span
-                    className="rounded px-1.5 py-0.5 font-mono text-[9.5px] uppercase"
+                    className="rounded px-1.5 py-0.5 text-[11px] font-medium"
                     style={{
                       backgroundColor:
                         card.risk === "readonly"
@@ -530,7 +530,7 @@ export function AgentSidebar({
                 ) : null}
 
                 <span
-                  className="ml-auto font-mono text-[10px]"
+                  className="ota-tabular ml-auto text-[11px] font-medium"
                   style={{
                     color: isRunningCard
                       ? "var(--accent)"
@@ -549,12 +549,12 @@ export function AgentSidebar({
                 </span>
               </header>
 
-              <pre className="border-t border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-3 py-2 font-mono text-[11px] whitespace-pre-wrap break-all text-[var(--text-primary)]">
+              <pre className="border-t border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-3 py-2 font-mono text-[12px] whitespace-pre-wrap break-all text-[var(--text-primary)]">
                 $ {card.command}
               </pre>
 
               {card.output.length > 0 ? (
-                <pre className="max-h-36 overflow-y-auto border-t border-[var(--border-subtle)] px-3 py-2 font-mono text-[10px] leading-relaxed whitespace-pre-wrap text-[var(--text-secondary)]">
+                <pre className="max-h-36 overflow-y-auto border-t border-[var(--border-subtle)] px-3 py-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-[var(--text-secondary)]">
                   {card.output}
                 </pre>
               ) : null}
@@ -610,7 +610,7 @@ export function AgentSidebar({
         ) : null}
 
         {answer.length > 0 ? (
-          <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2.5 text-xs leading-relaxed whitespace-pre-wrap text-[var(--text-primary)]">
+          <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-3 text-[12.5px] leading-[1.6] whitespace-pre-wrap text-[var(--text-primary)]">
             {answer}
           </div>
         ) : null}
@@ -647,13 +647,38 @@ export function AgentSidebar({
 
       {/* Bottom section: RECENT RUNS */}
       <section className="max-h-36 shrink-0 overflow-y-auto border-t border-[var(--border-subtle)] px-3.5 py-2.5">
-        <div className="flex items-center justify-between text-[10px] font-semibold tracking-[0.12em] text-[var(--text-muted)] uppercase">
-          <span>{t("agent.recentRuns")}</span>
-          <span className="font-mono">{runs.length}</span>
+        <div className="flex items-center justify-between">
+          <div className="ota-section-label flex items-center gap-1.5">
+            <span>{t("agent.recentRuns")}</span>
+            <span className="ota-tabular">{runs.length}</span>
+          </div>
+          {runs.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => {
+                void agentIpc
+                  .clearRuns()
+                  .then(() => {
+                    setRuns([]);
+                    if (replaying) {
+                      setReplaying(null);
+                      setCards([]);
+                      setAnswer("");
+                      setThinking("");
+                      setSummary(null);
+                    }
+                  })
+                  .catch(console.warn);
+              }}
+              className="rounded px-1.5 py-0.5 text-[11px] font-medium text-[var(--text-muted)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--status-danger)]"
+            >
+              {t("agent.clearRuns")}
+            </button>
+          ) : null}
         </div>
 
         {runs.length === 0 ? (
-          <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">{t("agent.noHistory")}</p>
+          <p className="mt-1.5 text-[12px] text-[var(--text-muted)]">{t("agent.noHistory")}</p>
         ) : (
           <ul className="mt-1.5 space-y-0.5">
             {runs.map((run) => {
@@ -668,21 +693,47 @@ export function AgentSidebar({
                 minute: "2-digit",
               });
               return (
-                <li key={run.id}>
+                <li key={run.id} className="group flex items-center gap-1">
                   <button
                     type="button"
                     onClick={() => void replay(run.id)}
-                    className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[11px] transition hover:bg-[var(--bg-hover)]"
+                    className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] transition hover:bg-[var(--bg-hover)]"
                   >
-                    <span className="shrink-0 font-mono text-[10px] text-[var(--text-muted)]">
+                    <span className="ota-tabular shrink-0 text-[11px] text-[var(--text-muted)]">
                       {stamp}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-[var(--text-secondary)]">
                       {run.task}
                     </span>
-                    <span className="shrink-0 font-mono text-[10px]" style={{ color: statusColor }}>
+                    <span className="shrink-0 text-[11px] font-medium" style={{ color: statusColor }}>
                       {run.status}
                     </span>
+                  </button>
+                  <button
+                    type="button"
+                    title={t("agent.deleteRun")}
+                    aria-label={t("agent.deleteRun")}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void agentIpc
+                        .deleteRun(run.id)
+                        .then(() => {
+                          setRuns((previous) => previous.filter((item) => item.id !== run.id));
+                          if (replaying === run.task) {
+                            setReplaying(null);
+                            setCards([]);
+                            setAnswer("");
+                            setThinking("");
+                            setSummary(null);
+                          }
+                        })
+                        .catch(console.warn);
+                    }}
+                    className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-[var(--text-muted)] opacity-0 transition group-hover:opacity-100 hover:bg-[var(--bg-hover)] hover:text-[var(--status-danger)]"
+                  >
+                    <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                      <path d="M4 4l8 8M12 4l-8 8" />
+                    </svg>
                   </button>
                 </li>
               );
@@ -719,9 +770,12 @@ export function AgentSidebar({
                 if (activePlaceholder.length > 0) setTask(activePlaceholder);
               }}
               title={t("agent.tabAcceptHint")}
-              className="ota-ctrl font-mono text-[11px]"
+              className="ota-ctrl font-sans"
             >
-              Tab
+              <span className="inline-flex items-center justify-center gap-[3px]">
+                <span className="text-[13px] leading-none">⇥</span>
+                <span className="text-[11px] font-medium leading-none">Tab</span>
+              </span>
             </button>
           ) : null}
           <button

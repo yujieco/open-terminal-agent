@@ -75,23 +75,15 @@ export function useTheme() {
     }
   }, []);
 
-  const cycleTheme = useCallback(() => {
-    setPreferenceState((current) => {
-      const next: ThemePreference =
-        current === "system" ? "light" : current === "light" ? "dark" : "system";
-      try {
-        window.localStorage.setItem(STORAGE_KEY, next);
-      } catch {
-        // Ignore storage failures.
-      }
-      return next;
-    });
-  }, []);
+  const toggleTheme = useCallback(() => {
+    const next: ResolvedTheme = resolved === "light" ? "dark" : "light";
+    setPreference(next);
+  }, [resolved, setPreference]);
 
   return {
     preference,
     resolved,
     setPreference,
-    cycleTheme,
+    toggleTheme,
   };
 }

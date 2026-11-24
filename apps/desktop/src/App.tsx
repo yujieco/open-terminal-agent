@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 
 import { AgentSidebar, type ExternalTaskTrigger } from "./components/AgentSidebar";
 import { CommandPalette } from "./components/CommandPalette";
+import { ExportLogDialog } from "./components/ExportLogDialog";
 import { GlobalContextMenu } from "./components/GlobalContextMenu";
 import { SaveSnippetDialog } from "./components/SaveSnippetDialog";
 import { SerialConnectDialog } from "./components/SerialConnectDialog";
@@ -79,8 +80,7 @@ function readDemoSnippets(): CommandSnippet[] {
 
 export default function App() {
   const { t } = useTranslation();
-  const { preference: themePreference, resolved: resolvedTheme, setPreference, cycleTheme } =
-    useTheme();
+  const { resolved: resolvedTheme, setPreference, toggleTheme } = useTheme();
   const {
     config: terminalConfig,
     setPreset: setTerminalPreset,
@@ -118,6 +118,11 @@ export default function App() {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [updateModalOpen, setUpdateModalOpen] = useState(false);
+  const [exportTarget, setExportTarget] = useState<{
+    sessionId: string;
+    label: string;
+    lines?: string[];
+  } | null>(null);
 
   const demo = useMemo(() => !isTauri(), []);
   const bootstrapped = useRef(false);
@@ -694,10 +699,10 @@ export default function App() {
                     allSessionIds: tabIds,
                   });
                 }}
-                className={`group flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2.5 transition ${
+                className={`group flex h-7 shrink-0 items-center gap-1.5 rounded-[7px] border px-2.5 transition ${
                   isActive
-                    ? "border-[var(--border-strong)] bg-[var(--bg-elevated)] text-[var(--text-primary)]"
-                    : "border-transparent text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
+                    ? "border-[var(--border-strong)] bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+                    : "border-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
                 }`}
               >
                 {isEditing && lead ? (
@@ -719,7 +724,7 @@ export default function App() {
                         setEditingTabId(null);
                       }
                     }}
-                    className="w-28 rounded bg-[var(--bg-surface)] px-1.5 py-0.5 font-mono text-[11.5px] text-[var(--text-primary)] outline-none"
+                    className="w-28 rounded bg-[var(--bg-surface)] px-1.5 py-0.5 text-[12.5px] text-[var(--text-primary)] outline-none"
                   />
                 ) : (
                   <button
@@ -733,11 +738,13 @@ export default function App() {
                       setTabNameDraft(lead.label);
                     }}
                     title={t("tabs.renameHint")}
-                    className="flex items-center gap-1.5 font-mono text-[11.5px]"
+                    className={`flex items-center gap-1.5 text-[12.5px] ${
+                      isActive ? "font-medium" : "font-normal"
+                    }`}
                   >
                     <span className="max-w-[11rem] truncate">{lead?.label ?? "terminal"}</span>
                     {tabIds.length > 1 ? (
-                      <span className="rounded bg-[var(--bg-surface)] px-1 text-[9.5px] text-[var(--text-muted)]">
+                      <span className="ota-tabular rounded bg-[var(--bg-surface)] px-1 text-[11px] text-[var(--text-muted)]">
                         ×{tabIds.length}
                       </span>
                     ) : null}
@@ -805,13 +812,13 @@ export default function App() {
             </button>
           )}
 
-          {/* Theme toggle always reflects current resolved Light (Sun) or Dark (Moon) */}
+          {/* Theme toggle: clean Light (Sun) / Dark (Moon) binary switch */}
           <button
             type="button"
-            onClick={cycleTheme}
-            title={`${t("settings.appearance")}: ${t(`settings.theme.${themePreference}`)} (${t(`settings.theme.${resolvedTheme}`)})`}
+            onClick={toggleTheme}
+            title={`${t("settings.appearance")}: ${t(`settings.theme.${resolvedTheme}`)}`}
             aria-label={t("settings.appearance")}
-            className="ota-ctrl relative !w-7 !px-0"
+            className="ota-ctrl !w-7 !px-0"
           >
             {resolvedTheme === "light" ? (
               <svg
@@ -839,12 +846,6 @@ export default function App() {
                 <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
               </svg>
             )}
-            {themePreference === "system" ? (
-              <span
-                className="absolute right-0.5 bottom-0.5 h-1.5 w-1.5 rounded-full"
-                style={{ backgroundColor: "var(--accent)" }}
-              />
-            ) : null}
           </button>
 
           {/* Settings cog/gear button */}
@@ -904,6 +905,9 @@ export default function App() {
           onSelect={setActiveId}
           onRename={renameSession}
           onCloseSession={closeSession}
+          onExportLog={(session) =>
+            setExportTarget({ sessionId: session.id, label: session.label })
+          }
           onCreate={createLocalSession}
           onOpenSaved={(id) => void openSaved(id)}
           onDeleteSaved={(id) => void deleteSaved(id)}
@@ -917,7 +921,6 @@ export default function App() {
           }}
           onOpenSftp={() => setSftpOpen(true)}
           onOpenPalette={() => setPaletteOpen(true)}
-          onOpenSettings={() => setSettingsOpen(true)}
         />
 
         <main className="flex min-w-0 flex-1 flex-col">
@@ -940,6 +943,9 @@ export default function App() {
             onOpenPalette={() => setPaletteOpen(true)}
             onFavoriteCommand={(command) =>
               setSnippetModal({ initialCommand: command, editing: null })
+            }
+            onExportLog={(sessionId, label, lines) =>
+              setExportTarget({ sessionId, label, lines })
             }
           />
         </main>
@@ -965,7 +971,7 @@ export default function App() {
                 >
                   <span>{t("snippets.tabTitle")}</span>
                   {snippets.length > 0 ? (
-                    <span className="rounded bg-[var(--bg-canvas)] px-1 font-mono text-[9.5px] text-[var(--text-muted)]">
+                    <span className="ota-tabular rounded bg-[var(--bg-canvas)] px-1.5 text-[11px] font-normal text-[var(--text-muted)]">
                       {snippets.length}
                     </span>
                   ) : null}
@@ -1018,6 +1024,15 @@ export default function App() {
 
       {updateModalOpen && updateInfo ? (
         <UpdateDialog info={updateInfo} onClose={() => setUpdateModalOpen(false)} />
+      ) : null}
+
+      {exportTarget ? (
+        <ExportLogDialog
+          sessionId={exportTarget.sessionId}
+          label={exportTarget.label}
+          lines={exportTarget.lines}
+          onClose={() => setExportTarget(null)}
+        />
       ) : null}
 
       <GlobalContextMenu
@@ -1081,6 +1096,21 @@ export default function App() {
             <span>{t("tabs.splitVertical")}</span>
           </button>
 
+          <button
+            type="button"
+            onClick={() => {
+              const { leadSessionId, leadLabel } = tabMenu;
+              setTabMenu(null);
+              setExportTarget({ sessionId: leadSessionId, label: leadLabel });
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--text-primary)] transition hover:bg-[var(--bg-hover)]"
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 2.5v7.5M5.2 7.2L8 10l2.8-2.8M3 12.5h10" />
+            </svg>
+            <span>{t("exportLog.menuItem")}</span>
+          </button>
+
           <div className="my-1 border-t border-[var(--border-subtle)]" />
 
           <button
@@ -1128,7 +1158,6 @@ export default function App() {
 
       {settingsOpen ? (
         <SettingsDialog
-          themePreference={themePreference}
           resolvedTheme={resolvedTheme}
           onThemeChange={setPreference}
           terminalConfig={terminalConfig}

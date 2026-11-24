@@ -17,6 +17,7 @@ interface SessionSidebarProps {
   onSelect: (sessionId: string) => void;
   onRename: (sessionId: string, nextLabel: string) => void;
   onCloseSession: (sessionId: string) => void;
+  onExportLog: (session: SessionView) => void;
   onCreate: (shell?: string) => void;
   onOpenSaved: (id: string) => void;
   onDeleteSaved: (id: string) => void;
@@ -24,7 +25,6 @@ interface SessionSidebarProps {
   onOpenSerial: () => void;
   onOpenSftp: () => void;
   onOpenPalette: () => void;
-  onOpenSettings: () => void;
 }
 
 const KIND_DOT_COLOR: Record<SessionKind, string> = {
@@ -43,6 +43,7 @@ export function SessionSidebar({
   onSelect,
   onRename,
   onCloseSession,
+  onExportLog,
   onCreate,
   onOpenSaved,
   onDeleteSaved,
@@ -50,7 +51,6 @@ export function SessionSidebar({
   onOpenSerial,
   onOpenSftp,
   onOpenPalette,
-  onOpenSettings,
 }: SessionSidebarProps) {
   const { t } = useTranslation();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -112,8 +112,9 @@ export function SessionSidebar({
             <path d="M10.5 10.5L14 14" strokeLinecap="round" />
           </svg>
           <span className="truncate">{t("sidebar.quickFind")}</span>
-          <kbd className="ml-auto rounded border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-1 py-0.5 font-mono text-[9px] text-[var(--text-muted)]">
-            ⌘K
+          <kbd className="ml-auto inline-flex h-5 items-center justify-center gap-[2px] rounded border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-1.5 font-sans text-[10px] leading-none text-[var(--text-muted)]">
+            <span className="text-[11.5px] leading-none">⌘</span>
+            <span className="font-medium leading-none">K</span>
           </kbd>
         </button>
       </div>
@@ -121,13 +122,13 @@ export function SessionSidebar({
       <div className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-3">
         {/* WORKSPACE: active sessions */}
         <section className="mt-2">
-          <div className="flex items-center justify-between px-2 py-1 text-[10px] font-medium tracking-[0.12em] text-[var(--text-muted)] uppercase">
+          <div className="ota-section-label flex items-center justify-between px-2 py-1">
             <span>{t("sidebar.workspace")}</span>
-            <span className="font-mono text-[10px]">{sessions.length}</span>
+            <span className="ota-tabular">{sessions.length}</span>
           </div>
 
           {sessions.length === 0 ? (
-            <p className="px-2 py-2 text-xs leading-relaxed text-[var(--text-muted)]">
+            <p className="px-2 py-2 text-[12px] leading-relaxed text-[var(--text-muted)]">
               {t("sidebar.noSessions")}
             </p>
           ) : (
@@ -152,7 +153,7 @@ export function SessionSidebar({
                             setEditingId(null);
                           }
                         }}
-                        className="ota-input py-1 font-mono text-[11.5px]"
+                        className="ota-input py-1 text-[12.5px]"
                       />
                     ) : (
                       <button
@@ -163,15 +164,15 @@ export function SessionSidebar({
                           event.preventDefault();
                           setContextMenu({
                             x: Math.min(event.clientX, window.innerWidth - 180),
-                            y: Math.min(event.clientY, window.innerHeight - 110),
+                            y: Math.min(event.clientY, window.innerHeight - 130),
                             session,
                           });
                         }}
                         title={t("tabs.renameHint")}
-                        className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition ${
+                        className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] transition ${
                           active
                             ? "bg-[var(--bg-elevated)] font-medium text-[var(--text-primary)]"
-                            : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                            : "font-normal text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
                         }`}
                       >
                         <span
@@ -182,8 +183,8 @@ export function SessionSidebar({
                               : KIND_DOT_COLOR[session.kind],
                           }}
                         />
-                        <span className="truncate font-mono text-[11.5px]">{session.label}</span>
-                        <span className="ml-auto shrink-0 font-mono text-[9.5px] text-[var(--text-muted)] uppercase">
+                        <span className="truncate">{session.label}</span>
+                        <span className="ml-auto shrink-0 text-[11px] font-normal text-[var(--text-muted)]">
                           {t(`sidebar.kinds.${session.kind}`)}
                         </span>
                       </button>
@@ -200,7 +201,7 @@ export function SessionSidebar({
               type="button"
               onClick={() => onCreate()}
               disabled={creating}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
             >
               <svg
                 viewBox="0 0 16 16"
@@ -220,7 +221,7 @@ export function SessionSidebar({
             <button
               type="button"
               onClick={onOpenSsh}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
             >
               <svg
                 viewBox="0 0 16 16"
@@ -238,7 +239,7 @@ export function SessionSidebar({
             <button
               type="button"
               onClick={onOpenSerial}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
             >
               <svg
                 viewBox="0 0 16 16"
@@ -256,7 +257,7 @@ export function SessionSidebar({
             <button
               type="button"
               onClick={onOpenSftp}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
             >
               <svg
                 viewBox="0 0 16 16"
@@ -277,13 +278,13 @@ export function SessionSidebar({
 
         {/* SAVED */}
         <section className="mt-5">
-          <div className="flex items-center justify-between px-2 py-1 text-[10px] font-medium tracking-[0.12em] text-[var(--text-muted)] uppercase">
+          <div className="ota-section-label flex items-center justify-between px-2 py-1">
             <span>{t("sidebar.saved")}</span>
-            {saved.length > 0 ? <span className="font-mono">{saved.length}</span> : null}
+            {saved.length > 0 ? <span className="ota-tabular">{saved.length}</span> : null}
           </div>
 
           {saved.length === 0 ? (
-            <p className="px-2 py-1 text-[11px] leading-relaxed text-[var(--text-muted)]">
+            <p className="px-2 py-1 text-[12px] leading-relaxed text-[var(--text-muted)]">
               {t("sidebar.noSaved")}
             </p>
           ) : (
@@ -293,14 +294,14 @@ export function SessionSidebar({
                   <button
                     type="button"
                     onClick={() => onOpenSaved(entry.id)}
-                    className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                    className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
                   >
                     <span
                       className="h-1.5 w-1.5 shrink-0 rounded-full"
                       style={{ backgroundColor: KIND_DOT_COLOR[entry.kind] }}
                     />
                     <span className="truncate">{entry.name}</span>
-                    <span className="ml-auto font-mono text-[9px] text-[var(--text-muted)] uppercase">
+                    <span className="ml-auto text-[11px] text-[var(--text-muted)]">
                       {t(`sidebar.kinds.${entry.kind}`)}
                     </span>
                   </button>
@@ -320,61 +321,42 @@ export function SessionSidebar({
           )}
         </section>
 
-        {/* STUDIO: extra shells + settings */}
-        <section className="mt-5">
-          <div className="px-2 py-1 text-[10px] font-medium tracking-[0.12em] text-[var(--text-muted)] uppercase">
-            {t("sidebar.studio")}
-          </div>
-          <ul className="mt-0.5 space-y-0.5">
-            {shells
-              .filter((profile) => !profile.default)
-              .map((profile) => (
-                <li key={profile.command}>
-                  <button
-                    type="button"
-                    title={profile.command}
-                    onClick={() => onCreate(profile.command)}
-                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                  >
-                    <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center font-mono text-[11px] text-[var(--text-muted)]">
-                      $
-                    </span>
-                    <span className="truncate">{profile.label}</span>
-                  </button>
-                </li>
-              ))}
-            <li>
-              <button
-                type="button"
-                onClick={onOpenSettings}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                </svg>
-                <span>{t("settings.title")}</span>
-              </button>
-            </li>
-          </ul>
-        </section>
+        {/* Additional shells (only shown when non-default shells are available) */}
+        {shells.some((profile) => !profile.default) ? (
+          <section className="mt-5">
+            <div className="ota-section-label px-2 py-1">
+              {t("sidebar.shells")}
+            </div>
+            <ul className="mt-0.5 space-y-0.5">
+              {shells
+                .filter((profile) => !profile.default)
+                .map((profile) => (
+                  <li key={profile.command}>
+                    <button
+                      type="button"
+                      title={profile.command}
+                      onClick={() => onCreate(profile.command)}
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                    >
+                      <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center font-mono text-[11px] text-[var(--text-muted)]">
+                        $
+                      </span>
+                      <span className="truncate">{profile.label}</span>
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          </section>
+        ) : null}
       </div>
 
-      {/* Bottom honest session overview card (real protocol counts, no decorative fake bar) */}
+      {/* Bottom honest session overview card (real protocol counts, calibrated type scale) */}
       <div className="p-2.5">
         <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3">
-          <div className="flex items-center justify-between text-[10px] tracking-[0.1em] uppercase">
-            <span className="font-medium text-[var(--text-muted)]">{t("sidebar.telemetry")}</span>
+          <div className="flex items-center justify-between">
+            <span className="ota-section-label">{t("sidebar.telemetry")}</span>
             <span
-              className="flex items-center gap-1.5 font-mono"
+              className="flex items-center gap-1.5 text-[11px] font-medium"
               style={{ color: agentRunning ? "var(--accent)" : "var(--status-ok)" }}
             >
               <span
@@ -385,22 +367,28 @@ export function SessionSidebar({
             </span>
           </div>
 
-          <div className="mt-2 grid grid-cols-3 gap-1.5 text-center font-mono">
-            <div className="rounded-md bg-[var(--bg-canvas)] px-1.5 py-1">
-              <div className="text-xs font-semibold text-[var(--text-primary)]">{localCount}</div>
-              <div className="text-[9px] text-[var(--text-muted)] uppercase">
+          <div className="mt-2.5 grid grid-cols-3 gap-1.5 text-center">
+            <div className="rounded-md bg-[var(--bg-canvas)] px-1.5 py-1.5">
+              <div className="ota-tabular text-[14px] font-semibold leading-tight text-[var(--text-primary)]">
+                {localCount}
+              </div>
+              <div className="mt-0.5 text-[11px] text-[var(--text-muted)]">
                 {t("sidebar.kinds.local")}
               </div>
             </div>
-            <div className="rounded-md bg-[var(--bg-canvas)] px-1.5 py-1">
-              <div className="text-xs font-semibold text-[var(--text-primary)]">{sshCount}</div>
-              <div className="text-[9px] text-[var(--text-muted)] uppercase">
+            <div className="rounded-md bg-[var(--bg-canvas)] px-1.5 py-1.5">
+              <div className="ota-tabular text-[14px] font-semibold leading-tight text-[var(--text-primary)]">
+                {sshCount}
+              </div>
+              <div className="mt-0.5 text-[11px] text-[var(--text-muted)]">
                 {t("sidebar.kinds.ssh")}
               </div>
             </div>
-            <div className="rounded-md bg-[var(--bg-canvas)] px-1.5 py-1">
-              <div className="text-xs font-semibold text-[var(--text-primary)]">{serialCount}</div>
-              <div className="text-[9px] text-[var(--text-muted)] uppercase">
+            <div className="rounded-md bg-[var(--bg-canvas)] px-1.5 py-1.5">
+              <div className="ota-tabular text-[14px] font-semibold leading-tight text-[var(--text-primary)]">
+                {serialCount}
+              </div>
+              <div className="mt-0.5 text-[11px] text-[var(--text-muted)]">
                 {t("sidebar.kinds.serial")}
               </div>
             </div>
@@ -429,6 +417,21 @@ export function SessionSidebar({
             </svg>
             <span>{t("tabs.rename")}</span>
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              const target = contextMenu.session;
+              setContextMenu(null);
+              onExportLog(target);
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--text-primary)] transition hover:bg-[var(--bg-hover)]"
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 2.5v7.5M5.2 7.2L8 10l2.8-2.8M3 12.5h10" />
+            </svg>
+            <span>{t("exportLog.menuItem")}</span>
+          </button>
+          <div className="my-1 border-t border-[var(--border-subtle)]" />
           <button
             type="button"
             onClick={() => {

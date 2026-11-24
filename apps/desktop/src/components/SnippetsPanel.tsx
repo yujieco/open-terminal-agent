@@ -151,7 +151,7 @@ export function SnippetsPanel({
             {t("snippets.addShort")}
           </button>
         </div>
-        <p className="mt-1.5 text-[10.5px] leading-relaxed text-[var(--text-muted)]">
+        <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--text-muted)]">
           {t("snippets.pasteHint")}
         </p>
       </div>
@@ -160,13 +160,13 @@ export function SnippetsPanel({
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3.5 py-3">
         {/* Saved personal snippets */}
         <section>
-          <div className="flex items-center justify-between text-[10px] font-semibold tracking-[0.12em] text-[var(--text-muted)] uppercase">
+          <div className="ota-section-label flex items-center justify-between">
             <span>{t("snippets.savedTitle")}</span>
-            <span className="font-mono">{filteredSnippets.length}</span>
+            <span className="ota-tabular">{filteredSnippets.length}</span>
           </div>
 
           {filteredSnippets.length === 0 ? (
-            <div className="mt-2 rounded-lg border border-dashed border-[var(--border-subtle)] px-3 py-3 text-[11px] leading-relaxed text-[var(--text-muted)]">
+            <div className="mt-2 rounded-lg border border-dashed border-[var(--border-subtle)] px-3 py-3 text-[12px] leading-relaxed text-[var(--text-muted)]">
               {snippets.length === 0 ? t("snippets.empty") : t("snippets.noMatch")}
             </div>
           ) : (
@@ -184,10 +184,10 @@ export function SnippetsPanel({
                       title={t("snippets.clickToPaste")}
                       className="flex min-w-0 flex-1 items-center gap-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <span className="truncate text-xs font-medium text-[var(--text-primary)]">
+                      <span className="truncate text-[12.5px] font-medium text-[var(--text-primary)]">
                         {item.alias}
                       </span>
-                      <span className="shrink-0 rounded bg-[var(--bg-elevated)] px-1.5 py-0.5 font-mono text-[9px] text-[var(--text-muted)] uppercase">
+                      <span className="shrink-0 rounded bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[11px] text-[var(--text-muted)]">
                         {t(`snippets.categories.${item.category}`, { defaultValue: item.category })}
                       </span>
                     </button>
@@ -219,13 +219,13 @@ export function SnippetsPanel({
                     type="button"
                     disabled={!hasSession}
                     onClick={() => onPaste(item.command, item.id)}
-                    className="block w-full border-t border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-2.5 py-1.5 text-left font-mono text-[11px] break-all text-[var(--text-secondary)] transition hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="block w-full border-t border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-2.5 py-1.5 text-left font-mono text-[11.5px] break-all text-[var(--text-secondary)] transition hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     $ {item.command}
                   </button>
 
                   {item.description ? (
-                    <p className="border-t border-[var(--border-subtle)] px-2.5 py-1 text-[10.5px] text-[var(--text-muted)]">
+                    <p className="border-t border-[var(--border-subtle)] px-2.5 py-1 text-[11px] text-[var(--text-muted)]">
                       {item.description}
                     </p>
                   ) : null}
@@ -240,10 +240,10 @@ export function SnippetsPanel({
           <button
             type="button"
             onClick={() => setHandbookOpen((open) => !open)}
-            className="flex w-full items-center justify-between text-[10px] font-semibold tracking-[0.12em] text-[var(--text-muted)] uppercase transition hover:text-[var(--text-secondary)]"
+            className="ota-section-label flex w-full items-center justify-between transition hover:text-[var(--text-secondary)]"
           >
             <span>{t("snippets.handbookTitle")}</span>
-            <span className="font-mono">{handbookOpen ? "▾" : "▸"}</span>
+            <span>{handbookOpen ? "▾" : "▸"}</span>
           </button>
 
           {handbookOpen ? (
@@ -260,10 +260,10 @@ export function SnippetsPanel({
                       onClick={() => onPaste(entry.command)}
                       className="flex min-w-0 flex-1 items-center gap-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <span className="truncate text-[11.5px] font-medium text-[var(--text-primary)]">
+                      <span className="truncate text-[12.5px] font-medium text-[var(--text-primary)]">
                         {t(entry.labelKey)}
                       </span>
-                      <span className="shrink-0 rounded bg-[var(--bg-elevated)] px-1.5 py-0.5 font-mono text-[9px] text-[var(--text-muted)] uppercase">
+                      <span className="shrink-0 rounded bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[11px] text-[var(--text-muted)]">
                         {t(`snippets.categories.${entry.category}`)}
                       </span>
                     </button>
@@ -282,7 +282,7 @@ export function SnippetsPanel({
                     type="button"
                     disabled={!hasSession}
                     onClick={() => onPaste(entry.command)}
-                    className="block w-full border-t border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-2.5 py-1 text-left font-mono text-[10.5px] break-all text-[var(--text-muted)] transition hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="block w-full border-t border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-2.5 py-1.5 text-left font-mono text-[11.5px] break-all text-[var(--text-secondary)] transition hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     $ {entry.command}
                   </button>

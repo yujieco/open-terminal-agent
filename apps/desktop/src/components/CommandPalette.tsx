@@ -85,9 +85,13 @@ export function CommandPalette({ backend, onOpenSettings, onClose }: CommandPale
             <button
               type="button"
               onClick={() => setPrompt(placeholderText)}
-              className="ota-ctrl font-mono text-[11px]"
+              title={t("agent.tabAcceptHint")}
+              className="ota-ctrl font-sans"
             >
-              Tab
+              <span className="inline-flex items-center justify-center gap-[3px]">
+                <span className="text-[13px] leading-none">⇥</span>
+                <span className="text-[11px] font-medium leading-none">Tab</span>
+              </span>
             </button>
           ) : null}
         </div>

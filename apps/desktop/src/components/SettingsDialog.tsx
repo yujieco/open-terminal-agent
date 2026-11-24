@@ -17,10 +17,9 @@ import { KnownHosts } from "./KnownHosts";
 import { LlmSettings } from "./LlmSettings";
 import { TerminalThemeSettings } from "./TerminalThemeSettings";
 
-const THEME_OPTIONS: ThemePreference[] = ["system", "light", "dark"];
+const THEME_OPTIONS: ResolvedTheme[] = ["light", "dark"];
 
 interface SettingsDialogProps {
-  themePreference: ThemePreference;
   resolvedTheme: ResolvedTheme;
   onThemeChange: (next: ThemePreference) => void;
   terminalConfig: TerminalAppearanceConfig;
@@ -35,7 +34,6 @@ interface SettingsDialogProps {
 }
 
 export function SettingsDialog({
-  themePreference,
   resolvedTheme,
   onThemeChange,
   terminalConfig,
@@ -97,24 +95,18 @@ export function SettingsDialog({
             <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-muted)]">
               {t("settings.appearanceHint")}
             </p>
-            <div className="mt-2.5 grid grid-cols-3 gap-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-canvas)] p-1">
-              {THEME_OPTIONS.map((option) => {
-                const selected = option === themePreference;
-                return (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => onThemeChange(option)}
-                    className="rounded-md px-2.5 py-1.5 text-xs font-medium transition"
-                    style={{
-                      backgroundColor: selected ? "var(--accent)" : "transparent",
-                      color: selected ? "var(--accent-fg)" : "var(--text-secondary)",
-                    }}
-                  >
-                    {t(`settings.theme.${option}`)}
-                  </button>
-                );
-              })}
+            <div className="ota-segmented mt-2.5 w-full grid-cols-2">
+              {THEME_OPTIONS.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  data-active={option === resolvedTheme}
+                  onClick={() => onThemeChange(option)}
+                  className="ota-segment"
+                >
+                  {t(`settings.theme.${option}`)}
+                </button>
+              ))}
             </div>
           </section>
 
