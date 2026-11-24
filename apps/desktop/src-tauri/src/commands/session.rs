@@ -525,3 +525,278 @@ fn shell_exists(command: &str) -> bool {
         .map(|paths| std::env::split_paths(&paths).any(|dir| dir.join(command).is_file()))
         .unwrap_or(false)
 }
+
+/// Supported terminal session log export formats.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LogExportFormat {
+    /// Clean plain-text `.log` transcript (ANSI stripped).
+    Log,
+    /// Plain `.txt` transcript.
+    Txt,
+    /// Markdown document with metadata header and fenced code block.
+    Md,
+    /// Standalone dark-styled HTML transcript viewable in any browser.
+    Html,
+    /// Structured JSON payload containing metadata and line array.
+    Json,
+}
+
+/// Arguments for [`export_session_log`].
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportLogRequest {
+    /// Active session id to read scrollback + screen from.
+    pub session_id: String,
+    /// Human-readable session label shown in exported metadata.
+    pub label: String,
+    /// Target export format.
+    pub format: LogExportFormat,
+    /// Destination file path on disk (defaults to Downloads folder if omitted).
+    #[serde(default)]
+    pub path: Option<String>,
+    /// Optional lines extracted directly from xterm.js scrollback buffer.
+    #[serde(default)]
+    pub lines: Option<Vec<String>>,
+}
+
+/// Result returned after exporting a session log to disk.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportLogResult {
+    /// Final written path on disk.
+    pub path: String,
+    /// Number of bytes written.
+    pub bytes: usize,
+    /// Number of exported lines.
+    pub lines: usize,
+}
+
+/// Returns the default directory for exported session logs (Downloads -> Home -> `.`).
+#[tauri::command]
+pub fn default_export_dir(app: AppHandle) -> String {
+    use tauri::Manager as _;
+    app.path()
+        .download_dir()
+        .or_else(|_| app.path().home_dir())
+        .map(|dir| dir.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| String::from("."))
+}
+
+/// Exports a terminal session's scrollback & screen contents in the chosen format.
+#[tauri::command]
+pub async fn export_session_log(
+    app: AppHandle,
+    registry: State<'_, SessionRegistry>,
+    request: ExportLogRequest,
+) -> Result<ExportLogResult, ApiError> {
+    let lines = match request.lines {
+        Some(provided) if !provided.is_empty() => provided,
+        _ => {
+            let handle = registry.require(&request.session_id)?;
+            let mut screen = handle.screen.lock().await;
+            let snap = screen.snapshot();
+            let mut combined = snap.scrollback;
+            combined.extend(snap.lines);
+            while combined
+                .last()
+                .map(|line| line.trim().is_empty())
+                .unwrap_or(false)
+            {
+                combined.pop();
+            }
+            combined
+        }
+    };
+
+    let exported_at = unix_timestamp_iso_utc();
+    let content = format_session_log(&request.label, request.format, &exported_at, &lines);
+
+    let dest = match request.path.filter(|value| !value.trim().is_empty()) {
+        Some(raw) => std::path::PathBuf::from(raw.trim()),
+        None => {
+            let dir = std::path::PathBuf::from(default_export_dir(app));
+            let safe_label = sanitize_filename(&request.label);
+            let stamp = compact_timestamp();
+            let ext = match request.format {
+                LogExportFormat::Log => "log",
+                LogExportFormat::Txt => "txt",
+                LogExportFormat::Md => "md",
+                LogExportFormat::Html => "html",
+                LogExportFormat::Json => "json",
+            };
+            dir.join(format!("{safe_label}-{stamp}.{ext}"))
+        }
+    };
+
+    if let Some(parent) = dest.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        tokio::fs::create_dir_all(parent).await.map_err(|error| {
+            ApiError::InvalidRequest(format!("could not create export directory: {error}"))
+        })?;
+    }
+
+    let bytes = content.len();
+    tokio::fs::write(&dest, content.as_bytes())
+        .await
+        .map_err(|error| ApiError::InvalidRequest(format!("could not write log file: {error}")))?;
+
+    Ok(ExportLogResult {
+        path: dest.to_string_lossy().into_owned(),
+        bytes,
+        lines: lines.len(),
+    })
+}
+
+/// Reveals an exported file in the native OS file manager.
+#[tauri::command]
+pub fn reveal_in_folder(path: String) -> Result<(), ApiError> {
+    let target = std::path::Path::new(path.trim());
+    if !target.exists() {
+        return Err(ApiError::InvalidRequest(String::from(
+            "exported file does not exist",
+        )));
+    }
+
+    #[cfg(target_os = "macos")]
+    let status = std::process::Command::new("open")
+        .args(["-R", path.trim()])
+        .status();
+
+    #[cfg(target_os = "windows")]
+    let status = std::process::Command::new("explorer")
+        .arg(format!("/select,{}", path.trim()))
+        .status();
+
+    #[cfg(target_os = "linux")]
+    let status = {
+        let dir = target.parent().unwrap_or(target);
+        std::process::Command::new("xdg-open").arg(dir).status()
+    };
+
+    status.map_err(|error| ApiError::InvalidRequest(format!("could not reveal file: {error}")))?;
+    Ok(())
+}
+
+/// Formats terminal lines into the requested export representation.
+pub fn format_session_log(
+    label: &str,
+    format: LogExportFormat,
+    exported_at: &str,
+    lines: &[String],
+) -> String {
+    match format {
+        LogExportFormat::Log | LogExportFormat::Txt => {
+            let mut body = lines.join("\n");
+            if !body.ends_with('\n') {
+                body.push('\n');
+            }
+            body
+        }
+        LogExportFormat::Md => {
+            let body = lines.join("\n");
+            format!(
+                "# Terminal Session Log: {label}\n\n- **Exported at:** {exported_at}\n- **Lines:** {}\n\n```text\n{body}\n```\n",
+                lines.len()
+            )
+        }
+        LogExportFormat::Html => {
+            let escaped_title = escape_html(label);
+            let escaped_date = escape_html(exported_at);
+            let escaped_body = escape_html(&lines.join("\n"));
+            format!(
+                "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\" />\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n<title>{escaped_title} — Terminal Log</title>\n<style>\n  body {{ margin: 0; padding: 28px; background: #0e0f12; color: #eceef2; font-family: -apple-system, BlinkMacSystemFont, \"Inter\", sans-serif; }}\n  .meta {{ color: #989da8; font-size: 12px; margin-bottom: 16px; }}\n  h1 {{ font-size: 16px; margin: 0 0 6px; font-weight: 600; }}\n  pre {{ margin: 0; padding: 18px; border-radius: 10px; background: #14161c; border: 1px solid #242731; overflow-x: auto; font-family: \"JetBrains Mono\", \"Menlo\", \"Consolas\", monospace; font-size: 12.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }}\n</style>\n</head>\n<body>\n  <h1>{escaped_title}</h1>\n  <div class=\"meta\">Exported at {escaped_date} · {} lines</div>\n  <pre>{escaped_body}</pre>\n</body>\n</html>\n",
+                lines.len()
+            )
+        }
+        LogExportFormat::Json => {
+            let payload = serde_json::json!({
+                "session": label,
+                "exportedAt": exported_at,
+                "lineCount": lines.len(),
+                "lines": lines,
+            });
+            serde_json::to_string_pretty(&payload).unwrap_or_else(|_| String::from("{}")) + "\n"
+        }
+    }
+}
+
+fn escape_html(raw: &str) -> String {
+    let mut out = String::with_capacity(raw.len());
+    for ch in raw.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&#39;"),
+            other => out.push(other),
+        }
+    }
+    out
+}
+
+fn sanitize_filename(raw: &str) -> String {
+    let cleaned: String = raw
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+                ch
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    let trimmed = cleaned.trim_matches('-');
+    if trimmed.is_empty() {
+        String::from("terminal")
+    } else {
+        trimmed.chars().take(48).collect()
+    }
+}
+
+fn unix_timestamp_iso_utc() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0);
+    format!("unix:{secs}")
+}
+
+fn compact_timestamp() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0);
+    secs.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn formats_session_logs_across_all_mainstream_formats() {
+        let lines = vec![
+            String::from("user@host:~$ echo '<ok>' & done"),
+            String::from("<ok>"),
+        ];
+
+        let log = format_session_log("prod-ssh", LogExportFormat::Log, "2026-11-25", &lines);
+        assert_eq!(log, "user@host:~$ echo '<ok>' & done\n<ok>\n");
+
+        let md = format_session_log("prod-ssh", LogExportFormat::Md, "2026-11-25", &lines);
+        assert!(md.contains("# Terminal Session Log: prod-ssh"));
+        assert!(md.contains("```text"));
+
+        let html = format_session_log("prod-ssh", LogExportFormat::Html, "2026-11-25", &lines);
+        assert!(html.contains("&lt;ok&gt;"));
+        assert!(html.contains("&amp; done"));
+
+        let json_str = format_session_log("prod-ssh", LogExportFormat::Json, "2026-11-25", &lines);
+        let parsed: serde_json::Value = serde_json::from_str(&json_str).expect("valid json");
+        assert_eq!(parsed["session"], "prod-ssh");
+        assert_eq!(parsed["lineCount"], 2);
+    }
+}

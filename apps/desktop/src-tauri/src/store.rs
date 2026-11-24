@@ -517,6 +517,26 @@ impl Store {
         }
     }
 
+    /// Deletes one stored agent run by id, returning whether a row was removed.
+    pub fn delete_agent_run(&self, id: &str) -> Result<bool, StoreError> {
+        let removed = self
+            .lock()?
+            .execute("DELETE FROM agent_runs WHERE id = ?1", params![id])?;
+        Ok(removed > 0)
+    }
+
+    /// Clears stored agent runs, optionally scoped to one `session_id`.
+    pub fn clear_agent_runs(&self, session_id: Option<&str>) -> Result<usize, StoreError> {
+        let connection = self.lock()?;
+        let removed = match session_id {
+            Some(id) => {
+                connection.execute("DELETE FROM agent_runs WHERE session_id = ?1", params![id])?
+            }
+            None => connection.execute("DELETE FROM agent_runs", [])?,
+        };
+        Ok(removed)
+    }
+
     /// Reads one settings value.
     pub fn setting(&self, key: &str) -> Result<Option<String>, StoreError> {
         let connection = self.lock()?;
@@ -837,6 +857,38 @@ mod tests {
             .expect("exists");
         assert_eq!(loaded.events[0]["type"], "runStarted");
         assert_eq!(loaded.task, "看看目录");
+
+        assert!(store.delete_agent_run(&saved.id).expect("delete"));
+        assert!(store.list_agent_runs(None, 10).expect("list").is_empty());
+
+        store
+            .save_agent_run(NewAgentRun {
+                session_id: String::from("s1"),
+                task: String::from("df -h"),
+                mode: String::from("supervised"),
+                model: String::from("deepseek-chat"),
+                status: String::from("completed"),
+                commands: 1,
+                started_at: 10,
+                finished_at: 20,
+                events: json!([]),
+            })
+            .expect("record 1");
+        store
+            .save_agent_run(NewAgentRun {
+                session_id: String::from("s2"),
+                task: String::from("uptime"),
+                mode: String::from("supervised"),
+                model: String::from("deepseek-chat"),
+                status: String::from("completed"),
+                commands: 1,
+                started_at: 30,
+                finished_at: 40,
+                events: json!([]),
+            })
+            .expect("record 2");
+        assert_eq!(store.clear_agent_runs(None).expect("clear"), 2);
+        assert!(store.list_agent_runs(None, 10).expect("empty").is_empty());
     }
 
     #[test]

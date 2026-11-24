@@ -298,6 +298,21 @@ pub fn get_agent_run(
     Ok(store.get_agent_run(&id)?)
 }
 
+/// Deletes a single stored agent run from history.
+#[tauri::command]
+pub fn delete_agent_run(store: State<'_, Store>, id: String) -> Result<bool, ApiError> {
+    Ok(store.delete_agent_run(&id)?)
+}
+
+/// Clears stored agent runs (all, or for a single session when `session_id` is given).
+#[tauri::command]
+pub fn clear_agent_runs(
+    store: State<'_, Store>,
+    session_id: Option<String>,
+) -> Result<usize, ApiError> {
+    Ok(store.clear_agent_runs(session_id.as_deref())?)
+}
+
 /// System prompt for the command palette: one shell line, nothing else.
 const SUGGEST_PROMPT: &str = "You write one POSIX shell command for the user's request. Reply with the command only, on a single line, inside a sh code fence. No explanation, no prompt symbol, no comments. If the request is ambiguous, pick the least destructive reading.";
 
