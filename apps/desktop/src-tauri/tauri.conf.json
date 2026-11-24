@@ -29,6 +29,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [
       "icons/32x32.png",
@@ -38,5 +39,13 @@
       "icons/icon.ico",
       "icons/icon.png"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg1MkNBQzE5RDI2MTI5MzQKUldRMEtXSFNHYXdzaFoycmYrbGtpTksyNFJTUnRBems5R3RxcTJuakNNMER3NDhKbWhYOFNJamgK",
+      "endpoints": [
+        "https://github.com/yujieco/open-terminal-agent/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

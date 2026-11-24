@@ -1,20 +1,24 @@
 // Copyright 2026 yujieco
 // SPDX-License-Identifier: Apache-2.0
 
-//! Lightweight GitHub Releases update checker.
+//! In-app signed updater (`tauri-plugin-updater`) with GitHub Releases API fallback.
 //!
-//! Compares the running crate version (`CARGO_PKG_VERSION`) against the latest
-//! GitHub Release tag for `yujieco/open-terminal-agent`. Set
-//! `OTA_UPDATE_API_URL` in the environment to point at a local mock endpoint
-//! when testing update prompts locally.
+//! In production, checks the signed `latest.json` manifest published on GitHub
+//! Releases, downloads and verifies the Ed25519 signature in-app with live
+//! progress events, atomically installs the bundle, and restarts the app.
+//!
+//! When no signed `latest.json` is published yet (or when `OTA_UPDATE_API_URL`
+//! is set for local mock testing), falls back cleanly to comparing SemVer tags
+//! against the GitHub Releases REST API.
 
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
+use tauri::ipc::Channel;
 
 use crate::error::ApiError;
 
-/// Default GitHub Releases API endpoint.
+/// Default GitHub Releases API endpoint (fallback metadata source).
 pub const DEFAULT_RELEASES_API: &str =
     "https://api.github.com/repos/yujieco/open-terminal-agent/releases/latest";
 
@@ -30,18 +34,38 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(8);
 pub struct UpdateInfo {
     /// Version of the running app.
     pub current_version: String,
-    /// Latest version reported by GitHub Releases.
+    /// Latest version reported by the updater manifest or GitHub Releases.
     pub latest_version: String,
     /// True when `latest_version` is strictly newer than `current_version`.
     pub available: bool,
-    /// Release web page URL to open when the user clicks to update.
+    /// True when a signed in-app update package (`latest.json`) can be downloaded
+    /// and installed automatically without opening a browser.
+    pub can_auto_install: bool,
+    /// Release web page URL as fallback or for viewing release notes on GitHub.
     pub release_url: String,
-    /// Release title from GitHub.
+    /// Release title.
     pub release_name: String,
     /// Markdown release notes body (trimmed).
     pub notes: String,
     /// ISO-8601 publication timestamp, if provided.
     pub published_at: Option<String>,
+}
+
+/// Real-time progress events emitted during an in-app update install.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "event", rename_all = "camelCase")]
+pub enum UpdateDownloadEvent {
+    /// Download started with optional total byte length.
+    Started {
+        #[serde(rename = "contentLength")]
+        content_length: Option<u64>,
+    },
+    /// Incremental progress update.
+    Progress { downloaded: u64, total: Option<u64> },
+    /// Download complete; verifying Ed25519 signature and replacing app bundle.
+    Installing,
+    /// Installation complete; app is restarting into the new version.
+    Restarting,
 }
 
 #[derive(Debug, Deserialize)]
@@ -57,15 +81,163 @@ struct GithubRelease {
     published_at: Option<String>,
 }
 
-/// Checks GitHub Releases (or `OTA_UPDATE_API_URL` if set) for a newer release.
-#[tauri::command]
-pub async fn check_for_updates() -> Result<UpdateInfo, ApiError> {
-    let endpoint = std::env::var("OTA_UPDATE_API_URL")
-        .ok()
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| DEFAULT_RELEASES_API.to_owned());
+#[cfg(desktop)]
+fn build_updater(app: &tauri::AppHandle) -> Result<tauri_plugin_updater::Updater, ApiError> {
+    use tauri_plugin_updater::UpdaterExt as _;
 
-    check_update_from_url(&endpoint, env!("CARGO_PKG_VERSION")).await
+    let mut builder = app.updater_builder();
+    if let Ok(raw) = std::env::var("OTA_UPDATER_ENDPOINT") {
+        let trimmed = raw.trim();
+        if !trimmed.is_empty() {
+            let parsed = tauri::Url::parse(trimmed).map_err(|error| {
+                ApiError::InvalidRequest(format!("invalid OTA_UPDATER_ENDPOINT: {error}"))
+            })?;
+            builder = builder.endpoints(vec![parsed]).map_err(|error| {
+                ApiError::InvalidRequest(format!("could not set updater endpoint: {error}"))
+            })?;
+        }
+    }
+
+    builder
+        .build()
+        .map_err(|error| ApiError::InvalidRequest(format!("could not build updater: {error}")))
+}
+
+#[cfg(desktop)]
+async fn check_with_tauri_updater(app: &tauri::AppHandle) -> Result<Option<UpdateInfo>, ApiError> {
+    let updater = build_updater(app)?;
+    let maybe_update = updater
+        .check()
+        .await
+        .map_err(|error| ApiError::InvalidRequest(format!("updater check failed: {error}")))?;
+
+    Ok(maybe_update.map(|update| {
+        let latest = normalize_version(&update.version).to_owned();
+        let current = normalize_version(&update.current_version).to_owned();
+        UpdateInfo {
+            current_version: current,
+            latest_version: latest.clone(),
+            available: true,
+            can_auto_install: true,
+            release_url: format!(
+                "https://github.com/yujieco/open-terminal-agent/releases/tag/v{latest}"
+            ),
+            release_name: format!("Open Terminal Agent v{latest}"),
+            notes: update.body.unwrap_or_default().trim().to_owned(),
+            published_at: update.date.map(|date| date.to_string()),
+        }
+    }))
+}
+
+/// Checks for updates: prefers the signed Tauri updater (`latest.json`), and
+/// falls back to the GitHub Releases REST API when no signed manifest exists yet
+/// or when `OTA_UPDATE_API_URL` is configured for local testing.
+#[tauri::command]
+pub async fn check_for_updates(app: tauri::AppHandle) -> Result<UpdateInfo, ApiError> {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let current = env!("CARGO_PKG_VERSION");
+
+    // Explicit mock GitHub REST API override (local testing).
+    if let Ok(override_api) = std::env::var("OTA_UPDATE_API_URL") {
+        let trimmed = override_api.trim();
+        if !trimmed.is_empty() {
+            return check_update_from_url(trimmed, current).await;
+        }
+    }
+
+    #[cfg(desktop)]
+    {
+        match check_with_tauri_updater(&app).await {
+            Ok(Some(info)) => return Ok(info),
+            Ok(None) => {
+                // Signed manifest was reachable and confirmed we are up-to-date.
+                return Ok(UpdateInfo {
+                    current_version: normalize_version(current).to_owned(),
+                    latest_version: normalize_version(current).to_owned(),
+                    available: false,
+                    can_auto_install: true,
+                    release_url: DEFAULT_RELEASES_PAGE.to_owned(),
+                    release_name: String::new(),
+                    notes: String::new(),
+                    published_at: None,
+                });
+            }
+            Err(error) => {
+                tracing::debug!(
+                    "signed updater manifest unavailable, falling back to GitHub API: {error}"
+                );
+            }
+        }
+    }
+
+    let _ = app;
+    check_update_from_url(DEFAULT_RELEASES_API, current).await
+}
+
+/// Downloads the signed update bundle in-app, streams progress over `on_event`,
+/// verifies the Ed25519 signature, installs atomically, and restarts the app.
+#[tauri::command]
+pub async fn install_and_relaunch_update(
+    app: tauri::AppHandle,
+    on_event: Channel<UpdateDownloadEvent>,
+) -> Result<(), ApiError> {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
+    #[cfg(desktop)]
+    {
+        let updater = build_updater(&app)?;
+        let Some(update) = updater
+            .check()
+            .await
+            .map_err(|error| ApiError::InvalidRequest(format!("update check failed: {error}")))?
+        else {
+            return Err(ApiError::InvalidRequest(String::from(
+                "no signed update package is currently available for this platform",
+            )));
+        };
+
+        let mut started = false;
+        let mut downloaded: u64 = 0;
+
+        let progress_channel = on_event.clone();
+        let finish_channel = on_event.clone();
+
+        update
+            .download_and_install(
+                move |chunk_len, content_length| {
+                    if !started {
+                        started = true;
+                        let _ =
+                            progress_channel.send(UpdateDownloadEvent::Started { content_length });
+                    }
+                    downloaded = downloaded.saturating_add(chunk_len as u64);
+                    let _ = progress_channel.send(UpdateDownloadEvent::Progress {
+                        downloaded,
+                        total: content_length,
+                    });
+                },
+                move || {
+                    let _ = finish_channel.send(UpdateDownloadEvent::Installing);
+                },
+            )
+            .await
+            .map_err(|error| {
+                ApiError::InvalidRequest(format!("failed to download or verify update: {error}"))
+            })?;
+
+        let _ = on_event.send(UpdateDownloadEvent::Restarting);
+        // Brief pause so the WebView paints the "Restarting..." state before exec.
+        tokio::time::sleep(Duration::from_millis(260)).await;
+        app.restart();
+    }
+
+    #[cfg(not(desktop))]
+    {
+        let _ = (app, on_event);
+        Err(ApiError::InvalidRequest(String::from(
+            "in-app updates are only supported on desktop builds",
+        )))
+    }
 }
 
 /// Opens an `http://` or `https://` URL in the OS default browser.
@@ -116,6 +288,7 @@ pub async fn check_update_from_url(
             current_version: normalize_version(current_version).to_owned(),
             latest_version: normalize_version(current_version).to_owned(),
             available: false,
+            can_auto_install: false,
             release_url: DEFAULT_RELEASES_PAGE.to_owned(),
             release_name: String::new(),
             notes: String::new(),
@@ -143,6 +316,7 @@ pub async fn check_update_from_url(
         current_version: current,
         latest_version: latest.clone(),
         available,
+        can_auto_install: false,
         release_url: release
             .html_url
             .filter(|url| !url.trim().is_empty())
@@ -256,6 +430,7 @@ mod tests {
         server.await.expect("server");
 
         assert!(info.available);
+        assert!(!info.can_auto_install);
         assert_eq!(info.current_version, "0.1.0");
         assert_eq!(info.latest_version, "0.2.0");
         assert_eq!(info.release_name, "Open Terminal Agent v0.2.0");

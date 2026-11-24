@@ -32,3 +32,7 @@ term-core.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-process.workspace = true
+tauri-plugin-updater.workspace = true

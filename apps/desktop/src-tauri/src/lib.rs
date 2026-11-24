@@ -18,7 +18,14 @@ pub use error::ApiError;
 
 /// Starts the Tauri application.
 pub fn run() {
-    let builder = tauri::Builder::default()
+    let builder = tauri::Builder::default();
+
+    #[cfg(desktop)]
+    let builder = builder
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build());
+
+    let builder = builder
         .manage(state::SessionRegistry::default())
         .manage(state::SftpRegistry::default())
         .manage(secrets::SecretStore::new())
@@ -82,6 +89,7 @@ pub fn run() {
             commands::agent::list_agent_runs,
             commands::agent::get_agent_run,
             updater::check_for_updates,
+            updater::install_and_relaunch_update,
             updater::open_external_url,
         ]);
 

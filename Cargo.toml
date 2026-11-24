@@ -57,6 +57,8 @@ sys-locale = "0.3"
 # Desktop shell
 tauri = { version = "2.12", features = [] }
 tauri-build = { version = "2.7", features = [] }
+tauri-plugin-process = "2"
+tauri-plugin-updater = "2"
 
 [profile.dev]
 incremental = true
