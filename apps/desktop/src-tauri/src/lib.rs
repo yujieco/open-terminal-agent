@@ -16,6 +16,56 @@ mod updater;
 
 pub use error::ApiError;
 
+use std::fs;
+use std::path::{Path, PathBuf};
+
+/// Folder name inside the platform config root (e.g.
+/// `~/Library/Application Support/EnaviloOTA` on macOS, `%APPDATA%\EnaviloOTA`
+/// on Windows, `~/.config/EnaviloOTA` on Linux).
+const CONFIG_DIR_NAME: &str = "EnaviloOTA";
+
+/// Legacy config folder name from v0.1.0–v0.1.4 kept for one-time migration.
+const LEGACY_CONFIG_DIR_NAME: &str = "co.yujie.open-terminal-agent";
+
+/// Resolves the app's persistent config directory (`<config_root>/EnaviloOTA`)
+/// and performs a non-destructive one-time copy of `sessions.db` from the
+/// legacy `co.yujie.open-terminal-agent` folder when present.
+fn resolve_config_dir(app: &tauri::App) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    use tauri::Manager as _;
+
+    if let Ok(config_root) = app.path().config_dir() {
+        let target = config_root.join(CONFIG_DIR_NAME);
+        let legacy = config_root.join(LEGACY_CONFIG_DIR_NAME);
+        if let Err(error) = migrate_legacy_database(&target, &legacy) {
+            eprintln!("EnaviloOTA legacy database migration skipped: {error}");
+        }
+        return Ok(target);
+    }
+
+    app.path()
+        .app_config_dir()
+        .map_err(|error| -> Box<dyn std::error::Error> { Box::new(error) })
+}
+
+/// Copies `sessions.db` (and SQLite WAL/SHM sidecars if present) from
+/// `legacy_dir` into `target_dir` when `target_dir/sessions.db` does not exist.
+fn migrate_legacy_database(target_dir: &Path, legacy_dir: &Path) -> std::io::Result<bool> {
+    let target_db = target_dir.join("sessions.db");
+    let legacy_db = legacy_dir.join("sessions.db");
+    if target_db.exists() || !legacy_db.is_file() {
+        return Ok(false);
+    }
+
+    fs::create_dir_all(target_dir)?;
+    for name in ["sessions.db", "sessions.db-wal", "sessions.db-shm"] {
+        let src = legacy_dir.join(name);
+        if src.is_file() {
+            fs::copy(&src, target_dir.join(name))?;
+        }
+    }
+    Ok(true)
+}
+
 /// Starts the Tauri application.
 pub fn run() {
     let builder = tauri::Builder::default();
@@ -33,10 +83,7 @@ pub fn run() {
         .manage(std::sync::Arc::new(agent::AgentControl::default()))
         .setup(|app| {
             use tauri::Manager as _;
-            let directory = app
-                .path()
-                .app_config_dir()
-                .map_err(|error| -> Box<dyn std::error::Error> { Box::new(error) })?;
+            let directory = resolve_config_dir(app)?;
             let store = store::Store::open(&directory.join("sessions.db"))
                 .map_err(|error| -> Box<dyn std::error::Error> { Box::new(error) })?;
             let shell_integration = shell_integration::ShellIntegration::init(&directory)
@@ -107,5 +154,69 @@ pub fn run() {
 
     if let Err(error) = builder.run(tauri::generate_context!()) {
         eprintln!("open-terminal-agent exited with an error: {error}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn unique_temp_dir(label: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let dir = std::env::temp_dir().join(format!(
+            "enavilo-ota-test-{label}-{}-{nanos}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&dir).expect("create temp test dir");
+        dir
+    }
+
+    #[test]
+    fn migrates_legacy_sessions_db_and_sidecars_once() {
+        let root = unique_temp_dir("migrate");
+        let legacy = root.join(LEGACY_CONFIG_DIR_NAME);
+        let target = root.join(CONFIG_DIR_NAME);
+        fs::create_dir_all(&legacy).expect("create legacy dir");
+        fs::write(legacy.join("sessions.db"), b"sqlite-main").expect("write db");
+        fs::write(legacy.join("sessions.db-wal"), b"sqlite-wal").expect("write wal");
+
+        let migrated = migrate_legacy_database(&target, &legacy).expect("migrate");
+        assert!(migrated);
+        assert_eq!(
+            fs::read(target.join("sessions.db")).expect("read target db"),
+            b"sqlite-main"
+        );
+        assert_eq!(
+            fs::read(target.join("sessions.db-wal")).expect("read target wal"),
+            b"sqlite-wal"
+        );
+
+        // Subsequent runs must not overwrite the new database.
+        fs::write(target.join("sessions.db"), b"updated-new").expect("overwrite new db");
+        let migrated_again = migrate_legacy_database(&target, &legacy).expect("second check");
+        assert!(!migrated_again);
+        assert_eq!(
+            fs::read(target.join("sessions.db")).expect("read preserved db"),
+            b"updated-new"
+        );
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn migration_is_noop_without_legacy_database() {
+        let root = unique_temp_dir("noop");
+        let legacy = root.join(LEGACY_CONFIG_DIR_NAME);
+        let target = root.join(CONFIG_DIR_NAME);
+
+        let migrated = migrate_legacy_database(&target, &legacy).expect("noop");
+        assert!(!migrated);
+        assert!(!target.exists());
+
+        let _ = fs::remove_dir_all(&root);
     }
 }

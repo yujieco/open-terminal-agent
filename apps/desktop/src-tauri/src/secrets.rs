@@ -10,7 +10,10 @@
 use crate::error::ApiError;
 
 /// Service name all entries are filed under.
-const SERVICE: &str = "co.yujie.open-terminal-agent";
+const SERVICE: &str = "EnaviloOTA";
+
+/// Previous service name kept for seamless one-time read migration.
+const LEGACY_SERVICE: &str = "co.yujie.open-terminal-agent";
 
 /// Credential slot in the OS keyring.
 pub struct SecretStore;
@@ -30,24 +33,47 @@ impl SecretStore {
     }
 
     /// Reads a secret, returning `None` when no entry exists.
+    ///
+    /// When an entry is not yet present under [`SERVICE`], falls back once to
+    /// [`LEGACY_SERVICE`] and migrates any discovered secret forward.
     pub fn get(&self, account: &str) -> Result<Option<String>, ApiError> {
         let entry = keyring::Entry::new(SERVICE, account)
             .map_err(|error| ApiError::Secret(error.to_string()))?;
         match entry.get_password() {
             Ok(secret) => Ok(Some(secret)),
-            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(keyring::Error::NoEntry) => self.read_and_migrate_legacy(account),
             Err(error) => Err(ApiError::Secret(error.to_string())),
         }
     }
 
-    /// Deletes a secret, ignoring a missing entry.
+    /// Deletes a secret from both current and legacy namespaces, ignoring
+    /// missing entries.
     pub fn delete(&self, account: &str) -> Result<(), ApiError> {
         let entry = keyring::Entry::new(SERVICE, account)
             .map_err(|error| ApiError::Secret(error.to_string()))?;
         match entry.delete_credential() {
-            Ok(()) => Ok(()),
-            Err(keyring::Error::NoEntry) => Ok(()),
-            Err(error) => Err(ApiError::Secret(error.to_string())),
+            Ok(()) | Err(keyring::Error::NoEntry) => {}
+            Err(error) => return Err(ApiError::Secret(error.to_string())),
+        }
+        if let Ok(legacy) = keyring::Entry::new(LEGACY_SERVICE, account) {
+            let _ = legacy.delete_credential();
+        }
+        Ok(())
+    }
+
+    fn read_and_migrate_legacy(&self, account: &str) -> Result<Option<String>, ApiError> {
+        let Ok(legacy) = keyring::Entry::new(LEGACY_SERVICE, account) else {
+            return Ok(None);
+        };
+        match legacy.get_password() {
+            Ok(secret) => {
+                // Best-effort copy into the new namespace so subsequent reads
+                // stay inside `EnaviloOTA`.
+                let _ = self.set(account, &secret);
+                Ok(Some(secret))
+            }
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(_) => Ok(None),
         }
     }
 }

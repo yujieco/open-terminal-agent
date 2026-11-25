@@ -1,4 +1,4 @@
-package co.yujie.open_terminal_agent
+package com.enavilo.app.ota
 
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge

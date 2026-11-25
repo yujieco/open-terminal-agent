@@ -16,10 +16,10 @@ val tauriProperties = Properties().apply {
 
 android {
     compileSdk = 37
-    namespace = "co.yujie.open_terminal_agent"
+    namespace = "com.enavilo.app.ota"
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
-        applicationId = "co.yujie.open_terminal_agent"
+        applicationId = "com.enavilo.app.ota"
         minSdk = 24
         targetSdk = 37
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
