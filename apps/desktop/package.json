@@ -1,7 +1,7 @@
 {
   "name": "open-terminal-agent",
   "private": true,
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Open-source, cross-platform AI-native terminal emulator and autonomous terminal agent",
   "license": "Apache-2.0",
   "type": "module",
