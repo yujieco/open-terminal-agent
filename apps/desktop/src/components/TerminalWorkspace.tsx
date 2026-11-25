@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ResolvedTheme } from "../hooks/useTheme";
+import { formatShortcut, isMac } from "../lib/platform";
 import type { TerminalAppearanceConfig } from "../lib/terminalThemes";
 import type { SessionView, TabView } from "../types";
 import { PaneTree } from "./PaneTree";
@@ -105,7 +106,7 @@ export function TerminalWorkspace({
 
           <button
             type="button"
-            title={t("tabs.splitHorizontal")}
+            title={t("tabs.splitHorizontal", { shortcut: formatShortcut("D") })}
             onClick={() => onSplit("row")}
             className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-[var(--text-muted)] transition hover:border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
           >
@@ -117,7 +118,7 @@ export function TerminalWorkspace({
 
           <button
             type="button"
-            title={t("tabs.splitVertical")}
+            title={t("tabs.splitVertical", { shortcut: formatShortcut("D", true) })}
             onClick={() => onSplit("column")}
             className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-[var(--text-muted)] transition hover:border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
           >
@@ -185,8 +186,10 @@ export function TerminalWorkspace({
               title={t("agent.tabAcceptHint")}
               className="ota-ctrl hidden font-sans sm:inline-flex"
             >
-              <span className="inline-flex items-center justify-center gap-[3px]">
-                <span className="text-[13px] leading-none">⇥</span>
+              <span className="inline-flex items-center justify-center gap-1">
+                <svg viewBox="0 0 16 16" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M2.5 8h8M7.8 5l3 3-3 3M13 4.2v7.6" />
+                </svg>
                 <span className="text-[11px] font-medium leading-none">Tab</span>
               </span>
             </button>
@@ -198,8 +201,14 @@ export function TerminalWorkspace({
             className="ota-ctrl hidden font-sans sm:inline-flex"
           >
             <span className="inline-flex items-center justify-center gap-[3px]">
-              <span className="text-[13px] leading-none">⌘</span>
-              <span className="text-[11px] font-medium leading-none">K</span>
+              {isMac ? (
+                <>
+                  <span className="text-[13px] leading-none">⌘</span>
+                  <span className="text-[11px] font-medium leading-none">K</span>
+                </>
+              ) : (
+                <span className="text-[11px] font-medium leading-none">Ctrl+K</span>
+              )}
             </span>
           </button>
 

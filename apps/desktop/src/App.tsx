@@ -40,6 +40,7 @@ import {
 } from "./lib/ipc";
 import { resolveLanguage } from "./lib/locale";
 import { leaf, remove, sessionIds, split } from "./lib/panes";
+import { formatShortcut } from "./lib/platform";
 import type { PermissionMode, SessionView, TabView } from "./types";
 
 const DEFAULT_COLS = 100;
@@ -1077,7 +1078,7 @@ export default function App() {
               <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
               <path d="M8 2.5V13.5" />
             </svg>
-            <span>{t("tabs.splitHorizontal")}</span>
+            <span>{t("tabs.splitHorizontal", { shortcut: formatShortcut("D") })}</span>
           </button>
 
           <button
@@ -1093,7 +1094,7 @@ export default function App() {
               <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
               <path d="M2 8H14" />
             </svg>
-            <span>{t("tabs.splitVertical")}</span>
+            <span>{t("tabs.splitVertical", { shortcut: formatShortcut("D", true) })}</span>
           </button>
 
           <button

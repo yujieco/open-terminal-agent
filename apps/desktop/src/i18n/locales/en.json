@@ -36,8 +36,8 @@
     "closeOthers": "Close other tabs",
     "rename": "Rename tab",
     "renameHint": "Double-click or right-click to rename",
-    "splitHorizontal": "Split right (⌘D)",
-    "splitVertical": "Split down (⇧⌘D)"
+    "splitHorizontal": "Split right ({{shortcut}})",
+    "splitVertical": "Split down ({{shortcut}})"
   },
   "terminal": {
     "empty": "Start a local terminal from the sidebar to begin.",

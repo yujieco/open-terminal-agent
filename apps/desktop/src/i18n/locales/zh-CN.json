@@ -36,8 +36,8 @@
     "closeOthers": "关闭其他标签",
     "rename": "重命名标签",
     "renameHint": "双击或右键重命名",
-    "splitHorizontal": "向右分屏 (⌘D)",
-    "splitVertical": "向下分屏 (⇧⌘D)"
+    "splitHorizontal": "向右分屏 ({{shortcut}})",
+    "splitVertical": "向下分屏 ({{shortcut}})"
   },
   "terminal": {
     "empty": "点击左侧「新建本地终端」开始。",

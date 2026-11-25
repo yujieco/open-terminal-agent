@@ -36,8 +36,8 @@
     "closeOthers": "關閉其他分頁",
     "rename": "重新命名分頁",
     "renameHint": "雙擊或右鍵重新命名",
-    "splitHorizontal": "向右分割 (⌘D)",
-    "splitVertical": "向下分割 (⇧⌘D)"
+    "splitHorizontal": "向右分割 ({{shortcut}})",
+    "splitVertical": "向下分割 ({{shortcut}})"
   },
   "terminal": {
     "empty": "點擊左側「新增本機終端機」開始。",

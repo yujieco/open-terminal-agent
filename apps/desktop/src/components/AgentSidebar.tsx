@@ -772,8 +772,10 @@ export function AgentSidebar({
               title={t("agent.tabAcceptHint")}
               className="ota-ctrl font-sans"
             >
-              <span className="inline-flex items-center justify-center gap-[3px]">
-                <span className="text-[13px] leading-none">⇥</span>
+              <span className="inline-flex items-center justify-center gap-1">
+                <svg viewBox="0 0 16 16" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M2.5 8h8M7.8 5l3 3-3 3M13 4.2v7.6" />
+                </svg>
                 <span className="text-[11px] font-medium leading-none">Tab</span>
               </span>
             </button>

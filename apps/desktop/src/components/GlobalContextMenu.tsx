@@ -4,6 +4,8 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { formatShortcut } from "../lib/platform";
+
 interface GlobalContextMenuProps {
   onFavoriteCommand: (command: string) => void;
 }
@@ -171,7 +173,9 @@ export function GlobalContextMenu({ onFavoriteCommand }: GlobalContextMenuProps)
             className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs text-[var(--text-primary)] transition hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
           >
             <span>{t("contextMenu.cut")}</span>
-            <span className="font-mono text-[10px] text-[var(--text-muted)]">⌘X</span>
+            <span className="font-mono text-[10px] text-[var(--text-muted)]">
+              {formatShortcut("X")}
+            </span>
           </button>
           <button
             type="button"
@@ -180,7 +184,9 @@ export function GlobalContextMenu({ onFavoriteCommand }: GlobalContextMenuProps)
             className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs text-[var(--text-primary)] transition hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
           >
             <span>{t("contextMenu.copy")}</span>
-            <span className="font-mono text-[10px] text-[var(--text-muted)]">⌘C</span>
+            <span className="font-mono text-[10px] text-[var(--text-muted)]">
+              {formatShortcut("C")}
+            </span>
           </button>
           <button
             type="button"
@@ -189,7 +195,9 @@ export function GlobalContextMenu({ onFavoriteCommand }: GlobalContextMenuProps)
             className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs text-[var(--text-primary)] transition hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
           >
             <span>{t("contextMenu.paste")}</span>
-            <span className="font-mono text-[10px] text-[var(--text-muted)]">⌘V</span>
+            <span className="font-mono text-[10px] text-[var(--text-muted)]">
+              {formatShortcut("V")}
+            </span>
           </button>
           <div className="my-1 border-t border-[var(--border-subtle)]" />
           <button
@@ -198,7 +206,9 @@ export function GlobalContextMenu({ onFavoriteCommand }: GlobalContextMenuProps)
             className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs text-[var(--text-primary)] transition hover:bg-[var(--bg-hover)]"
           >
             <span>{t("contextMenu.selectAll")}</span>
-            <span className="font-mono text-[10px] text-[var(--text-muted)]">⌘A</span>
+            <span className="font-mono text-[10px] text-[var(--text-muted)]">
+              {formatShortcut("A")}
+            </span>
           </button>
         </>
       ) : (
@@ -209,7 +219,9 @@ export function GlobalContextMenu({ onFavoriteCommand }: GlobalContextMenuProps)
             className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs text-[var(--text-primary)] transition hover:bg-[var(--bg-hover)]"
           >
             <span>{t("contextMenu.copy")}</span>
-            <span className="font-mono text-[10px] text-[var(--text-muted)]">⌘C</span>
+            <span className="font-mono text-[10px] text-[var(--text-muted)]">
+              {formatShortcut("C")}
+            </span>
           </button>
           {trimmedSelection.length > 0 ? (
             <button

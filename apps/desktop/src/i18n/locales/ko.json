@@ -36,8 +36,8 @@
     "closeOthers": "다른 탭 모두 닫기",
     "rename": "탭 이름 변경",
     "renameHint": "더블 클릭 또는 우클릭으로 이름 변경",
-    "splitHorizontal": "오른쪽 분할 (⌘D)",
-    "splitVertical": "아래쪽 분할 (⇧⌘D)"
+    "splitHorizontal": "오른쪽 분할 ({{shortcut}})",
+    "splitVertical": "아래쪽 분할 ({{shortcut}})"
   },
   "terminal": {
     "empty": "왼쪽의 '새 로컬 터미널'에서 시작하세요.",

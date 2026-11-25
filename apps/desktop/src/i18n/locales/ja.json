@@ -36,8 +36,8 @@
     "closeOthers": "他のタブを閉じる",
     "rename": "タブ名を変更",
     "renameHint": "ダブルクリックまたは右クリックで名前を変更",
-    "splitHorizontal": "右に分割 (⌘D)",
-    "splitVertical": "下に分割 (⇧⌘D)"
+    "splitHorizontal": "右に分割 ({{shortcut}})",
+    "splitVertical": "下に分割 ({{shortcut}})"
   },
   "terminal": {
     "empty": "左側の「新しいローカルターミナル」から開始してください。",

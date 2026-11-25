@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { SavedSession, SessionKind, ShellProfile } from "../lib/ipc";
+import { isMac } from "../lib/platform";
 import type { SessionView } from "../types";
 
 interface SessionSidebarProps {
@@ -112,9 +113,15 @@ export function SessionSidebar({
             <path d="M10.5 10.5L14 14" strokeLinecap="round" />
           </svg>
           <span className="truncate">{t("sidebar.quickFind")}</span>
-          <kbd className="ml-auto inline-flex h-5 items-center justify-center gap-[2px] rounded border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-1.5 font-sans text-[10px] leading-none text-[var(--text-muted)]">
-            <span className="text-[11.5px] leading-none">⌘</span>
-            <span className="font-medium leading-none">K</span>
+          <kbd className="ml-auto inline-flex h-5 shrink-0 items-center justify-center gap-[2px] rounded border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-1.5 font-sans text-[10px] leading-none text-[var(--text-muted)]">
+            {isMac ? (
+              <>
+                <span className="text-[11.5px] leading-none">⌘</span>
+                <span className="font-medium leading-none">K</span>
+              </>
+            ) : (
+              <span className="font-medium leading-none">Ctrl+K</span>
+            )}
           </kbd>
         </button>
       </div>

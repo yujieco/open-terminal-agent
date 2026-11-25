@@ -100,8 +100,8 @@ export function StatusBar({
         ) : null}
       </div>
 
-      {/* Right: quiet active session readout */}
-      <span className="ml-auto flex min-w-0 items-center gap-2 text-[var(--text-secondary)]">
+      {/* Right: quiet active session readout (leading-none keeps Windows Segoe UI dead-centered) */}
+      <span className="ml-auto flex h-full min-w-0 items-center gap-2 text-[var(--text-secondary)]">
         <span
           className="h-1.5 w-1.5 shrink-0 rounded-full"
           style={{
@@ -115,10 +115,12 @@ export function StatusBar({
                     : "var(--status-ok)",
           }}
         />
-        <span className="truncate text-[12px] font-normal">{label ?? "—"}</span>
+        <span className="truncate text-[12px] font-normal leading-none">
+          {label ?? "—"}
+        </span>
         {size ? (
           <span
-            className="ota-tabular shrink-0 font-mono text-[11px] text-[var(--text-muted)]"
+            className="ota-tabular shrink-0 font-mono text-[11px] leading-none text-[var(--text-muted)]"
             title={t("status.gridTooltip", { cols: size.cols, rows: size.rows })}
           >
             {size.cols}×{size.rows}
