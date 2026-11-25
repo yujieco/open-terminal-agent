@@ -14,6 +14,7 @@ import { SessionSidebar } from "./components/SessionSidebar";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { SftpDrawer } from "./components/SftpDrawer";
 import { SnippetsPanel } from "./components/SnippetsPanel";
+import { SshConfigImportDialog } from "./components/SshConfigImportDialog";
 import { SshConnectDialog } from "./components/SshConnectDialog";
 import { StatusBar } from "./components/StatusBar";
 import { TerminalWorkspace } from "./components/TerminalWorkspace";
@@ -35,6 +36,7 @@ import {
   type EnvTag,
   type SavedSession,
   type SaveSnippetInput,
+  type SaveSshSessionInput,
   type SerialConnectInput,
   type ShellProfile,
   type SshConnectInput,
@@ -109,6 +111,8 @@ export default function App() {
   const [tunnelsOpen, setTunnelsOpen] = useState(false);
   const [activeTunnelCount, setActiveTunnelCount] = useState(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [editingSaved, setEditingSaved] = useState<SavedSession | null>(null);
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [snippetModal, setSnippetModal] = useState<SnippetModalState | null>(null);
@@ -303,6 +307,7 @@ export default function App() {
           label: displayLabel,
           title: `${displayLabel} · ${spec.cols}×${spec.rows}`,
           envTag,
+          reconnectSpec: spec.kind === "ssh" ? spec : undefined,
           exited: false,
           size: { cols: spec.cols, rows: spec.rows },
         });
@@ -349,6 +354,7 @@ export default function App() {
           label: displayLabel,
           title: `${displayLabel} · ${DEFAULT_COLS}×${DEFAULT_ROWS}`,
           envTag,
+          savedId: id,
           exited: false,
           size: { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
         });
@@ -383,7 +389,13 @@ export default function App() {
   const connectSsh = useCallback(
     async (
       input: Omit<SshConnectInput, "cols" | "rows">,
-      save: { name: string; rememberPassword: boolean; envTag?: EnvTag } | null,
+      save: {
+        id?: string;
+        name: string;
+        rememberPassword: boolean;
+        envTag?: EnvTag;
+        groupName?: string;
+      } | null,
       envTag?: EnvTag,
     ) => {
       const opened = await openSession(
@@ -400,6 +412,7 @@ export default function App() {
       if (save && isTauri()) {
         try {
           await ipc.saveSshSession({
+            id: save.id,
             name: save.name.length > 0 ? save.name : `${input.username}@${input.host}`,
             host: input.host,
             port: input.port,
@@ -407,6 +420,8 @@ export default function App() {
             auth: input.auth,
             rememberPassword: save.rememberPassword,
             envTag: save.envTag,
+            groupName: save.groupName,
+            jump: input.jump,
           });
           await refreshSaved();
         } catch (cause) {
@@ -415,9 +430,23 @@ export default function App() {
       }
 
       setDialog(null);
+      setEditingSaved(null);
       setDialogError(null);
     },
     [openSession, refreshSaved],
+  );
+
+  const saveEditedSsh = useCallback(
+    async (input: SaveSshSessionInput) => {
+      if (!isTauri()) return;
+      try {
+        await ipc.saveSshSession(input);
+        await refreshSaved();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
+    },
+    [refreshSaved],
   );
 
   const openSerial = useCallback(
@@ -949,8 +978,15 @@ export default function App() {
           }
           onCreate={createLocalSession}
           onOpenSaved={(id) => void openSaved(id)}
+          onEditSaved={(profile) => {
+            setEditingSaved(profile);
+            setDialogError(null);
+            setDialog("ssh");
+          }}
           onDeleteSaved={(id) => void deleteSaved(id)}
+          onImportSshConfig={() => setImportOpen(true)}
           onOpenSsh={() => {
+            setEditingSaved(null);
             setDialogError(null);
             setDialog("ssh");
           }}
@@ -989,6 +1025,14 @@ export default function App() {
             }
             onDiagnoseError={handleDiagnoseError}
             onSetEnvTag={handleSetEnvTag}
+            onReconnect={(session) => {
+              closeSession(session.id);
+              if (session.savedId) {
+                void openSaved(session.savedId);
+              } else if (session.reconnectSpec) {
+                void openSession(session.reconnectSpec, session.envTag);
+              }
+            }}
           />
         </main>
 
@@ -1237,8 +1281,33 @@ export default function App() {
       {paletteOpen ? (
         <CommandPalette
           backend={activeSession?.backend ?? null}
+          saved={saved}
+          snippets={snippets}
+          onOpenSaved={(id) => void openSaved(id)}
+          onPasteSnippet={(snippet) => pasteSnippetToTerminal(snippet.command, snippet.id)}
+          onNewLocal={() => void createLocalSession()}
+          onOpenSsh={() => {
+            setEditingSaved(null);
+            setDialogError(null);
+            setDialog("ssh");
+          }}
+          onOpenSerial={() => {
+            setDialogError(null);
+            setDialog("serial");
+          }}
+          onOpenSftp={() => setSftpOpen(true)}
+          onOpenTunnels={() => setTunnelsOpen(true)}
+          onSplit={(direction) => void splitActive(direction)}
+          onToggleTheme={toggleTheme}
           onOpenSettings={() => setSettingsOpen(true)}
           onClose={() => setPaletteOpen(false)}
+        />
+      ) : null}
+
+      {importOpen ? (
+        <SshConfigImportDialog
+          onImported={refreshSaved}
+          onClose={() => setImportOpen(false)}
         />
       ) : null}
 
@@ -1246,8 +1315,13 @@ export default function App() {
         <SshConnectDialog
           busy={creating}
           error={dialogError}
-          onClose={() => setDialog(null)}
+          editing={editingSaved}
+          onClose={() => {
+            setDialog(null);
+            setEditingSaved(null);
+          }}
           onSubmit={(input, save, envTag) => void connectSsh(input, save, envTag)}
+          onSaveOnly={saveEditedSsh}
         />
       ) : null}
 

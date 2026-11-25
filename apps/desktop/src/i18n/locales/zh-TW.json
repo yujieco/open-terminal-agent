@@ -240,7 +240,16 @@
     "remember": "儲存此連線（密碼存入系統鑰匙圈）",
     "sessionName": "連線名稱",
     "firstContact": "首次連線此主機，請核對伺服器金鑰指紋後再信任：",
-    "trustAndConnect": "信任並連線"
+    "trustAndConnect": "信任並連線",
+    "editTitle": "編輯 SSH 主機設定",
+    "keepExistingPassword": "留空則保留已儲存的密碼",
+    "jumpTitle": "透過跳板機連線 (ProxyJump)",
+    "jumpHostPlaceholder": "跳板機位址，如 bastion.example.com",
+    "groupName": "所屬分組",
+    "groupPlaceholder": "如 正式環境、測試機",
+    "defaultGroup": "未分組",
+    "disconnectedBanner": "SSH 工作階段 {{label}} 已中斷連線。",
+    "reconnect": "一鍵重連"
   },
   "serial": {
     "title": "序列埠連線",
@@ -307,7 +316,20 @@
     "insert": "寫入終端機",
     "regenerate": "重新產生",
     "hint": "只寫入不執行，按 Enter 才會執行",
-    "noSession": "目前沒有終端機工作階段"
+    "noSession": "目前沒有終端機工作階段",
+    "unifiedPlaceholder": "搜尋已儲存 SSH、常用片段、操作，或輸入自然語言讓 AI 產生指令…",
+    "navHint": "切換",
+    "askAiRow": "讓 AI 為「{{query}}」產生 Shell 指令",
+    "sections": {
+      "saved": "主機",
+      "snippets": "片段",
+      "actions": "操作"
+    },
+    "actions": {
+      "splitRight": "向右分割窗格",
+      "splitDown": "向下分割窗格",
+      "toggleTheme": "切換淺色 / 深色主題"
+    }
   },
   "snippets": {
     "tabTitle": "指令手冊",
@@ -488,5 +510,29 @@
       "clusterWipe": "清除容器或刪除叢集命名空間",
       "forcePush": "Git 強制推送"
     }
+  },
+  "sshImport": {
+    "title": "從 ~/.ssh/config 一鍵匯入",
+    "shortButton": "匯入",
+    "buttonTooltip": "從本機 ~/.ssh/config 批次匯入 SSH 主機",
+    "scanning": "正在掃描 ~/.ssh/config…",
+    "empty": "在 ~/.ssh/config 中找不到可匯入的主機設定。",
+    "targetGroup": "匯入至分組",
+    "selectedCount": "已選 {{count}} 台主機",
+    "importing": "匯入中…",
+    "importAction": "匯入所選主機"
+  },
+  "metrics": {
+    "toggle": "監控",
+    "toggleTooltip": "切換遠端伺服器即時資源監控列（CPU/記憶體/磁碟/網路）",
+    "collecting": "正在收集伺服器監控指標…",
+    "unavailable": "此主機暫不支援即時資源監控。",
+    "disk": "磁碟",
+    "load": "負載"
+  },
+  "broadcast": {
+    "active": "同步輸入中",
+    "off": "廣播輸入",
+    "tooltip": "啟用後，輸入的指令會同時送往目前分頁內的所有分割窗格"
   }
 }

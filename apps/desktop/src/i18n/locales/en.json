@@ -240,7 +240,16 @@
     "remember": "Save this connection (password goes to the OS keyring)",
     "sessionName": "Connection name",
     "firstContact": "First connection to this host — check the key fingerprint before trusting it:",
-    "trustAndConnect": "Trust and connect"
+    "trustAndConnect": "Trust and connect",
+    "editTitle": "Edit SSH profile",
+    "keepExistingPassword": "Leave blank to keep saved password",
+    "jumpTitle": "Bastion / ProxyJump host",
+    "jumpHostPlaceholder": "bastion.example.com",
+    "groupName": "Group folder",
+    "groupPlaceholder": "e.g. Production, Edge",
+    "defaultGroup": "Ungrouped",
+    "disconnectedBanner": "SSH session {{label}} disconnected.",
+    "reconnect": "Reconnect"
   },
   "serial": {
     "title": "Serial connection",
@@ -307,7 +316,20 @@
     "insert": "Write to terminal",
     "regenerate": "Regenerate",
     "hint": "Written, not run — press Enter yourself",
-    "noSession": "No terminal session"
+    "noSession": "No terminal session",
+    "unifiedPlaceholder": "Search SSH hosts, snippets, actions — or describe a command for AI…",
+    "navHint": "Navigate",
+    "askAiRow": "Ask AI to generate shell command for \"{{query}}\"",
+    "sections": {
+      "saved": "SSH",
+      "snippets": "Snippet",
+      "actions": "Action"
+    },
+    "actions": {
+      "splitRight": "Split pane right",
+      "splitDown": "Split pane down",
+      "toggleTheme": "Toggle Light / Dark theme"
+    }
   },
   "snippets": {
     "tabTitle": "Handbook",
@@ -488,5 +510,29 @@
       "clusterWipe": "container/cluster deletion",
       "forcePush": "force git push"
     }
+  },
+  "sshImport": {
+    "title": "Import from ~/.ssh/config",
+    "shortButton": "Import",
+    "buttonTooltip": "Import hosts from ~/.ssh/config",
+    "scanning": "Scanning ~/.ssh/config…",
+    "empty": "No concrete Host entries found in ~/.ssh/config.",
+    "targetGroup": "Import into group",
+    "selectedCount": "{{count}} host(s) selected",
+    "importing": "Importing…",
+    "importAction": "Import selected"
+  },
+  "metrics": {
+    "toggle": "Monitor",
+    "toggleTooltip": "Toggle live server CPU / RAM / Disk / Network telemetry bar",
+    "collecting": "Collecting server telemetry…",
+    "unavailable": "Server telemetry unavailable on this host.",
+    "disk": "Disk",
+    "load": "Load"
+  },
+  "broadcast": {
+    "active": "Broadcast ON",
+    "off": "Broadcast",
+    "tooltip": "Broadcast typing across all split panes in this tab simultaneously"
   }
 }

@@ -51,6 +51,13 @@ export type SshAuthInput =
   | { method: "password"; password: string }
   | { method: "privateKey"; path: string; passphrase?: string };
 
+export interface SshJumpInput {
+  host: string;
+  port: number;
+  username: string;
+  auth: SshAuthInput;
+}
+
 export interface SshConnectInput {
   host: string;
   port: number;
@@ -60,6 +67,8 @@ export interface SshConnectInput {
   rows?: number;
   /** Fingerprint the user approved on first contact. */
   trustFingerprint?: string;
+  /** Optional bastion host (`ProxyJump`). */
+  jump?: SshJumpInput;
 }
 
 export type SerialStopBits = "one" | "two";
@@ -170,6 +179,7 @@ export interface SavedSession {
 export type EnvTag = "prod" | "staging" | "dev";
 
 export interface SaveSshSessionInput {
+  id?: string;
   name: string;
   host: string;
   port: number;
@@ -177,6 +187,29 @@ export interface SaveSshSessionInput {
   auth: SshAuthInput;
   rememberPassword: boolean;
   envTag?: EnvTag;
+  groupName?: string;
+  jump?: SshJumpInput;
+}
+
+export interface ImportedSshHost {
+  alias: string;
+  host: string;
+  port: number;
+  username: string;
+  identityFile: string | null;
+  proxyJump: string | null;
+}
+
+export interface ServerMetrics {
+  hostname: string;
+  os: string;
+  cpuPercent: number | null;
+  memUsedMb: number | null;
+  memTotalMb: number | null;
+  diskUsedPct: number | null;
+  loadAvg: string | null;
+  netRxBytes: number | null;
+  netTxBytes: number | null;
 }
 
 export interface SftpSessionInfo {
@@ -336,6 +369,14 @@ export const ipc = {
 
   probeSessionLatency(sessionId: string): Promise<SessionProbeStatus> {
     return invoke<SessionProbeStatus>("probe_session_latency", { sessionId });
+  },
+
+  probeServerMetrics(sessionId: string): Promise<ServerMetrics> {
+    return invoke<ServerMetrics>("probe_server_metrics", { sessionId });
+  },
+
+  scanSshConfig(): Promise<ImportedSshHost[]> {
+    return invoke<ImportedSshHost[]>("scan_ssh_config");
   },
 
   systemLocale(): Promise<LocaleInfo> {

@@ -240,7 +240,16 @@
     "remember": "이 연결 저장(비밀번호는 OS 키체인에)",
     "sessionName": "연결 이름",
     "firstContact": "이 호스트에 처음 연결합니다. 신뢰하기 전에 키 지문을 확인하세요:",
-    "trustAndConnect": "신뢰하고 연결"
+    "trustAndConnect": "신뢰하고 연결",
+    "editTitle": "SSH 프로필 편집",
+    "keepExistingPassword": "비워 두면 저장된 비밀번호 유지",
+    "jumpTitle": "배스천 / ProxyJump 경유",
+    "jumpHostPlaceholder": "bastion.example.com",
+    "groupName": "그룹 폴더",
+    "groupPlaceholder": "예: 운영, 테스트",
+    "defaultGroup": "미분류",
+    "disconnectedBanner": "SSH 세션 {{label}} 연결이 끊어졌습니다.",
+    "reconnect": "다시 연결"
   },
   "serial": {
     "title": "시리얼 연결",
@@ -307,7 +316,20 @@
     "insert": "터미널에 입력",
     "regenerate": "다시 생성",
     "hint": "입력만 하고 실행하지 않습니다(Enter로 실행)",
-    "noSession": "터미널 세션이 없습니다"
+    "noSession": "터미널 세션이 없습니다",
+    "unifiedPlaceholder": "저장된 SSH, 스니펫, 작업 검색 또는 AI 명령 생성…",
+    "navHint": "이동",
+    "askAiRow": "AI에게 \"{{query}}\" 명령 생성 요청",
+    "sections": {
+      "saved": "SSH",
+      "snippets": "스니펫",
+      "actions": "작업"
+    },
+    "actions": {
+      "splitRight": "오른쪽으로 분할",
+      "splitDown": "아래로 분할",
+      "toggleTheme": "라이트 / 다크 테마 전환"
+    }
   },
   "snippets": {
     "tabTitle": "명령어 수첩",
@@ -488,5 +510,29 @@
       "clusterWipe": "컨테이너/네임스페이스 대량 삭제",
       "forcePush": "Git 강제 푸시"
     }
+  },
+  "sshImport": {
+    "title": "~/.ssh/config 에서 가져오기",
+    "shortButton": "가져오기",
+    "buttonTooltip": "~/.ssh/config 호스트 일괄 가져오기",
+    "scanning": "~/.ssh/config 스캔 중…",
+    "empty": "~/.ssh/config에서 가져올 수 있는 호스트를 찾지 못했습니다.",
+    "targetGroup": "대상 그룹",
+    "selectedCount": "{{count}}개 호스트 선택됨",
+    "importing": "가져오는 중…",
+    "importAction": "선택 항목 가져오기"
+  },
+  "metrics": {
+    "toggle": "모니터",
+    "toggleTooltip": "원격 서버 실시간 CPU / RAM / 디스크 / 네트워크 상태바 토글",
+    "collecting": "서버 지표 수집 중…",
+    "unavailable": "이 호스트에서는 실시간 지표를 수집할 수 없습니다.",
+    "disk": "디스크",
+    "load": "부하"
+  },
+  "broadcast": {
+    "active": "브로드캐스트 켜짐",
+    "off": "동시 입력",
+    "tooltip": "현재 탭의 모든 분할 창에 키 입력을 동시에 전송합니다"
   }
 }

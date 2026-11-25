@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 
 import type { ResolvedTheme } from "../hooks/useTheme";
 import { ipc, isTauri, type EnvTag, type SessionProbeStatus } from "../lib/ipc";
+import { sessionIds } from "../lib/panes";
 import { formatShortcut, isMac } from "../lib/platform";
 import { matchDangerousCommand, type DangerousCommandMatch } from "../lib/prodGuard";
 import {
@@ -20,6 +21,7 @@ import type { SessionView, TabView } from "../types";
 import { HighlightRulesPopover } from "./HighlightRulesPopover";
 import { PaneTree } from "./PaneTree";
 import { ProdGuardDialog } from "./ProdGuardDialog";
+import { ServerMetricsBar } from "./ServerMetricsBar";
 
 interface TerminalWorkspaceProps {
   sessions: SessionView[];
@@ -42,6 +44,7 @@ interface TerminalWorkspaceProps {
   onExportLog: (sessionId: string, label: string, lines?: string[]) => void;
   onDiagnoseError: (sessionId: string, prompt: string) => void;
   onSetEnvTag: (sessionId: string, envTag?: EnvTag) => void;
+  onReconnect: (session: SessionView) => void;
 }
 
 export function TerminalWorkspace({
@@ -65,11 +68,14 @@ export function TerminalWorkspace({
   onExportLog,
   onDiagnoseError,
   onSetEnvTag,
+  onReconnect,
 }: TerminalWorkspaceProps) {
   const { t } = useTranslation();
   const [quickTask, setQuickTask] = useState("");
   const [probe, setProbe] = useState<SessionProbeStatus | null>(null);
   const [localEditMap, setLocalEditMap] = useState<Record<string, boolean>>({});
+  const [metricsMap, setMetricsMap] = useState<Record<string, boolean>>({});
+  const [broadcastMap, setBroadcastMap] = useState<Record<string, boolean>>({});
   const manualToggleRef = useRef<Record<string, boolean>>({});
   const [localCmd, setLocalCmd] = useState("");
   const [cmdHistory, setCmdHistory] = useState<string[]>([]);
@@ -128,6 +134,10 @@ export function TerminalWorkspace({
 
   const activeTab =
     tabs.find((tab) => tab.activeSessionId === activeId) ?? tabs[0] ?? null;
+  const activeTabPaneIds = activeTab ? sessionIds(activeTab.panes) : [];
+  const canBroadcast = activeTabPaneIds.length > 1;
+  const broadcastEnabled = Boolean(activeTab && canBroadcast && broadcastMap[activeTab.id]);
+  const metricsEnabled = Boolean(isSsh && activeSessionId && metricsMap[activeSessionId]);
   const activePlaceholder = suggestedPrompt ?? t("agent.quickPromptPlaceholder");
   const localEditEnabled = Boolean(isSsh && activeSessionId && localEditMap[activeSessionId]);
 
@@ -276,7 +286,50 @@ export function TerminalWorkspace({
               >
                 <span>{t("sshProbe.localEdit")}</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (!activeSessionId) return;
+                  setMetricsMap((prev) => ({
+                    ...prev,
+                    [activeSessionId]: !prev[activeSessionId],
+                  }));
+                }}
+                title={t("metrics.toggleTooltip")}
+                className="inline-flex h-5 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-medium leading-none transition active:scale-[0.97]"
+                style={{
+                  borderColor: metricsEnabled ? "var(--accent-border)" : "var(--border-subtle)",
+                  backgroundColor: metricsEnabled ? "var(--accent-soft)" : "var(--bg-surface)",
+                  color: metricsEnabled ? "var(--accent)" : "var(--text-secondary)",
+                }}
+              >
+                <span>{t("metrics.toggle")}</span>
+              </button>
             </>
+          ) : null}
+
+          {canBroadcast && activeTab ? (
+            <button
+              type="button"
+              onClick={() =>
+                setBroadcastMap((prev) => ({
+                  ...prev,
+                  [activeTab.id]: !prev[activeTab.id],
+                }))
+              }
+              title={t("broadcast.tooltip")}
+              className="inline-flex h-5 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-semibold leading-none transition active:scale-[0.97]"
+              style={{
+                borderColor: broadcastEnabled ? "var(--status-warn)" : "var(--border-subtle)",
+                backgroundColor: broadcastEnabled
+                  ? "rgba(245, 158, 11, 0.16)"
+                  : "var(--bg-surface)",
+                color: broadcastEnabled ? "var(--status-warn)" : "var(--text-secondary)",
+              }}
+            >
+              <span>{broadcastEnabled ? t("broadcast.active") : t("broadcast.off")}</span>
+            </button>
           ) : null}
         </div>
 
@@ -376,32 +429,59 @@ export function TerminalWorkspace({
         ) : null}
       </div>
 
+      {/* #5 Multiplexed SSH live server metrics strip */}
+      {metricsEnabled && activeSessionId ? (
+        <ServerMetricsBar sessionId={activeSessionId} alive={sshAlive} />
+      ) : null}
+
+      {/* #3 One-click SSH reconnect banner when a remote session disconnects */}
+      {isSsh && activeSession && activeSession.exited && (activeSession.savedId || activeSession.reconnectSpec) ? (
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-4 py-2 text-xs">
+          <span className="text-[var(--text-secondary)]">
+            {t("ssh.disconnectedBanner", { label: activeSession.label })}
+          </span>
+          <button
+            type="button"
+            onClick={() => onReconnect(activeSession)}
+            className="ota-ctrl-primary shrink-0"
+          >
+            {t("ssh.reconnect")}
+          </button>
+        </div>
+      ) : null}
+
       {/* Main multi-tab split pane terminal viewport */}
       <div className="relative min-h-0 flex-1">
-        {tabs.map((tab) => (
-          <div
-            key={tab.id}
-            className={`absolute inset-0 ${tab === activeTab ? "block" : "hidden"}`}
-          >
-            <PaneTree
-              node={tab.panes}
-              sessions={sessions}
-              activeId={activeId}
-              theme={theme}
-              terminalConfig={terminalConfig}
-              highlightEnabled={highlightEnabled}
-              highlightRules={highlightRules}
-              searchSignal={searchSignal}
-              exitedLabel={exitedLabel}
-              onSelect={onSelect}
-              onResize={onResize}
-              onExit={onExit}
-              onFavoriteCommand={onFavoriteCommand}
-              onExportLog={onExportLog}
-              onDiagnoseError={onDiagnoseError}
-            />
-          </div>
-        ))}
+        {tabs.map((tab) => {
+          const paneIds = sessionIds(tab.panes);
+          const tabBroadcast = paneIds.length > 1 && Boolean(broadcastMap[tab.id]);
+          return (
+            <div
+              key={tab.id}
+              className={`absolute inset-0 ${tab === activeTab ? "block" : "hidden"}`}
+            >
+              <PaneTree
+                node={tab.panes}
+                sessions={sessions}
+                activeId={activeId}
+                broadcastEnabled={tabBroadcast}
+                broadcastSessionIds={paneIds}
+                theme={theme}
+                terminalConfig={terminalConfig}
+                highlightEnabled={highlightEnabled}
+                highlightRules={highlightRules}
+                searchSignal={searchSignal}
+                exitedLabel={exitedLabel}
+                onSelect={onSelect}
+                onResize={onResize}
+                onExit={onExit}
+                onFavoriteCommand={onFavoriteCommand}
+                onExportLog={onExportLog}
+                onDiagnoseError={onDiagnoseError}
+              />
+            </div>
+          );
+        })}
       </div>
 
       {localGuardPending && activeSession ? (

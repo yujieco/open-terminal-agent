@@ -240,7 +240,16 @@
     "remember": "Сохранить подключение (пароль в системном хранилище)",
     "sessionName": "Название подключения",
     "firstContact": "Первое подключение к этому хосту — сверьте отпечаток ключа, прежде чем доверять:",
-    "trustAndConnect": "Доверять и подключиться"
+    "trustAndConnect": "Доверять и подключиться",
+    "editTitle": "Редактировать SSH-профиль",
+    "keepExistingPassword": "Оставьте пустым, чтобы сохранить текущий пароль",
+    "jumpTitle": "Через бастион (ProxyJump)",
+    "jumpHostPlaceholder": "bastion.example.com",
+    "groupName": "Группа",
+    "groupPlaceholder": "например, Prod, Edge",
+    "defaultGroup": "Без группы",
+    "disconnectedBanner": "SSH-сессия {{label}} разорвана.",
+    "reconnect": "Переподключить"
   },
   "serial": {
     "title": "Подключение к порту",
@@ -307,7 +316,20 @@
     "insert": "Вставить в терминал",
     "regenerate": "Ещё раз",
     "hint": "Вставляется без запуска; Enter нажмёте сами",
-    "noSession": "Нет сеанса терминала"
+    "noSession": "Нет сеанса терминала",
+    "unifiedPlaceholder": "Поиск SSH-хостов, сниппетов, действий или запрос команды у AI…",
+    "navHint": "Навигация",
+    "askAiRow": "Сгенерировать команду через AI для «{{query}}»",
+    "sections": {
+      "saved": "SSH",
+      "snippets": "Сниппет",
+      "actions": "Действие"
+    },
+    "actions": {
+      "splitRight": "Разделить вправо",
+      "splitDown": "Разделить вниз",
+      "toggleTheme": "Переключить светлую / тёмную тему"
+    }
   },
   "snippets": {
     "tabTitle": "Справочник",
@@ -488,5 +510,29 @@
       "clusterWipe": "очистка контейнеров или namespace",
       "forcePush": "принудительный git push"
     }
+  },
+  "sshImport": {
+    "title": "Импорт из ~/.ssh/config",
+    "shortButton": "Импорт",
+    "buttonTooltip": "Импортировать хосты из ~/.ssh/config",
+    "scanning": "Чтение ~/.ssh/config…",
+    "empty": "В ~/.ssh/config не найдено подходящих записей Host.",
+    "targetGroup": "Импортировать в группу",
+    "selectedCount": "Выбрано хостов: {{count}}",
+    "importing": "Импорт…",
+    "importAction": "Импортировать выбранные"
+  },
+  "metrics": {
+    "toggle": "Монитор",
+    "toggleTooltip": "Показать/скрыть панель CPU / RAM / Диск / Сеть",
+    "collecting": "Сбор метрик сервера…",
+    "unavailable": "Метрики недоступны на этом хосте.",
+    "disk": "Диск",
+    "load": "Нагрузка"
+  },
+  "broadcast": {
+    "active": "Трансляция ВКЛ",
+    "off": "Трансляция",
+    "tooltip": "Отправлять ввод одновременно во все разделённые панели вкладки"
   }
 }

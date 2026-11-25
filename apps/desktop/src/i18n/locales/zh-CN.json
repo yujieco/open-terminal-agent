@@ -240,7 +240,16 @@
     "remember": "保存此连接（密码存入系统钥匙串）",
     "sessionName": "连接名称",
     "firstContact": "首次连接该主机，请核对服务器密钥指纹后再信任：",
-    "trustAndConnect": "信任并连接"
+    "trustAndConnect": "信任并连接",
+    "editTitle": "编辑 SSH 主机配置",
+    "keepExistingPassword": "留空则保持已保存的密码不变",
+    "jumpTitle": "通过跳板机连接 (ProxyJump)",
+    "jumpHostPlaceholder": "跳板机地址，如 bastion.example.com",
+    "groupName": "所属分组",
+    "groupPlaceholder": "如 生产环境、测试机",
+    "defaultGroup": "未分组",
+    "disconnectedBanner": "SSH 会话 {{label}} 已断开连接。",
+    "reconnect": "一键重连"
   },
   "serial": {
     "title": "串口连接",
@@ -307,7 +316,20 @@
     "insert": "写入终端",
     "regenerate": "重新生成",
     "hint": "命令只写入、不执行，按 Enter 才运行",
-    "noSession": "当前没有终端会话"
+    "noSession": "当前没有终端会话",
+    "unifiedPlaceholder": "搜索已保存 SSH、常用片段、工作台操作，或直接输入自然语言让 AI 生成命令…",
+    "navHint": "切换",
+    "askAiRow": "让 AI 为「{{query}}」生成 Shell 命令",
+    "sections": {
+      "saved": "主机",
+      "snippets": "片段",
+      "actions": "操作"
+    },
+    "actions": {
+      "splitRight": "向右分屏",
+      "splitDown": "向下分屏",
+      "toggleTheme": "切换浅色 / 深色主题"
+    }
   },
   "snippets": {
     "tabTitle": "命令手册",
@@ -488,5 +510,29 @@
       "clusterWipe": "清理容器或删除集群命名空间",
       "forcePush": "Git 强制推送"
     }
+  },
+  "sshImport": {
+    "title": "从 ~/.ssh/config 一键导入",
+    "shortButton": "导入",
+    "buttonTooltip": "从本机 ~/.ssh/config 批量导入 SSH 主机",
+    "scanning": "正在扫描 ~/.ssh/config…",
+    "empty": "未在 ~/.ssh/config 中发现可导入的主机配置。",
+    "targetGroup": "导入至分组",
+    "selectedCount": "已选 {{count}} 台主机",
+    "importing": "导入中…",
+    "importAction": "导入选中主机"
+  },
+  "metrics": {
+    "toggle": "监控",
+    "toggleTooltip": "展开/收起无侵入远程服务器实时资源监控条（CPU/内存/磁盘/网络）",
+    "collecting": "正在采集服务器监控指标…",
+    "unavailable": "当前主机暂不支持实时资源采集。",
+    "disk": "磁盘",
+    "load": "负载"
+  },
+  "broadcast": {
+    "active": "同步输入中",
+    "off": "广播输入",
+    "tooltip": "开启后，键入的命令将同时发送到当前标签页内所有分屏窗格"
   }
 }

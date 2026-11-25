@@ -12,6 +12,8 @@ interface PaneTreeProps {
   node: PaneNode;
   sessions: SessionView[];
   activeId: string | null;
+  broadcastEnabled?: boolean;
+  broadcastSessionIds?: string[];
   theme: ResolvedTheme;
   terminalConfig: TerminalAppearanceConfig;
   highlightEnabled: boolean;
@@ -35,6 +37,8 @@ export function PaneTree({
   node,
   sessions,
   activeId,
+  broadcastEnabled = false,
+  broadcastSessionIds,
   theme,
   terminalConfig,
   highlightEnabled,
@@ -53,11 +57,21 @@ export function PaneTree({
     const session = sessions.find((entry) => entry.id === node.sessionId);
     if (!session) return null;
     const focused = node.sessionId === activeId;
+    const broadcastSessions =
+      broadcastEnabled && broadcastSessionIds && broadcastSessionIds.length > 1
+        ? sessions.filter((s) => broadcastSessionIds.includes(s.id) && !s.exited)
+        : undefined;
+    const broadcastTargets = broadcastSessions?.map((s) => s.backend);
+    const broadcastHasProd = Boolean(broadcastSessions?.some((s) => s.envTag === "prod"));
     return (
       <div
         onMouseDown={() => onSelect(node.sessionId)}
-        className={`h-full w-full transition-shadow ${
-          isSplit && focused ? "ring-1 ring-[var(--accent-border)] ring-inset" : ""
+        className={`relative h-full w-full transition-shadow ${
+          broadcastEnabled && isSplit
+            ? "ring-1 ring-[var(--status-warn)] ring-inset"
+            : isSplit && focused
+              ? "ring-1 ring-[var(--accent-border)] ring-inset"
+              : ""
         }`}
       >
         <TerminalPane
@@ -65,6 +79,8 @@ export function PaneTree({
           sessionLabel={session.label}
           envTag={session.envTag}
           focused={focused}
+          broadcastTargets={broadcastTargets}
+          broadcastHasProd={broadcastHasProd}
           theme={theme}
           terminalConfig={terminalConfig}
           highlightEnabled={highlightEnabled}
@@ -92,6 +108,8 @@ export function PaneTree({
           node={node.first}
           sessions={sessions}
           activeId={activeId}
+          broadcastEnabled={broadcastEnabled}
+          broadcastSessionIds={broadcastSessionIds}
           theme={theme}
           terminalConfig={terminalConfig}
           highlightEnabled={highlightEnabled}
@@ -116,6 +134,8 @@ export function PaneTree({
           node={node.second}
           sessions={sessions}
           activeId={activeId}
+          broadcastEnabled={broadcastEnabled}
+          broadcastSessionIds={broadcastSessionIds}
           theme={theme}
           terminalConfig={terminalConfig}
           highlightEnabled={highlightEnabled}

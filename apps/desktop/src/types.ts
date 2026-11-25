@@ -1,7 +1,7 @@
 // Copyright 2026 yujieco
 // SPDX-License-Identifier: Apache-2.0
 
-import type { TerminalBackend } from "./lib/backend";
+import type { SessionSpec, TerminalBackend } from "./lib/backend";
 import type { PaneNode } from "./lib/panes";
 import type { EnvTag, SessionKind } from "./lib/ipc";
 
@@ -16,6 +16,8 @@ export interface SessionView {
   label: string;
   title: string;
   envTag?: EnvTag;
+  savedId?: string;
+  reconnectSpec?: SessionSpec;
   exited: boolean;
   size: { cols: number; rows: number };
 }

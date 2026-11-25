@@ -240,7 +240,16 @@
     "remember": "この接続を保存（パスワードは OS キーチェーンへ）",
     "sessionName": "接続名",
     "firstContact": "このホストへの初回接続です。信頼する前に鍵の指紋を確認してください:",
-    "trustAndConnect": "信頼して接続"
+    "trustAndConnect": "信頼して接続",
+    "editTitle": "SSH プロファイルを編集",
+    "keepExistingPassword": "空欄のままにすると保存済みパスワードを維持",
+    "jumpTitle": "踏み台サーバー経由 (ProxyJump)",
+    "jumpHostPlaceholder": "bastion.example.com",
+    "groupName": "グループ",
+    "groupPlaceholder": "例: 本番、検証",
+    "defaultGroup": "未分類",
+    "disconnectedBanner": "SSH セッション {{label}} が切断されました。",
+    "reconnect": "再接続"
   },
   "serial": {
     "title": "シリアル接続",
@@ -307,7 +316,20 @@
     "insert": "ターミナルに書き込む",
     "regenerate": "再生成",
     "hint": "書き込むだけで実行はしません（Enter で実行）",
-    "noSession": "ターミナルセッションがありません"
+    "noSession": "ターミナルセッションがありません",
+    "unifiedPlaceholder": "SSHホスト・スニペット・操作を検索、または AI にコマンド生成を依頼…",
+    "navHint": "移動",
+    "askAiRow": "AI で「{{query}}」のコマンドを生成",
+    "sections": {
+      "saved": "SSH",
+      "snippets": "スニペット",
+      "actions": "操作"
+    },
+    "actions": {
+      "splitRight": "右に分割",
+      "splitDown": "下に分割",
+      "toggleTheme": "ライト / ダークテーマ切替"
+    }
   },
   "snippets": {
     "tabTitle": "コマンド集",
@@ -488,5 +510,29 @@
       "clusterWipe": "コンテナ / Namespace 一括削除",
       "forcePush": "Git 強制プッシュ"
     }
+  },
+  "sshImport": {
+    "title": "~/.ssh/config から一括インポート",
+    "shortButton": "インポート",
+    "buttonTooltip": "~/.ssh/config からホストを取り込む",
+    "scanning": "~/.ssh/config をスキャン中…",
+    "empty": "~/.ssh/config にインポート可能な Host が見つかりませんでした。",
+    "targetGroup": "インポート先グループ",
+    "selectedCount": "{{count}} 件選択中",
+    "importing": "インポート中…",
+    "importAction": "選択したホストをインポート"
+  },
+  "metrics": {
+    "toggle": "モニター",
+    "toggleTooltip": "サーバー CPU / メモリ / ディスク / ネットワーク監視バーを切替",
+    "collecting": "サーバーメトリクスを取得中…",
+    "unavailable": "このホストではメトリクスを取得できません。",
+    "disk": "ディスク",
+    "load": "負荷"
+  },
+  "broadcast": {
+    "active": "ブロードキャスト中",
+    "off": "同時入力",
+    "tooltip": "このタブ内の全分割ペインへ同時にキー入力を送信"
   }
 }

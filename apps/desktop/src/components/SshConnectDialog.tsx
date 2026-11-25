@@ -4,70 +4,181 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ipc, isTauri, type EnvTag, type SshAuthInput, type SshConnectInput } from "../lib/ipc";
+import {
+  ipc,
+  isTauri,
+  type EnvTag,
+  type SavedSession,
+  type SaveSshSessionInput,
+  type SshAuthInput,
+  type SshConnectInput,
+  type SshJumpInput,
+} from "../lib/ipc";
 
 interface SshConnectDialogProps {
   busy: boolean;
   error: string | null;
+  editing?: SavedSession | null;
   onClose: () => void;
   onSubmit: (
     input: Omit<SshConnectInput, "cols" | "rows">,
-    save: { name: string; rememberPassword: boolean; envTag?: EnvTag } | null,
+    save: {
+      id?: string;
+      name: string;
+      rememberPassword: boolean;
+      envTag?: EnvTag;
+      groupName?: string;
+    } | null,
     envTag?: EnvTag,
   ) => void;
+  onSaveOnly?: (input: SaveSshSessionInput) => Promise<void> | void;
 }
 
 type AuthMethod = "password" | "privateKey";
 
-export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectDialogProps) {
+function readPayloadStr(payload: Record<string, unknown> | undefined, key: string): string {
+  const val = payload?.[key];
+  return typeof val === "string" ? val : "";
+}
+
+export function SshConnectDialog({
+  busy,
+  error,
+  editing,
+  onClose,
+  onSubmit,
+  onSaveOnly,
+}: SshConnectDialogProps) {
   const { t } = useTranslation();
-  const [host, setHost] = useState("");
-  const [port, setPort] = useState("22");
-  const [username, setUsername] = useState("");
-  const [method, setMethod] = useState<AuthMethod>("password");
+  const payload = editing?.payload;
+  const authObj = (payload?.auth as Record<string, unknown> | undefined) ?? undefined;
+  const jumpObj = (payload?.jump as Record<string, unknown> | undefined) ?? undefined;
+  const jumpAuthObj = (jumpObj?.auth as Record<string, unknown> | undefined) ?? undefined;
+
+  const initialEnv = readPayloadStr(payload, "envTag");
+  const parsedEnv: EnvTag | undefined =
+    initialEnv === "prod" || initialEnv === "staging" || initialEnv === "dev"
+      ? initialEnv
+      : undefined;
+
+  const [host, setHost] = useState(() => readPayloadStr(payload, "host"));
+  const [port, setPort] = useState(() =>
+    typeof payload?.port === "number" ? String(payload.port) : "22",
+  );
+  const [username, setUsername] = useState(() => readPayloadStr(payload, "username"));
+  const [method, setMethod] = useState<AuthMethod>(() =>
+    authObj?.method === "privateKey" ? "privateKey" : "password",
+  );
   const [password, setPassword] = useState("");
-  const [keyPath, setKeyPath] = useState("~/.ssh/id_ed25519");
+  const [keyPath, setKeyPath] = useState(() =>
+    typeof authObj?.path === "string" && authObj.path.length > 0
+      ? authObj.path
+      : "~/.ssh/id_ed25519",
+  );
   const [passphrase, setPassphrase] = useState("");
-  const [save, setSave] = useState(false);
-  const [envTag, setEnvTag] = useState<EnvTag | undefined>(undefined);
+  const [save, setSave] = useState(() => Boolean(editing));
+  const [envTag, setEnvTag] = useState<EnvTag | undefined>(parsedEnv);
+  const [groupName, setGroupName] = useState(() => readPayloadStr(payload, "groupName"));
   const [pendingFingerprint, setPendingFingerprint] = useState<string | null>(null);
-  const [sessionName, setSessionName] = useState("");
+  const [sessionName, setSessionName] = useState(() => editing?.name ?? "");
+
+  // Optional ProxyJump / Bastion host
+  const [useJump, setUseJump] = useState(() => Boolean(jumpObj?.host));
+  const [jumpHost, setJumpHost] = useState(() =>
+    typeof jumpObj?.host === "string" ? jumpObj.host : "",
+  );
+  const [jumpPort, setJumpPort] = useState(() =>
+    typeof jumpObj?.port === "number" ? String(jumpObj.port) : "22",
+  );
+  const [jumpUser, setJumpUser] = useState(() =>
+    typeof jumpObj?.username === "string" ? jumpObj.username : "",
+  );
+  const [jumpMethod, setJumpMethod] = useState<AuthMethod>(() =>
+    jumpAuthObj?.method === "password" ? "password" : "privateKey",
+  );
+  const [jumpPassword, setJumpPassword] = useState("");
+  const [jumpKeyPath, setJumpKeyPath] = useState(() =>
+    typeof jumpAuthObj?.path === "string" && jumpAuthObj.path.length > 0
+      ? jumpAuthObj.path
+      : "~/.ssh/id_ed25519",
+  );
+
+  const buildJump = (): SshJumpInput | undefined => {
+    if (!useJump || !jumpHost.trim() || !jumpUser.trim()) return undefined;
+    const parsedJumpPort = Number.parseInt(jumpPort, 10);
+    return {
+      host: jumpHost.trim(),
+      port: Number.isFinite(parsedJumpPort) ? parsedJumpPort : 22,
+      username: jumpUser.trim(),
+      auth:
+        jumpMethod === "password"
+          ? { method: "password", password: jumpPassword }
+          : { method: "privateKey", path: jumpKeyPath },
+    };
+  };
+
+  const buildAuth = (): SshAuthInput =>
+    method === "password"
+      ? { method: "password", password }
+      : {
+          method: "privateKey",
+          path: keyPath,
+          passphrase: passphrase.length > 0 ? passphrase : undefined,
+        };
 
   const submit = (trustFingerprint?: string) => {
     const parsedPort = Number.parseInt(port, 10);
-    const auth: SshAuthInput =
-      method === "password"
-        ? { method: "password", password }
-        : {
-            method: "privateKey",
-            path: keyPath,
-            passphrase: passphrase.length > 0 ? passphrase : undefined,
-          };
+    const jump = buildJump();
     onSubmit(
       {
         host: host.trim(),
         port: Number.isFinite(parsedPort) ? parsedPort : 22,
         username: username.trim(),
-        auth,
+        auth: buildAuth(),
         trustFingerprint,
+        jump,
       },
-      save ? { name: sessionName.trim(), rememberPassword: true, envTag } : null,
+      save
+        ? {
+            id: editing?.id,
+            name: sessionName.trim(),
+            rememberPassword: true,
+            envTag,
+            groupName: groupName.trim() || undefined,
+          }
+        : null,
       envTag,
     );
+  };
+
+  const saveEditOnly = async () => {
+    if (!editing || !onSaveOnly) return;
+    const parsedPort = Number.parseInt(port, 10);
+    await onSaveOnly({
+      id: editing.id,
+      name: sessionName.trim() || `${username.trim()}@${host.trim()}`,
+      host: host.trim(),
+      port: Number.isFinite(parsedPort) ? parsedPort : 22,
+      username: username.trim(),
+      auth: buildAuth(),
+      rememberPassword: true,
+      envTag,
+      groupName: groupName.trim() || undefined,
+      jump: buildJump(),
+    });
+    onClose();
   };
 
   const ready = host.trim().length > 0 && username.trim().length > 0;
 
   const target = () => ({
     host: host.trim(),
-    port: Number.isFinite(Number.parseInt(port, 10))
-      ? Number.parseInt(port, 10)
-      : 22,
+    port: Number.isFinite(Number.parseInt(port, 10)) ? Number.parseInt(port, 10) : 22,
   });
 
   /** First contact must be approved by a human, not assumed. */
   const start = async () => {
-    if (!isTauri()) {
+    if (!isTauri() || useJump) {
       submit();
       return;
     }
@@ -87,19 +198,7 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
       }
     } catch (cause) {
       setPendingFingerprint(null);
-      onSubmit(
-        {
-          host: hostName,
-          port: portNumber,
-          username: username.trim(),
-          auth:
-            method === "password"
-              ? { method: "password", password }
-              : { method: "privateKey", path: keyPath },
-        },
-        save ? { name: sessionName.trim(), rememberPassword: true, envTag } : null,
-        envTag,
-      );
+      submit();
       console.warn("[ota] host key probe failed, connecting with stored rules", cause);
     }
   };
@@ -113,11 +212,13 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)] shadow-2xl"
+        className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)] shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <header className="flex items-center justify-between border-b border-[var(--border-subtle)] px-4 py-3">
-          <h2 className="text-sm font-semibold text-[var(--text-primary)]">{t("ssh.title")}</h2>
+        <header className="flex shrink-0 items-center justify-between border-b border-[var(--border-subtle)] px-4 py-3">
+          <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+            {editing ? t("ssh.editTitle") : t("ssh.title")}
+          </h2>
           <button
             type="button"
             onClick={onClose}
@@ -130,28 +231,26 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
           </button>
         </header>
 
-        <div className="space-y-3 px-4 py-3.5">
-          <div className="flex gap-2">
-            <label className="flex-1">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3.5">
+          <div className="grid grid-cols-3 gap-2">
+            <label className="col-span-2 block">
               <span className="mb-1 block text-[10px] font-medium text-[var(--text-muted)] uppercase">
                 {t("ssh.host")}
               </span>
               <input
                 className="ota-input font-mono"
                 value={host}
-                placeholder="10.0.0.12"
-                autoFocus
+                placeholder="10.0.0.10"
                 onChange={(event) => setHost(event.target.value)}
               />
             </label>
-            <label className="w-20">
+            <label className="block">
               <span className="mb-1 block text-[10px] font-medium text-[var(--text-muted)] uppercase">
                 {t("ssh.port")}
               </span>
               <input
                 className="ota-input font-mono"
                 value={port}
-                inputMode="numeric"
                 onChange={(event) => setPort(event.target.value)}
               />
             </label>
@@ -169,29 +268,18 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
             />
           </label>
 
-          <div>
-            <span className="mb-1 block text-[10px] font-medium text-[var(--text-muted)] uppercase">
-              {t("ssh.auth")}
-            </span>
-            <div className="grid grid-cols-2 gap-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-canvas)] p-1">
-              {(["password", "privateKey"] as AuthMethod[]).map((candidate) => {
-                const selected = method === candidate;
-                return (
-                  <button
-                    key={candidate}
-                    type="button"
-                    onClick={() => setMethod(candidate)}
-                    className="rounded-md px-2 py-1 text-[11px] font-medium transition"
-                    style={{
-                      backgroundColor: selected ? "var(--bg-elevated)" : "transparent",
-                      color: selected ? "var(--text-primary)" : "var(--text-muted)",
-                    }}
-                  >
-                    {candidate === "password" ? t("ssh.authPassword") : t("ssh.authKey")}
-                  </button>
-                );
-              })}
-            </div>
+          <div className="ota-segmented grid-cols-2">
+            {(["password", "privateKey"] as const).map((candidate) => (
+              <button
+                key={candidate}
+                type="button"
+                data-active={method === candidate}
+                onClick={() => setMethod(candidate)}
+                className="ota-segment"
+              >
+                {t(`ssh.${candidate}`)}
+              </button>
+            ))}
           </div>
 
           {method === "password" ? (
@@ -203,6 +291,7 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
                 className="ota-input"
                 type="password"
                 value={password}
+                placeholder={editing ? t("ssh.keepExistingPassword") : ""}
                 onChange={(event) => setPassword(event.target.value)}
               />
             </label>
@@ -231,6 +320,69 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
               </label>
             </>
           )}
+
+          {/* Optional ProxyJump / Bastion host */}
+          <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-2.5">
+            <label className="flex cursor-pointer items-center justify-between text-xs font-medium text-[var(--text-primary)]">
+              <span>{t("ssh.jumpTitle")}</span>
+              <input
+                type="checkbox"
+                checked={useJump}
+                onChange={(event) => setUseJump(event.target.checked)}
+                className="h-3.5 w-3.5 accent-[var(--accent)]"
+              />
+            </label>
+            {useJump ? (
+              <div className="mt-2.5 space-y-2 border-t border-[var(--border-subtle)] pt-2.5">
+                <div className="grid grid-cols-3 gap-2">
+                  <input
+                    className="ota-input col-span-2 font-mono"
+                    value={jumpHost}
+                    placeholder={t("ssh.jumpHostPlaceholder")}
+                    onChange={(event) => setJumpHost(event.target.value)}
+                  />
+                  <input
+                    className="ota-input font-mono"
+                    value={jumpPort}
+                    placeholder="22"
+                    onChange={(event) => setJumpPort(event.target.value)}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    className="ota-input font-mono"
+                    value={jumpUser}
+                    placeholder={t("ssh.username")}
+                    onChange={(event) => setJumpUser(event.target.value)}
+                  />
+                  <select
+                    className="ota-input"
+                    value={jumpMethod}
+                    onChange={(event) => setJumpMethod(event.target.value as AuthMethod)}
+                  >
+                    <option value="privateKey">{t("ssh.privateKey")}</option>
+                    <option value="password">{t("ssh.password")}</option>
+                  </select>
+                </div>
+                {jumpMethod === "password" ? (
+                  <input
+                    className="ota-input"
+                    type="password"
+                    value={jumpPassword}
+                    placeholder={t("ssh.password")}
+                    onChange={(event) => setJumpPassword(event.target.value)}
+                  />
+                ) : (
+                  <input
+                    className="ota-input font-mono"
+                    value={jumpKeyPath}
+                    placeholder="~/.ssh/id_ed25519"
+                    onChange={(event) => setJumpKeyPath(event.target.value)}
+                  />
+                )}
+              </div>
+            ) : null}
+          </div>
 
           {pendingFingerprint ? (
             <div
@@ -311,28 +463,43 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
             </div>
           </div>
 
-          <label className="flex cursor-pointer items-center gap-2 text-[11px] text-[var(--text-secondary)]">
-            <input
-              type="checkbox"
-              checked={save}
-              onChange={(event) => setSave(event.target.checked)}
-              className="h-3.5 w-3.5 accent-[var(--accent)]"
-            />
-            {t("ssh.remember")}
-          </label>
+          {!editing ? (
+            <label className="flex cursor-pointer items-center gap-2 text-[11px] text-[var(--text-secondary)]">
+              <input
+                type="checkbox"
+                checked={save}
+                onChange={(event) => setSave(event.target.checked)}
+                className="h-3.5 w-3.5 accent-[var(--accent)]"
+              />
+              {t("ssh.remember")}
+            </label>
+          ) : null}
 
           {save ? (
-            <label className="block">
-              <span className="mb-1 block text-[10px] font-medium text-[var(--text-muted)] uppercase">
-                {t("ssh.sessionName")}
-              </span>
-              <input
-                className="ota-input"
-                value={sessionName}
-                placeholder={`${username || "user"}@${host || "host"}`}
-                onChange={(event) => setSessionName(event.target.value)}
-              />
-            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="mb-1 block text-[10px] font-medium text-[var(--text-muted)] uppercase">
+                  {t("ssh.sessionName")}
+                </span>
+                <input
+                  className="ota-input"
+                  value={sessionName}
+                  placeholder={`${username || "user"}@${host || "host"}`}
+                  onChange={(event) => setSessionName(event.target.value)}
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-[10px] font-medium text-[var(--text-muted)] uppercase">
+                  {t("ssh.groupName")}
+                </span>
+                <input
+                  className="ota-input"
+                  value={groupName}
+                  placeholder={t("ssh.groupPlaceholder")}
+                  onChange={(event) => setGroupName(event.target.value)}
+                />
+              </label>
+            </div>
           ) : null}
 
           {error ? (
@@ -342,7 +509,7 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
           ) : null}
         </div>
 
-        <footer className="flex items-center justify-end gap-2 border-t border-[var(--border-subtle)] bg-[var(--bg-chrome)] px-4 py-2.5">
+        <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-[var(--border-subtle)] bg-[var(--bg-chrome)] px-4 py-2.5">
           <button
             type="button"
             onClick={onClose}
@@ -350,14 +517,25 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
           >
             {t("common.cancel")}
           </button>
-          <button
-            type="button"
-            disabled={busy || !ready || pendingFingerprint !== null}
-            onClick={() => void start()}
-            className="ota-btn-primary rounded-md px-3.5 py-1.5 text-xs"
-          >
-            {busy ? t("common.connecting") : t("common.connect")}
-          </button>
+          {editing && onSaveOnly ? (
+            <button
+              type="button"
+              disabled={busy || !ready}
+              onClick={() => void saveEditOnly()}
+              className="ota-btn-primary rounded-md px-3.5 py-1.5 text-xs"
+            >
+              {t("common.save")}
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={busy || !ready || pendingFingerprint !== null}
+              onClick={() => void start()}
+              className="ota-btn-primary rounded-md px-3.5 py-1.5 text-xs"
+            >
+              {busy ? t("common.connecting") : t("common.connect")}
+            </button>
+          )}
         </footer>
       </div>
     </div>

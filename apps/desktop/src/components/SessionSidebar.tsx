@@ -22,7 +22,9 @@ interface SessionSidebarProps {
   onExportLog: (session: SessionView) => void;
   onCreate: (shell?: string) => void;
   onOpenSaved: (id: string) => void;
+  onEditSaved: (profile: SavedSession) => void;
   onDeleteSaved: (id: string) => void;
+  onImportSshConfig: () => void;
   onOpenSsh: () => void;
   onOpenSerial: () => void;
   onOpenSftp: () => void;
@@ -50,7 +52,9 @@ export function SessionSidebar({
   onExportLog,
   onCreate,
   onOpenSaved,
+  onEditSaved,
   onDeleteSaved,
+  onImportSshConfig,
   onOpenSsh,
   onOpenSerial,
   onOpenSftp,
@@ -60,6 +64,7 @@ export function SessionSidebar({
   const { t } = useTranslation();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftLabel, setDraftLabel] = useState("");
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -318,11 +323,21 @@ export function SessionSidebar({
           </div>
         </section>
 
-        {/* SAVED */}
+        {/* SAVED (grouped by folder with env tags, edit & ~/.ssh/config import) */}
         <section className="mt-5">
           <div className="ota-section-label flex items-center justify-between px-2 py-1">
             <span>{t("sidebar.saved")}</span>
-            {saved.length > 0 ? <span className="ota-tabular">{saved.length}</span> : null}
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={onImportSshConfig}
+                title={t("sshImport.buttonTooltip")}
+                className="rounded px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-muted)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--accent)]"
+              >
+                {t("sshImport.shortButton")}
+              </button>
+              {saved.length > 0 ? <span className="ota-tabular">{saved.length}</span> : null}
+            </div>
           </div>
 
           {saved.length === 0 ? (
@@ -330,36 +345,131 @@ export function SessionSidebar({
               {t("sidebar.noSaved")}
             </p>
           ) : (
-            <ul className="mt-0.5 space-y-0.5">
-              {saved.map((entry) => (
-                <li key={entry.id} className="group flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => onOpenSaved(entry.id)}
-                    className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                  >
-                    <span
-                      className="h-1.5 w-1.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: KIND_DOT_COLOR[entry.kind] }}
-                    />
-                    <span className="truncate">{entry.name}</span>
-                    <span className="ml-auto text-[11px] text-[var(--text-muted)]">
-                      {t(`sidebar.kinds.${entry.kind}`)}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={t("common.delete")}
-                    onClick={() => onDeleteSaved(entry.id)}
-                    className="inline-flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] opacity-0 transition group-hover:opacity-100 hover:text-[var(--status-danger)]"
-                  >
-                    <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-                      <path d="M4 4l8 8M12 4l-8 8" />
-                    </svg>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            (() => {
+              const grouped = new Map<string, SavedSession[]>();
+              for (const entry of saved) {
+                const rawGroup =
+                  typeof entry.payload?.groupName === "string"
+                    ? entry.payload.groupName.trim()
+                    : "";
+                const key = rawGroup || "__default__";
+                const bucket = grouped.get(key) ?? [];
+                bucket.push(entry);
+                grouped.set(key, bucket);
+              }
+              const hasCustomGroups = Array.from(grouped.keys()).some(
+                (key) => key !== "__default__",
+              );
+
+              const renderRow = (entry: SavedSession) => {
+                const envTag =
+                  typeof entry.payload?.envTag === "string" ? entry.payload.envTag : undefined;
+                return (
+                  <li key={entry.id} className="group flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => onOpenSaved(entry.id)}
+                      className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                    >
+                      <span
+                        className="h-1.5 w-1.5 shrink-0 rounded-full"
+                        style={{
+                          backgroundColor:
+                            envTag === "prod"
+                              ? "var(--status-danger)"
+                              : envTag === "staging"
+                                ? "var(--status-warn)"
+                                : KIND_DOT_COLOR[entry.kind],
+                        }}
+                      />
+                      <span className="truncate">{entry.name}</span>
+                      {envTag === "prod" ? (
+                        <span
+                          className="ml-auto shrink-0 rounded px-1 py-0.5 font-mono text-[9px] font-bold"
+                          style={{
+                            backgroundColor: "rgba(239, 68, 68, 0.14)",
+                            color: "var(--status-danger)",
+                          }}
+                        >
+                          PROD
+                        </span>
+                      ) : envTag === "staging" ? (
+                        <span
+                          className="ml-auto shrink-0 rounded px-1 py-0.5 font-mono text-[9px] font-semibold"
+                          style={{
+                            backgroundColor: "rgba(245, 158, 11, 0.14)",
+                            color: "var(--status-warn)",
+                          }}
+                        >
+                          STG
+                        </span>
+                      ) : (
+                        <span className="ml-auto text-[10.5px] text-[var(--text-muted)]">
+                          {t(`sidebar.kinds.${entry.kind}`)}
+                        </span>
+                      )}
+                    </button>
+                    {entry.kind === "ssh" ? (
+                      <button
+                        type="button"
+                        aria-label={t("sftp.edit")}
+                        onClick={() => onEditSaved(entry)}
+                        className="inline-flex h-5 w-5 items-center justify-center rounded text-[11px] text-[var(--text-muted)] opacity-0 transition group-hover:opacity-100 hover:text-[var(--text-primary)]"
+                      >
+                        ✎
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      aria-label={t("common.delete")}
+                      onClick={() => onDeleteSaved(entry.id)}
+                      className="inline-flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] opacity-0 transition group-hover:opacity-100 hover:text-[var(--status-danger)]"
+                    >
+                      <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                        <path d="M4 4l8 8M12 4l-8 8" />
+                      </svg>
+                    </button>
+                  </li>
+                );
+              };
+
+              if (!hasCustomGroups) {
+                return <ul className="mt-0.5 space-y-0.5">{saved.map(renderRow)}</ul>;
+              }
+
+              return (
+                <div className="mt-1 space-y-1.5">
+                  {Array.from(grouped.entries()).map(([groupKey, items]) => {
+                    const collapsed = Boolean(collapsedGroups[groupKey]);
+                    const label =
+                      groupKey === "__default__" ? t("ssh.defaultGroup") : groupKey;
+                    return (
+                      <div key={groupKey}>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCollapsedGroups((prev) => ({
+                              ...prev,
+                              [groupKey]: !prev[groupKey],
+                            }))
+                          }
+                          className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-[11px] font-medium text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
+                        >
+                          <span className="text-[9px]">{collapsed ? "▸" : "▾"}</span>
+                          <span className="truncate">{label}</span>
+                          <span className="ota-tabular ml-auto text-[10px] opacity-70">
+                            {items.length}
+                          </span>
+                        </button>
+                        {!collapsed ? (
+                          <ul className="mt-0.5 space-y-0.5 pl-1.5">{items.map(renderRow)}</ul>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()
           )}
         </section>
 

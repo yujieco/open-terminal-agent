@@ -43,6 +43,8 @@ interface TerminalPaneProps {
   sessionLabel: string;
   envTag?: EnvTag;
   focused: boolean;
+  broadcastTargets?: TerminalBackend[];
+  broadcastHasProd?: boolean;
   theme: ResolvedTheme;
   terminalConfig: TerminalAppearanceConfig;
   highlightEnabled: boolean;
@@ -72,6 +74,8 @@ export function TerminalPane({
   sessionLabel,
   envTag,
   focused,
+  broadcastTargets,
+  broadcastHasProd = false,
   theme,
   terminalConfig,
   highlightEnabled,
@@ -115,6 +119,8 @@ export function TerminalPane({
   const onExitRef = useRef(onExit);
   const exitedLabelRef = useRef(exitedLabel);
   const envTagRef = useRef(envTag);
+  const broadcastTargetsRef = useRef(broadcastTargets);
+  const broadcastHasProdRef = useRef(broadcastHasProd);
   const resolvedPalette = resolveTerminalTheme(terminalConfig, theme);
   const configRef = useRef({ terminalConfig, resolvedPalette });
 
@@ -133,7 +139,9 @@ export function TerminalPane({
     onExitRef.current = onExit;
     exitedLabelRef.current = exitedLabel;
     envTagRef.current = envTag;
-  }, [onResize, onExit, exitedLabel, envTag]);
+    broadcastTargetsRef.current = broadcastTargets;
+    broadcastHasProdRef.current = broadcastHasProd;
+  }, [onResize, onExit, exitedLabel, envTag, broadcastTargets, broadcastHasProd]);
 
   // Open search bar whenever parent workspace increments searchSignal on focused pane.
   useEffect(() => {
@@ -249,18 +257,35 @@ export function TerminalPane({
     });
   }, [backend]);
 
+  const writeToTargets = useCallback(
+    (data: string) => {
+      const targets = broadcastTargetsRef.current;
+      if (targets && targets.length > 0) {
+        for (const target of targets) {
+          target.write(data);
+        }
+      } else {
+        backend.write(data);
+      }
+    },
+    [backend],
+  );
+
   const sendWithGuard = useCallback(
     (data: string) => {
-      if (envTagRef.current === "prod") {
+      const guarded =
+        envTagRef.current === "prod" ||
+        (Boolean(broadcastTargetsRef.current?.length) && broadcastHasProdRef.current);
+      if (guarded) {
         const result = prodTrackerRef.current.inspect(data);
         if (result.blocked) {
           setPendingGuard({ match: result.blocked, payload: result.pendingPayload });
           return;
         }
       }
-      backend.write(data);
+      writeToTargets(data);
     },
-    [backend],
+    [writeToTargets],
   );
   const sendWithGuardRef = useRef(sendWithGuard);
   useEffect(() => {
@@ -723,7 +748,7 @@ export function TerminalPane({
             setPendingGuard(null);
             prodTrackerRef.current.reset();
             if (clearLine) {
-              backend.write("\x15");
+              writeToTargets("\x15");
             }
             terminalRef.current?.focus();
           }}
@@ -731,7 +756,7 @@ export function TerminalPane({
             const payload = pendingGuard.payload;
             setPendingGuard(null);
             prodTrackerRef.current.reset();
-            backend.write(payload);
+            writeToTargets(payload);
             terminalRef.current?.focus();
           }}
         />
