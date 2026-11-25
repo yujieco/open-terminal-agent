@@ -167,6 +167,8 @@ export interface SavedSession {
   updatedAt: number;
 }
 
+export type EnvTag = "prod" | "staging" | "dev";
+
 export interface SaveSshSessionInput {
   name: string;
   host: string;
@@ -174,6 +176,7 @@ export interface SaveSshSessionInput {
   username: string;
   auth: SshAuthInput;
   rememberPassword: boolean;
+  envTag?: EnvTag;
 }
 
 export interface SftpSessionInfo {
@@ -189,6 +192,16 @@ export interface SftpEntry {
   directory: boolean;
   symlink: boolean;
   size: number | null;
+  permissions?: number | null;
+  modified?: number | null;
+}
+
+export interface SftpProgressEvent {
+  connectionId: string;
+  kind: "upload" | "download";
+  name: string;
+  transferred: number;
+  total: number | null;
 }
 
 export interface UpdateInfo {
@@ -414,6 +427,34 @@ export const ipc = {
 
   sftpUpload(connectionId: string, localPath: string, remotePath: string): Promise<number> {
     return invoke<number>("sftp_upload", { connectionId, localPath, remotePath });
+  },
+
+  sftpUploadBytes(
+    connectionId: string,
+    remotePath: string,
+    dataBase64: string,
+  ): Promise<number> {
+    return invoke<number>("sftp_upload_bytes", { connectionId, remotePath, dataBase64 });
+  },
+
+  sftpMkdir(connectionId: string, path: string): Promise<void> {
+    return invoke<void>("sftp_mkdir", { connectionId, path });
+  },
+
+  sftpDelete(connectionId: string, path: string, isDir: boolean): Promise<void> {
+    return invoke<void>("sftp_delete", { connectionId, path, isDir });
+  },
+
+  sftpRename(connectionId: string, oldPath: string, newPath: string): Promise<void> {
+    return invoke<void>("sftp_rename", { connectionId, oldPath, newPath });
+  },
+
+  sftpReadText(connectionId: string, remotePath: string): Promise<string> {
+    return invoke<string>("sftp_read_text", { connectionId, remotePath });
+  },
+
+  sftpWriteText(connectionId: string, remotePath: string, content: string): Promise<number> {
+    return invoke<number>("sftp_write_text", { connectionId, remotePath, content });
   },
 
   sftpClose(connectionId: string): Promise<void> {

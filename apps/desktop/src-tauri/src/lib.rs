@@ -72,6 +72,7 @@ pub fn run() {
 
     #[cfg(desktop)]
     let builder = builder
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build());
 
@@ -115,6 +116,12 @@ pub fn run() {
             commands::sftp::sftp_list_dir,
             commands::sftp::sftp_download,
             commands::sftp::sftp_upload,
+            commands::sftp::sftp_upload_bytes,
+            commands::sftp::sftp_mkdir,
+            commands::sftp::sftp_delete,
+            commands::sftp::sftp_rename,
+            commands::sftp::sftp_read_text,
+            commands::sftp::sftp_write_text,
             commands::sftp::sftp_close,
             commands::tunnel::list_tunnels,
             commands::tunnel::save_tunnel,

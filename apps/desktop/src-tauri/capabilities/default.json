@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Default capability set for the main workbench window.",
   "windows": ["main"],
-  "permissions": ["core:default", "updater:default", "process:default"]
+  "permissions": ["core:default", "dialog:default", "updater:default", "process:default"]
 }

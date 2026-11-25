@@ -6,10 +6,28 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use base64::Engine as _;
 use serde::Serialize;
 use serde_json::Value;
-use tauri::State;
+use tauri::{AppHandle, Emitter as _, State};
 use term_core::SftpEntry;
+
+/// Event emitted during SFTP upload/download transfers.
+pub const SFTP_PROGRESS_EVENT: &str = "ota:sftp-progress";
+
+/// Maximum file size (512 KB) permitted in the inline SFTP text editor.
+const MAX_INLINE_EDIT_BYTES: usize = 512 * 1024;
+
+/// Progress event payload streamed to the SFTP drawer.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SftpProgressEvent {
+    pub connection_id: String,
+    pub kind: String,
+    pub name: String,
+    pub transferred: u64,
+    pub total: Option<u64>,
+}
 
 use crate::commands::{
     SshAuthRequest, SshConnectRequest, default_cols, default_rows, string_field,
@@ -138,32 +156,197 @@ pub async fn sftp_list_dir(
     Ok(client.list_dir(&path).await?)
 }
 
-/// Downloads a remote file to a local path, returning the byte count.
+/// Downloads a remote file to a local path, streaming progress events and
+/// returning the byte count.
 #[tauri::command]
 pub async fn sftp_download(
+    app: AppHandle,
     registry: State<'_, SftpRegistry>,
     connection_id: String,
     remote_path: String,
     local_path: String,
 ) -> Result<u64, ApiError> {
     let client = registry.require(&connection_id)?;
+    let name = remote_path
+        .rsplit('/')
+        .next()
+        .unwrap_or(&remote_path)
+        .to_owned();
+    let conn_id = connection_id.clone();
+    let mut last_emitted = 0u64;
     Ok(client
-        .download(&remote_path, &PathBuf::from(local_path))
+        .download_with_progress(
+            &remote_path,
+            &PathBuf::from(local_path),
+            |transferred, total| {
+                let finished = total.is_some_and(|size| transferred >= size);
+                if transferred == 0
+                    || finished
+                    || transferred.saturating_sub(last_emitted) >= 64 * 1024
+                {
+                    last_emitted = transferred;
+                    let _ = app.emit(
+                        SFTP_PROGRESS_EVENT,
+                        SftpProgressEvent {
+                            connection_id: conn_id.clone(),
+                            kind: String::from("download"),
+                            name: name.clone(),
+                            transferred,
+                            total,
+                        },
+                    );
+                }
+            },
+        )
         .await?)
 }
 
-/// Uploads a local file to a remote path, returning the byte count.
+/// Uploads a local file to a remote path, streaming progress events and
+/// returning the byte count.
 #[tauri::command]
 pub async fn sftp_upload(
+    app: AppHandle,
     registry: State<'_, SftpRegistry>,
     connection_id: String,
     local_path: String,
     remote_path: String,
 ) -> Result<u64, ApiError> {
     let client = registry.require(&connection_id)?;
+    let name = remote_path
+        .rsplit('/')
+        .next()
+        .unwrap_or(&remote_path)
+        .to_owned();
+    let conn_id = connection_id.clone();
+    let mut last_emitted = 0u64;
     Ok(client
-        .upload(&PathBuf::from(local_path), &remote_path)
+        .upload_with_progress(
+            &PathBuf::from(local_path),
+            &remote_path,
+            |transferred, total| {
+                let finished = total.is_some_and(|size| transferred >= size);
+                if transferred == 0
+                    || finished
+                    || transferred.saturating_sub(last_emitted) >= 64 * 1024
+                {
+                    last_emitted = transferred;
+                    let _ = app.emit(
+                        SFTP_PROGRESS_EVENT,
+                        SftpProgressEvent {
+                            connection_id: conn_id.clone(),
+                            kind: String::from("upload"),
+                            name: name.clone(),
+                            transferred,
+                            total,
+                        },
+                    );
+                }
+            },
+        )
         .await?)
+}
+
+/// Uploads base64-encoded bytes (from drag-and-drop) to a remote path.
+#[tauri::command]
+pub async fn sftp_upload_bytes(
+    app: AppHandle,
+    registry: State<'_, SftpRegistry>,
+    connection_id: String,
+    remote_path: String,
+    data_base64: String,
+) -> Result<u64, ApiError> {
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(data_base64.as_bytes())
+        .map_err(|error| ApiError::InvalidRequest(format!("invalid base64 payload: {error}")))?;
+    let total = Some(bytes.len() as u64);
+    let name = remote_path
+        .rsplit('/')
+        .next()
+        .unwrap_or(&remote_path)
+        .to_owned();
+    let _ = app.emit(
+        SFTP_PROGRESS_EVENT,
+        SftpProgressEvent {
+            connection_id: connection_id.clone(),
+            kind: String::from("upload"),
+            name: name.clone(),
+            transferred: 0,
+            total,
+        },
+    );
+    let client = registry.require(&connection_id)?;
+    let written = client.upload_bytes(&bytes, &remote_path).await?;
+    let _ = app.emit(
+        SFTP_PROGRESS_EVENT,
+        SftpProgressEvent {
+            connection_id,
+            kind: String::from("upload"),
+            name,
+            transferred: written,
+            total,
+        },
+    );
+    Ok(written)
+}
+
+/// Creates a remote directory.
+#[tauri::command]
+pub async fn sftp_mkdir(
+    registry: State<'_, SftpRegistry>,
+    connection_id: String,
+    path: String,
+) -> Result<(), ApiError> {
+    let client = registry.require(&connection_id)?;
+    Ok(client.mkdir(&path).await?)
+}
+
+/// Removes a remote file or empty directory.
+#[tauri::command]
+pub async fn sftp_delete(
+    registry: State<'_, SftpRegistry>,
+    connection_id: String,
+    path: String,
+    is_dir: bool,
+) -> Result<(), ApiError> {
+    let client = registry.require(&connection_id)?;
+    Ok(client.remove(&path, is_dir).await?)
+}
+
+/// Renames or moves a remote file or directory.
+#[tauri::command]
+pub async fn sftp_rename(
+    registry: State<'_, SftpRegistry>,
+    connection_id: String,
+    old_path: String,
+    new_path: String,
+) -> Result<(), ApiError> {
+    let client = registry.require(&connection_id)?;
+    Ok(client.rename(&old_path, &new_path).await?)
+}
+
+/// Reads a remote UTF-8 text file (up to 512 KB) for inline editing.
+#[tauri::command]
+pub async fn sftp_read_text(
+    registry: State<'_, SftpRegistry>,
+    connection_id: String,
+    remote_path: String,
+) -> Result<String, ApiError> {
+    let client = registry.require(&connection_id)?;
+    Ok(client
+        .read_text(&remote_path, MAX_INLINE_EDIT_BYTES)
+        .await?)
+}
+
+/// Saves UTF-8 text back to a remote file.
+#[tauri::command]
+pub async fn sftp_write_text(
+    registry: State<'_, SftpRegistry>,
+    connection_id: String,
+    remote_path: String,
+    content: String,
+) -> Result<u64, ApiError> {
+    let client = registry.require(&connection_id)?;
+    Ok(client.write_text(&remote_path, &content).await?)
 }
 
 /// Closes an SFTP connection.
