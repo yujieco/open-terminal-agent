@@ -11,10 +11,10 @@ use tauri::{AppHandle, State};
 use term_agent::llm::{ChatMessage, ChatRole, LlmClient, OpenAiCompatibleClient};
 use term_agent::{LoopPhase, PermissionMode, ToolSpec, tool_catalog};
 
-use crate::agent::{AGENT_APPROVAL, AGENT_EVENT, AgentControl, SessionTerminal};
+use crate::agent::{AGENT_APPROVAL, AGENT_EVENT, AgentControl, SessionTerminal, ToolServices};
 use crate::error::ApiError;
 use crate::secrets::SecretStore;
-use crate::state::SessionRegistry;
+use crate::state::{SessionRegistry, TunnelRegistry};
 use crate::store::{AgentRunRecord, AgentRunSummary, Store};
 
 /// Settings keys for the persisted provider choice.
@@ -193,6 +193,7 @@ pub struct AgentRunRequest {
 pub fn agent_run(
     app: AppHandle,
     registry: State<'_, SessionRegistry>,
+    tunnels: State<'_, TunnelRegistry>,
     secrets: State<'_, SecretStore>,
     control: State<'_, Arc<AgentControl>>,
     store: State<'_, Store>,
@@ -221,6 +222,11 @@ pub fn agent_run(
         transport: Arc::clone(&handle.transport),
         screen: Arc::clone(&handle.screen),
         kind: handle.kind,
+        services: Some(ToolServices {
+            store: (*store).clone(),
+            tunnels: (*tunnels).clone(),
+            session_label: handle.label.clone(),
+        }),
     };
 
     let control = Arc::clone(&control);
@@ -435,6 +441,268 @@ pub async fn suggest_next_task(
     } else {
         Ok(Some(cleaned))
     }
+}
+
+/// Request for [`fleet_inspect`].
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FleetInspectRequest {
+    /// Saved SSH session ids to inspect concurrently.
+    pub session_ids: Vec<String>,
+    /// Natural-language inspection goal (used to generate a safe command and/or
+    /// synthesize the multi-host comparison summary).
+    pub goal: String,
+    /// Optional explicit shell command overriding AI command generation.
+    #[serde(default)]
+    pub command: Option<String>,
+    /// Must be `true` when running a state-changing/destructive command across a fleet.
+    #[serde(default)]
+    pub allow_mutating: bool,
+    /// Preferred UI language for the AI summary.
+    #[serde(default)]
+    pub language: Option<String>,
+}
+
+/// Result for one host inside [`FleetInspectResponse`].
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FleetHostResult {
+    pub session_id: String,
+    pub name: String,
+    pub target: String,
+    pub ok: bool,
+    pub exit_code: Option<u32>,
+    pub duration_ms: u64,
+    pub output: String,
+    pub error: Option<String>,
+}
+
+/// Structured multi-host fleet inspection outcome.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FleetInspectResponse {
+    pub command: String,
+    pub risk: String,
+    pub needs_approval: bool,
+    pub summary: Option<String>,
+    pub results: Vec<FleetHostResult>,
+}
+
+/// Runs a safe inspection command concurrently across multiple saved SSH hosts
+/// and optionally synthesizes a concise cross-host anomaly summary with AI.
+#[tauri::command]
+pub async fn fleet_inspect(
+    store: State<'_, Store>,
+    secrets: State<'_, SecretStore>,
+    request: FleetInspectRequest,
+) -> Result<FleetInspectResponse, ApiError> {
+    if request.session_ids.is_empty() {
+        return Err(ApiError::InvalidRequest(String::from(
+            "select at least one saved SSH host",
+        )));
+    }
+
+    let config = stored_llm_config(&store);
+    let api_key = secrets.get(&llm_key_account(&config.provider))?;
+    let llm_ready = api_key.is_some() || is_local_provider(&config.provider, &config.base_url);
+
+    let command = if let Some(explicit) = request
+        .command
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        explicit.to_owned()
+    } else {
+        if !llm_ready {
+            return Err(ApiError::InvalidRequest(String::from(
+                "no LLM API key configured; provide a shell command directly or configure a model in Settings",
+            )));
+        }
+        let client = OpenAiCompatibleClient::new(config.clone(), api_key.clone())
+            .map_err(|e| ApiError::InvalidRequest(e.to_string()))?;
+        let response = client
+            .complete(
+                &[
+                    ChatMessage::text(
+                        ChatRole::System,
+                        "Write ONE concise, read-only POSIX shell command suitable for running across multiple Linux servers to inspect the user's goal. Reply with the command only inside a sh code fence, no explanation.",
+                    ),
+                    ChatMessage::text(ChatRole::User, request.goal.trim()),
+                ],
+                &[],
+            )
+            .await
+            .map_err(|e| ApiError::InvalidRequest(e.to_string()))?;
+        let cleaned = clean_command(&response.content);
+        if cleaned.is_empty() {
+            return Err(ApiError::InvalidRequest(String::from(
+                "model did not return a runnable inspection command",
+            )));
+        }
+        cleaned
+    };
+
+    let risk_enum = term_agent::policy::classify_command(&command);
+    let risk_label = match risk_enum {
+        term_agent::policy::CommandRisk::ReadOnly => "readOnly",
+        term_agent::policy::CommandRisk::Mutating => "mutating",
+        term_agent::policy::CommandRisk::Destructive => "destructive",
+    }
+    .to_owned();
+
+    if risk_enum != term_agent::policy::CommandRisk::ReadOnly && !request.allow_mutating {
+        return Ok(FleetInspectResponse {
+            command,
+            risk: risk_label,
+            needs_approval: true,
+            summary: None,
+            results: Vec::new(),
+        });
+    }
+
+    // Resolve all SSH configs up front so concurrent execution has zero SQLite/keyring contention.
+    let mut targets = Vec::new();
+    for id in &request.session_ids {
+        let Some(saved) = store.get(id)? else {
+            targets.push((
+                id.clone(),
+                id.clone(),
+                String::new(),
+                Err(String::from("saved host not found")),
+            ));
+            continue;
+        };
+        if saved.kind != "ssh" {
+            targets.push((
+                saved.id,
+                saved.name,
+                String::new(),
+                Err(String::from("not an SSH profile")),
+            ));
+            continue;
+        }
+        match crate::commands::store::resolve_saved_ssh_request(&saved, &secrets) {
+            Ok(req) => {
+                let target_str = format!("{}@{}:{}", req.username, req.host, req.port);
+                let mut cfg = req.into_config();
+                if let Ok(Some(pinned)) = store.host_key(&cfg.host, cfg.port) {
+                    cfg = cfg.with_known_host_fingerprint(pinned);
+                }
+                targets.push((saved.id, saved.name, target_str, Ok(cfg)));
+            }
+            Err(err) => {
+                targets.push((saved.id, saved.name, String::new(), Err(err.to_string())));
+            }
+        }
+    }
+
+    let cmd_ref = command.clone();
+    let futures = targets
+        .into_iter()
+        .map(|(session_id, name, target, cfg_res)| {
+            let cmd = cmd_ref.clone();
+            async move {
+                let started = std::time::Instant::now();
+                match cfg_res {
+                    Err(err) => FleetHostResult {
+                        session_id,
+                        name,
+                        target,
+                        ok: false,
+                        exit_code: None,
+                        duration_ms: 0,
+                        output: String::new(),
+                        error: Some(err),
+                    },
+                    Ok(cfg) => match term_core::ssh_exec_once(
+                        &cfg,
+                        &cmd,
+                        std::time::Duration::from_secs(15),
+                    )
+                    .await
+                    {
+                        Ok((exit_code, output)) => {
+                            let ok = exit_code.unwrap_or(0) == 0;
+                            FleetHostResult {
+                                session_id,
+                                name,
+                                target,
+                                ok,
+                                exit_code,
+                                duration_ms: started.elapsed().as_millis() as u64,
+                                output: output.trim_end().to_owned(),
+                                error: None,
+                            }
+                        }
+                        Err(err) => FleetHostResult {
+                            session_id,
+                            name,
+                            target,
+                            ok: false,
+                            exit_code: None,
+                            duration_ms: started.elapsed().as_millis() as u64,
+                            output: String::new(),
+                            error: Some(err.to_string()),
+                        },
+                    },
+                }
+            }
+        });
+
+    let results: Vec<FleetHostResult> = futures_util::future::join_all(futures).await;
+
+    // Best-effort AI cross-host anomaly summary.
+    let summary = if llm_ready && !results.is_empty() {
+        let mut digest = String::new();
+        for row in &results {
+            let excerpt: String = row.output.chars().take(600).collect();
+            digest.push_str(&format!(
+                "=== {} ({}) [ok={}, exit={:?}] ===\n{}\n{}\n",
+                row.name,
+                row.target,
+                row.ok,
+                row.exit_code,
+                row.error.as_deref().unwrap_or(""),
+                excerpt
+            ));
+        }
+        let lang = request.language.as_deref().unwrap_or("en");
+        if let Ok(client) = OpenAiCompatibleClient::new(config, api_key) {
+            client
+                .complete(
+                    &[
+                        ChatMessage::text(
+                            ChatRole::System,
+                            format!(
+                                "Summarize this multi-host fleet inspection in {lang} in 3 to 5 crisp bullet points. Highlight anomalies, failures, or high-usage hosts first. Be factual and concise."
+                            ),
+                        ),
+                        ChatMessage::text(
+                            ChatRole::User,
+                            format!("Goal: {}\nCommand: {}\n\n{}", request.goal, command, digest),
+                        ),
+                    ],
+                    &[],
+                )
+                .await
+                .ok()
+                .map(|resp| resp.content.trim().to_owned())
+                .filter(|s| !s.is_empty())
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    Ok(FleetInspectResponse {
+        command,
+        risk: risk_label,
+        needs_approval: false,
+        summary,
+        results,
+    })
 }
 
 fn clean_suggestion(raw: &str) -> String {

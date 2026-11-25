@@ -121,9 +121,9 @@ impl SftpRegistry {
 }
 
 /// Thread-safe map of saved tunnel id to its running [`SshTunnel`].
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct TunnelRegistry {
-    tunnels: Mutex<HashMap<String, Arc<SshTunnel>>>,
+    tunnels: Arc<Mutex<HashMap<String, Arc<SshTunnel>>>>,
 }
 
 impl TunnelRegistry {

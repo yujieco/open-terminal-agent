@@ -21,7 +21,8 @@ use crate::secrets::{SecretStore, ssh_secret_account};
 use crate::shell_integration::ShellIntegration;
 use crate::state::SessionRegistry;
 use crate::store::{
-    CommandSnippet, KnownHost, NewCommandSnippet, NewSavedSession, SavedSession, Store,
+    CommandSnippet, KnownHost, NewCommandSnippet, NewRunbook, NewSavedSession, Runbook,
+    RunbookStep, SavedSession, Store,
 };
 
 /// Arguments for [`save_ssh_session`].
@@ -617,6 +618,63 @@ pub fn delete_snippet(store: State<'_, Store>, id: String) -> Result<bool, ApiEr
 #[tauri::command]
 pub fn bump_snippet_usage(store: State<'_, Store>, id: String) -> Result<(), ApiError> {
     Ok(store.bump_snippet_usage(&id)?)
+}
+
+/// Arguments for [`save_runbook`].
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveRunbookRequest {
+    #[serde(default)]
+    pub id: Option<String>,
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    pub steps: Vec<RunbookStep>,
+    #[serde(default)]
+    pub variables: Vec<String>,
+}
+
+/// Lists all saved 0-token operational runbooks.
+#[tauri::command]
+pub fn list_runbooks(store: State<'_, Store>) -> Result<Vec<Runbook>, ApiError> {
+    Ok(store.list_runbooks()?)
+}
+
+/// Creates or updates a 0-token runbook.
+#[tauri::command]
+pub fn save_runbook(
+    store: State<'_, Store>,
+    request: SaveRunbookRequest,
+) -> Result<Runbook, ApiError> {
+    if request.name.trim().is_empty() {
+        return Err(ApiError::InvalidRequest(String::from(
+            "runbook name cannot be empty",
+        )));
+    }
+    if request.steps.is_empty() {
+        return Err(ApiError::InvalidRequest(String::from(
+            "runbook must contain at least one step",
+        )));
+    }
+    Ok(store.save_runbook(NewRunbook {
+        id: request.id,
+        name: request.name,
+        description: request.description,
+        steps: request.steps,
+        variables: request.variables,
+    })?)
+}
+
+/// Deletes one saved runbook.
+#[tauri::command]
+pub fn delete_runbook(store: State<'_, Store>, id: String) -> Result<bool, ApiError> {
+    Ok(store.delete_runbook(&id)?)
+}
+
+/// Increments the run counter of a runbook.
+#[tauri::command]
+pub fn bump_runbook_usage(store: State<'_, Store>, id: String) -> Result<(), ApiError> {
+    Ok(store.bump_runbook_usage(&id)?)
 }
 
 #[cfg(test)]

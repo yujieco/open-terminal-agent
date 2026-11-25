@@ -242,6 +242,41 @@ pub struct NewSavedTunnel {
     pub target_port: u16,
 }
 
+/// One step inside a reusable 0-token operational runbook.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunbookStep {
+    /// Command template, optionally containing `{{variable}}` placeholders.
+    pub command: String,
+    /// Optional human-readable explanation for this step.
+    #[serde(default)]
+    pub note: String,
+}
+
+/// One saved 0-token operational runbook.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Runbook {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub steps: Vec<RunbookStep>,
+    pub variables: Vec<String>,
+    pub run_count: u32,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+/// Values needed to create or update a runbook.
+#[derive(Debug, Clone)]
+pub struct NewRunbook {
+    pub id: Option<String>,
+    pub name: String,
+    pub description: String,
+    pub steps: Vec<RunbookStep>,
+    pub variables: Vec<String>,
+}
+
 /// Handle to the local database. Cloning is cheap and keeps the same file.
 #[derive(Clone)]
 pub struct Store {
@@ -334,7 +369,17 @@ impl Store {
                  created_at INTEGER NOT NULL,
                  updated_at INTEGER NOT NULL
              );
-             PRAGMA user_version = 5;",
+             CREATE TABLE IF NOT EXISTS runbooks (
+                 id TEXT PRIMARY KEY,
+                 name TEXT NOT NULL,
+                 description TEXT NOT NULL DEFAULT '',
+                 steps TEXT NOT NULL,
+                 variables TEXT NOT NULL DEFAULT '[]',
+                 run_count INTEGER NOT NULL DEFAULT 0,
+                 created_at INTEGER NOT NULL,
+                 updated_at INTEGER NOT NULL
+             );
+             PRAGMA user_version = 6;",
         )?;
         Ok(())
     }
@@ -922,6 +967,116 @@ impl Store {
             .execute("DELETE FROM ssh_tunnels WHERE id = ?1", params![id])?;
         Ok(removed > 0)
     }
+
+    /// Creates or updates a 0-token operational runbook.
+    pub fn save_runbook(&self, draft: NewRunbook) -> Result<Runbook, StoreError> {
+        let now = now_millis();
+        let name = draft.name.trim().to_owned();
+        let description = draft.description.trim().to_owned();
+        let steps_json = serde_json::to_string(&draft.steps)?;
+        let vars_json = serde_json::to_string(&draft.variables)?;
+
+        if let Some(existing_id) = draft.id.filter(|value| !value.trim().is_empty()) {
+            let connection = self.lock()?;
+            let prev: Option<(i64, u32)> = connection
+                .query_row(
+                    "SELECT created_at, run_count FROM runbooks WHERE id = ?1",
+                    params![existing_id],
+                    |row| Ok((row.get(0)?, row.get::<_, i64>(1)? as u32)),
+                )
+                .optional()?;
+
+            if let Some((created_at, run_count)) = prev {
+                connection.execute(
+                    "UPDATE runbooks
+                     SET name = ?2, description = ?3, steps = ?4, variables = ?5, updated_at = ?6
+                     WHERE id = ?1",
+                    params![existing_id, name, description, steps_json, vars_json, now],
+                )?;
+                return Ok(Runbook {
+                    id: existing_id,
+                    name,
+                    description,
+                    steps: draft.steps,
+                    variables: draft.variables,
+                    run_count,
+                    created_at,
+                    updated_at: now,
+                });
+            }
+        }
+
+        let id = term_core::generate_session_id("runbook").into_string();
+        self.lock()?.execute(
+            "INSERT INTO runbooks (id, name, description, steps, variables, run_count, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6, ?7)",
+            params![id, name, description, steps_json, vars_json, now, now],
+        )?;
+        Ok(Runbook {
+            id,
+            name,
+            description,
+            steps: draft.steps,
+            variables: draft.variables,
+            run_count: 0,
+            created_at: now,
+            updated_at: now,
+        })
+    }
+
+    /// Lists all saved runbooks, most recently updated first.
+    pub fn list_runbooks(&self) -> Result<Vec<Runbook>, StoreError> {
+        let connection = self.lock()?;
+        let mut stmt = connection.prepare(
+            "SELECT id, name, description, steps, variables, run_count, created_at, updated_at
+             FROM runbooks ORDER BY updated_at DESC, name COLLATE NOCASE",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
+                row.get::<_, i64>(5)? as u32,
+                row.get::<_, i64>(6)?,
+                row.get::<_, i64>(7)?,
+            ))
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            let (id, name, description, steps_raw, vars_raw, run_count, created_at, updated_at) =
+                row?;
+            out.push(Runbook {
+                id,
+                name,
+                description,
+                steps: serde_json::from_str(&steps_raw)?,
+                variables: serde_json::from_str(&vars_raw)?,
+                run_count,
+                created_at,
+                updated_at,
+            });
+        }
+        Ok(out)
+    }
+
+    /// Deletes one runbook.
+    pub fn delete_runbook(&self, id: &str) -> Result<bool, StoreError> {
+        let removed = self
+            .lock()?
+            .execute("DELETE FROM runbooks WHERE id = ?1", params![id])?;
+        Ok(removed > 0)
+    }
+
+    /// Increments the execution counter of one runbook.
+    pub fn bump_runbook_usage(&self, id: &str) -> Result<(), StoreError> {
+        self.lock()?.execute(
+            "UPDATE runbooks SET run_count = run_count + 1, updated_at = ?2 WHERE id = ?1",
+            params![id, now_millis()],
+        )?;
+        Ok(())
+    }
 }
 
 fn row_to_saved_tunnel(row: &rusqlite::Row<'_>) -> rusqlite::Result<SavedTunnel> {
@@ -1198,5 +1353,35 @@ mod tests {
         assert!(store.get_tunnel(&created.id).expect("get").is_some());
         assert!(store.delete_tunnel(&created.id).expect("delete"));
         assert!(store.list_tunnels().expect("empty").is_empty());
+    }
+
+    #[test]
+    fn saves_lists_bumps_and_deletes_runbooks() {
+        let store = Store::open_in_memory().expect("store");
+        let created = store
+            .save_runbook(NewRunbook {
+                id: None,
+                name: String::from("Restart Nginx Safely"),
+                description: String::from("Test config then reload"),
+                steps: vec![
+                    RunbookStep {
+                        command: String::from("sudo nginx -t"),
+                        note: String::from("Validate config"),
+                    },
+                    RunbookStep {
+                        command: String::from("sudo systemctl reload {{service}}"),
+                        note: String::from("Reload"),
+                    },
+                ],
+                variables: vec![String::from("service")],
+            })
+            .expect("create runbook");
+        assert_eq!(created.steps.len(), 2);
+        store.bump_runbook_usage(&created.id).expect("bump");
+        let list = store.list_runbooks().expect("list");
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].run_count, 1);
+        assert!(store.delete_runbook(&created.id).expect("delete"));
+        assert!(store.list_runbooks().expect("empty").is_empty());
     }
 }

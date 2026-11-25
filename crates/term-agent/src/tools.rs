@@ -18,6 +18,12 @@ pub const EXECUTE_COMMAND: &str = "execute_command";
 /// Sends raw control bytes (Ctrl+C, Ctrl+D, Tab, raw HEX).
 pub const SEND_CONTROL_SIGNAL: &str = "send_control_signal";
 
+/// Lists, creates/starts, or stops SSH port-forwarding tunnels (`-L`/`-R`/`-D`).
+pub const MANAGE_SSH_TUNNEL: &str = "manage_ssh_tunnel";
+
+/// Lists remote directories or transfers files over SFTP for a saved SSH host.
+pub const SFTP_TRANSFER: &str = "sftp_transfer";
+
 /// Keyboard-level signals the agent can inject.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -76,7 +82,8 @@ impl ToolCallRequest {
     /// Validates the name against the tools that actually exist.
     pub fn validate(&self) -> Result<()> {
         match self.name.as_str() {
-            READ_TERMINAL_SCREEN | EXECUTE_COMMAND | SEND_CONTROL_SIGNAL => Ok(()),
+            READ_TERMINAL_SCREEN | EXECUTE_COMMAND | SEND_CONTROL_SIGNAL | MANAGE_SSH_TUNNEL
+            | SFTP_TRANSFER => Ok(()),
             other => Err(AgentError::ToolFailure {
                 tool: other.to_owned(),
                 message: "unknown tool name".to_owned(),
@@ -165,6 +172,48 @@ pub fn tool_catalog() -> Vec<ToolSpec> {
                 "additionalProperties": false
             }),
         },
+        ToolSpec {
+            name: MANAGE_SSH_TUNNEL.to_owned(),
+            description: "List, create and start, or stop SSH port-forwarding tunnels (local -L, remote -R, or dynamic SOCKS5 -D)."
+                .to_owned(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["list", "create_and_start", "stop"]
+                    },
+                    "name": { "type": "string", "description": "Friendly tunnel name." },
+                    "session_name": { "type": "string", "description": "Saved SSH session name or host." },
+                    "kind": { "type": "string", "enum": ["local", "remote", "dynamic"] },
+                    "bind_port": { "type": "integer", "minimum": 0, "maximum": 65535 },
+                    "target_host": { "type": "string" },
+                    "target_port": { "type": "integer", "minimum": 0, "maximum": 65535 },
+                    "tunnel_id": { "type": "string" }
+                },
+                "required": ["action"],
+                "additionalProperties": false
+            }),
+        },
+        ToolSpec {
+            name: SFTP_TRANSFER.to_owned(),
+            description: "List a remote directory, download a remote file to local disk, or upload a local file over SFTP."
+                .to_owned(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["list", "download", "upload"]
+                    },
+                    "session_name": { "type": "string", "description": "Saved SSH session name or host." },
+                    "remote_path": { "type": "string" },
+                    "local_path": { "type": "string" }
+                },
+                "required": ["action", "remote_path"],
+                "additionalProperties": false
+            }),
+        },
     ]
 }
 
@@ -187,7 +236,9 @@ mod tests {
             vec![
                 READ_TERMINAL_SCREEN.to_owned(),
                 EXECUTE_COMMAND.to_owned(),
-                SEND_CONTROL_SIGNAL.to_owned()
+                SEND_CONTROL_SIGNAL.to_owned(),
+                MANAGE_SSH_TUNNEL.to_owned(),
+                SFTP_TRANSFER.to_owned(),
             ]
         );
     }

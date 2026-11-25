@@ -27,7 +27,9 @@ use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::{Mutex as AsyncMutex, oneshot};
 use tokio::time::Instant;
 
-use crate::state::SessionKind;
+use crate::secrets::SecretStore;
+use crate::state::{SessionKind, TunnelRegistry};
+use crate::store::{NewSavedTunnel, SavedSession, Store};
 
 /// Event carrying one agent runtime event.
 pub const AGENT_EVENT: &str = "agent://event";
@@ -76,6 +78,15 @@ pub struct PendingApproval {
     pub sender: oneshot::Sender<bool>,
 }
 
+/// Optional desktop workbench services exposed to native Agent tools
+/// (`manage_ssh_tunnel` and `sftp_transfer`).
+#[derive(Clone)]
+pub struct ToolServices {
+    pub store: Store,
+    pub tunnels: TunnelRegistry,
+    pub session_label: String,
+}
+
 /// One session exposed to the runtime.
 pub struct SessionTerminal {
     /// Transport used for writes and reactive output subscriptions.
@@ -84,6 +95,8 @@ pub struct SessionTerminal {
     pub screen: Arc<AsyncMutex<ShadowScreen>>,
     /// Session kind, which decides how completion is detected.
     pub kind: SessionKind,
+    /// Optional workbench services for SSH tunnel and SFTP agent tools.
+    pub services: Option<ToolServices>,
 }
 
 impl SessionTerminal {
@@ -363,6 +376,316 @@ impl AgentTerminal for SessionTerminal {
             .await
             .map_err(|error| Self::io_error("send_control_signal", error))
     }
+
+    async fn manage_tunnel(&self, args: &serde_json::Value) -> AgentResult<String> {
+        let Some(svc) = &self.services else {
+            return Ok(String::from("Tunnel management is unavailable here."));
+        };
+        let action = args
+            .get("action")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("list");
+
+        match action {
+            "list" => {
+                let saved = svc
+                    .store
+                    .list_tunnels()
+                    .map_err(|e| AgentError::ToolFailure {
+                        tool: String::from("manage_ssh_tunnel"),
+                        message: e.to_string(),
+                    })?;
+                if saved.is_empty() {
+                    return Ok(String::from("No SSH tunnels configured."));
+                }
+                let mut lines = Vec::new();
+                for t in saved {
+                    let live = svc.tunnels.get(&t.id).ok().flatten();
+                    let status = if let Some(active) = live {
+                        format!("running (port {})", active.bound_port())
+                    } else {
+                        String::from("stopped")
+                    };
+                    lines.push(format!(
+                        "- [{}] {} ({}) {}:{} -> {}:{} — {}",
+                        t.id,
+                        t.name,
+                        t.kind,
+                        t.bind_host,
+                        t.bind_port,
+                        t.target_host,
+                        t.target_port,
+                        status
+                    ));
+                }
+                Ok(lines.join("\n"))
+            }
+            "create_and_start" => {
+                let profile = find_matching_ssh_profile(
+                    &svc.store,
+                    args.get("session_name").and_then(serde_json::Value::as_str),
+                    &svc.session_label,
+                )?;
+                let kind_str = args
+                    .get("kind")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or("local");
+                let kind =
+                    term_core::TunnelKind::parse(kind_str).unwrap_or(term_core::TunnelKind::Local);
+                let bind_port = args
+                    .get("bind_port")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0) as u16;
+                let target_host = args
+                    .get("target_host")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or("127.0.0.1")
+                    .to_owned();
+                let target_port = args
+                    .get("target_port")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0) as u16;
+                let name = args
+                    .get("name")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| format!("AI {kind_str} :{bind_port} -> :{target_port}"));
+
+                let spec = term_core::TunnelSpec {
+                    kind,
+                    bind_host: String::from("127.0.0.1"),
+                    bind_port,
+                    target_host: target_host.clone(),
+                    target_port,
+                };
+                spec.validate().map_err(|e| AgentError::ToolFailure {
+                    tool: String::from("manage_ssh_tunnel"),
+                    message: e.to_string(),
+                })?;
+
+                let secrets = SecretStore::new();
+                let req = crate::commands::store::resolve_saved_ssh_request(&profile, &secrets)
+                    .map_err(|e| AgentError::ToolFailure {
+                        tool: String::from("manage_ssh_tunnel"),
+                        message: e.to_string(),
+                    })?;
+                let mut ssh_config = req.into_config();
+                if let Ok(Some(pinned)) = svc.store.host_key(&ssh_config.host, ssh_config.port) {
+                    ssh_config = ssh_config.with_known_host_fingerprint(pinned);
+                }
+
+                let saved = svc
+                    .store
+                    .save_tunnel(NewSavedTunnel {
+                        id: None,
+                        name: name.clone(),
+                        session_id: profile.id.clone(),
+                        kind: kind.as_str().to_owned(),
+                        bind_host: String::from("127.0.0.1"),
+                        bind_port,
+                        target_host: target_host.clone(),
+                        target_port,
+                    })
+                    .map_err(|e| AgentError::ToolFailure {
+                        tool: String::from("manage_ssh_tunnel"),
+                        message: e.to_string(),
+                    })?;
+
+                let live = term_core::SshTunnel::start(&ssh_config, spec)
+                    .await
+                    .map_err(|e| AgentError::ToolFailure {
+                        tool: String::from("manage_ssh_tunnel"),
+                        message: e.to_string(),
+                    })?;
+                let bound = live.bound_port();
+                let _ = svc.tunnels.insert(saved.id.clone(), Arc::new(live));
+                Ok(format!(
+                    "Started SSH tunnel `{name}` (id: {}) via `{}`: 127.0.0.1:{bound} -> {target_host}:{target_port}",
+                    saved.id, profile.name
+                ))
+            }
+            "stop" => {
+                let target = args
+                    .get("tunnel_id")
+                    .or_else(|| args.get("name"))
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or("");
+                let saved = svc.store.list_tunnels().unwrap_or_default();
+                let found = saved
+                    .into_iter()
+                    .find(|t| t.id == target || t.name == target);
+                let Some(rule) = found else {
+                    return Ok(format!("No tunnel matching `{target}` found."));
+                };
+                if let Ok(Some(live)) = svc.tunnels.remove(&rule.id) {
+                    live.stop().await;
+                    Ok(format!("Stopped tunnel `{}` ({}).", rule.name, rule.id))
+                } else {
+                    Ok(format!("Tunnel `{}` was already stopped.", rule.name))
+                }
+            }
+            other => Ok(format!("Unknown tunnel action `{other}`.")),
+        }
+    }
+
+    async fn sftp_transfer(&self, args: &serde_json::Value) -> AgentResult<String> {
+        let Some(svc) = &self.services else {
+            return Ok(String::from("SFTP transfer is unavailable here."));
+        };
+        let action = args
+            .get("action")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("list");
+        let remote_path = args
+            .get("remote_path")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| AgentError::ToolFailure {
+                tool: String::from("sftp_transfer"),
+                message: String::from("missing `remote_path`"),
+            })?;
+
+        let profile = find_matching_ssh_profile(
+            &svc.store,
+            args.get("session_name").and_then(serde_json::Value::as_str),
+            &svc.session_label,
+        )?;
+        let secrets = SecretStore::new();
+        let req =
+            crate::commands::store::resolve_saved_ssh_request(&profile, &secrets).map_err(|e| {
+                AgentError::ToolFailure {
+                    tool: String::from("sftp_transfer"),
+                    message: e.to_string(),
+                }
+            })?;
+        let mut ssh_config = req.into_config();
+        if let Ok(Some(pinned)) = svc.store.host_key(&ssh_config.host, ssh_config.port) {
+            ssh_config = ssh_config.with_known_host_fingerprint(pinned);
+        }
+
+        let client = term_core::SftpClient::connect(ssh_config)
+            .await
+            .map_err(|e| AgentError::ToolFailure {
+                tool: String::from("sftp_transfer"),
+                message: e.to_string(),
+            })?;
+
+        let result =
+            match action {
+                "list" => {
+                    let entries = client.list_dir(remote_path).await.map_err(|e| {
+                        AgentError::ToolFailure {
+                            tool: String::from("sftp_transfer"),
+                            message: e.to_string(),
+                        }
+                    })?;
+                    let summary: Vec<String> = entries
+                        .into_iter()
+                        .take(60)
+                        .map(|e| {
+                            format!(
+                                "{} {} ({})",
+                                if e.directory { "DIR " } else { "FILE" },
+                                e.name,
+                                e.size
+                                    .map(|s| format!("{s} B"))
+                                    .unwrap_or_else(|| String::from("-"))
+                            )
+                        })
+                        .collect();
+                    Ok(format!(
+                        "SFTP list `{remote_path}` on `{}`:\n{}",
+                        profile.name,
+                        summary.join("\n")
+                    ))
+                }
+                "download" => {
+                    let local_raw = args
+                        .get("local_path")
+                        .and_then(serde_json::Value::as_str)
+                        .ok_or_else(|| AgentError::ToolFailure {
+                            tool: String::from("sftp_transfer"),
+                            message: String::from("missing `local_path` for download"),
+                        })?;
+                    let bytes = client
+                        .download(remote_path, std::path::Path::new(local_raw))
+                        .await
+                        .map_err(|e| AgentError::ToolFailure {
+                            tool: String::from("sftp_transfer"),
+                            message: e.to_string(),
+                        })?;
+                    Ok(format!(
+                        "Downloaded `{remote_path}` from `{}` to `{local_raw}` ({bytes} bytes).",
+                        profile.name
+                    ))
+                }
+                "upload" => {
+                    let local_raw = args
+                        .get("local_path")
+                        .and_then(serde_json::Value::as_str)
+                        .ok_or_else(|| AgentError::ToolFailure {
+                            tool: String::from("sftp_transfer"),
+                            message: String::from("missing `local_path` for upload"),
+                        })?;
+                    let bytes = client
+                        .upload(std::path::Path::new(local_raw), remote_path)
+                        .await
+                        .map_err(|e| AgentError::ToolFailure {
+                            tool: String::from("sftp_transfer"),
+                            message: e.to_string(),
+                        })?;
+                    Ok(format!(
+                        "Uploaded `{local_raw}` to `{remote_path}` on `{}` ({bytes} bytes).",
+                        profile.name
+                    ))
+                }
+                other => Ok(format!("Unknown SFTP action `{other}`.")),
+            };
+        client.close().await;
+        result
+    }
+}
+
+fn find_matching_ssh_profile(
+    store: &Store,
+    requested: Option<&str>,
+    session_label: &str,
+) -> AgentResult<SavedSession> {
+    let saved = store.list().map_err(|e| AgentError::ToolFailure {
+        tool: String::from("ssh_profile"),
+        message: e.to_string(),
+    })?;
+    let ssh_profiles: Vec<SavedSession> = saved.into_iter().filter(|s| s.kind == "ssh").collect();
+    if ssh_profiles.is_empty() {
+        return Err(AgentError::ToolFailure {
+            tool: String::from("ssh_profile"),
+            message: String::from("no saved SSH profiles exist; save an SSH host first"),
+        });
+    }
+    if let Some(needle) = requested.map(str::trim).filter(|s| !s.is_empty()) {
+        let low = needle.to_lowercase();
+        if let Some(hit) = ssh_profiles.iter().find(|p| {
+            p.name.to_lowercase() == low
+                || p.payload
+                    .get("host")
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|h| h.to_lowercase() == low)
+                || p.name.to_lowercase().contains(&low)
+        }) {
+            return Ok(hit.clone());
+        }
+    }
+    let label_low = session_label.to_lowercase();
+    if let Some(hit) = ssh_profiles.iter().find(|p| {
+        let host = p
+            .payload
+            .get("host")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("");
+        !host.is_empty() && label_low.contains(&host.to_lowercase())
+    }) {
+        return Ok(hit.clone());
+    }
+    Ok(ssh_profiles[0].clone())
 }
 
 /// Approver that asks the WebView and waits for the panel's answer.

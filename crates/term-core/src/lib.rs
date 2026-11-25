@@ -28,7 +28,7 @@ pub use serial::{
     SerialTransport, hex_line, list_serial_ports, parse_hex,
 };
 pub use sftp::{SftpClient, SftpEntry};
-pub use ssh::{SshAuth, SshConfig, SshJumpConfig, SshTransport, probe_host_key};
+pub use ssh::{SshAuth, SshConfig, SshJumpConfig, SshTransport, probe_host_key, ssh_exec_once};
 pub use transport::{
     CHUNK_CHANNEL_CAPACITY, OUTPUT_CHANNEL_CAPACITY, STREAM_BATCH_INTERVAL, STREAM_BATCH_MAX_BYTES,
     SessionId, StreamBatcher, TerminalOutput, TerminalTransport, TransportEvent,

@@ -407,6 +407,64 @@ pub async fn probe_host_key(host: &str, port: u16, timeout: Duration) -> Result<
         .ok_or_else(|| CoreError::Ssh(String::from("host did not present a key")))
 }
 
+/// Executes one non-interactive command over a fresh SSH `exec` channel and
+/// disconnects cleanly. Used by multi-host fleet inspection (`#11`) with zero
+/// PTY overhead.
+pub async fn ssh_exec_once(
+    config: &SshConfig,
+    command: &str,
+    timeout: Duration,
+) -> Result<(Option<u32>, String)> {
+    let fut = async {
+        let (handle, jump_handle, _fp) = open_authenticated_session(config).await?;
+        let mut channel = handle
+            .channel_open_session()
+            .await
+            .map_err(|error| CoreError::Ssh(format!("could not open exec channel: {error}")))?;
+        channel
+            .exec(true, command)
+            .await
+            .map_err(|error| CoreError::Ssh(format!("exec rejected: {error}")))?;
+
+        let mut output = Vec::with_capacity(4096);
+        let mut exit_status: Option<u32> = None;
+        while let Some(msg) = channel.wait().await {
+            match msg {
+                ChannelMsg::Data { data } | ChannelMsg::ExtendedData { data, .. } => {
+                    if output.len() < 128 * 1024 {
+                        output.extend_from_slice(&data);
+                    }
+                }
+                ChannelMsg::ExitStatus {
+                    exit_status: status,
+                } => {
+                    exit_status = Some(status);
+                }
+                ChannelMsg::Eof | ChannelMsg::Close => break,
+                _ => {}
+            }
+        }
+        let _ = channel.close().await;
+        let _ = handle
+            .disconnect(Disconnect::ByApplication, "fleet exec done", "en")
+            .await;
+        if let Some(jump) = jump_handle {
+            let _ = jump
+                .disconnect(Disconnect::ByApplication, "bastion done", "en")
+                .await;
+        }
+        Ok::<(Option<u32>, String), CoreError>((
+            exit_status,
+            String::from_utf8_lossy(&output).into_owned(),
+        ))
+    };
+
+    match tokio::time::timeout(timeout, fut).await {
+        Ok(res) => res,
+        Err(_) => Err(CoreError::Ssh(String::from("remote command timed out"))),
+    }
+}
+
 /// A live SSH shell session.
 pub struct SshTransport {
     session_id: SessionId,

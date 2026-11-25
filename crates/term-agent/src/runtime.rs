@@ -29,8 +29,8 @@ use crate::llm::{ChatMessage, ChatRole, LlmClient, StreamSink, ToolCall};
 use crate::loop_engine::{AgentLoopState, LoopPhase};
 use crate::policy::{CommandRisk, PermissionMode, PolicyDecision, SessionPolicy, classify_command};
 use crate::tools::{
-    ControlSignal, EXECUTE_COMMAND, READ_TERMINAL_SCREEN, SEND_CONTROL_SIGNAL, ToolCallRequest,
-    tool_catalog,
+    ControlSignal, EXECUTE_COMMAND, MANAGE_SSH_TUNNEL, READ_TERMINAL_SCREEN, SEND_CONTROL_SIGNAL,
+    SFTP_TRANSFER, ToolCallRequest, tool_catalog,
 };
 
 /// Default ceiling on model turns for one task.
@@ -75,6 +75,20 @@ pub trait AgentTerminal: Send + Sync {
 
     /// Injects raw bytes, used for control signals such as Ctrl+C.
     async fn send_bytes(&self, data: &[u8]) -> Result<()>;
+
+    /// Manages SSH port-forwarding tunnels when backed by a desktop workbench.
+    async fn manage_tunnel(&self, _args: &Value) -> Result<String> {
+        Ok(String::from(
+            "SSH tunnel management is unavailable in this environment.",
+        ))
+    }
+
+    /// Lists or transfers files over SFTP when backed by a desktop workbench.
+    async fn sftp_transfer(&self, _args: &Value) -> Result<String> {
+        Ok(String::from(
+            "SFTP transfer is unavailable in this environment.",
+        ))
+    }
 }
 
 /// Result of one terminal command.
@@ -546,6 +560,90 @@ impl AgentRuntime {
                     signal: format!("{signal:?}"),
                 });
                 Ok(format!("sent {signal:?}"))
+            }
+            MANAGE_SSH_TUNNEL | SFTP_TRANSFER => {
+                let is_tunnel = call.name == MANAGE_SSH_TUNNEL;
+                let action = request
+                    .arguments
+                    .get("action")
+                    .and_then(Value::as_str)
+                    .unwrap_or("list");
+                let summary = if is_tunnel {
+                    format!(
+                        "manage_ssh_tunnel({action} {})",
+                        request
+                            .arguments
+                            .get("name")
+                            .or_else(|| request.arguments.get("tunnel_id"))
+                            .and_then(Value::as_str)
+                            .unwrap_or("")
+                    )
+                } else {
+                    format!(
+                        "sftp_transfer({action} {})",
+                        request
+                            .arguments
+                            .get("remote_path")
+                            .and_then(Value::as_str)
+                            .unwrap_or("")
+                    )
+                };
+                let risk = if action == "list" || (!is_tunnel && action == "download") {
+                    CommandRisk::ReadOnly
+                } else {
+                    CommandRisk::Mutating
+                };
+                let _ = self.events.send(AgentEvent::ToolRequested {
+                    step,
+                    call_id: call.id.clone(),
+                    tool: call.name.clone(),
+                    command: Some(summary.clone()),
+                    risk: Some(risk),
+                });
+
+                let needs_approval = self.config.step_approval
+                    || match self.policy.mode() {
+                        PermissionMode::Ask => true,
+                        PermissionMode::Supervised => risk != CommandRisk::ReadOnly,
+                        PermissionMode::Autonomous => false,
+                    };
+                if needs_approval {
+                    let approval = ApprovalRequest {
+                        call_id: call.id.clone(),
+                        command: summary.clone(),
+                        risk,
+                    };
+                    if !self.approver.approve(&approval).await {
+                        let _ = self.events.send(AgentEvent::ToolDenied {
+                            call_id: call.id.clone(),
+                            command: summary,
+                        });
+                        return Ok(String::from("denied: user declined this action."));
+                    }
+                    let _ = self.events.send(AgentEvent::ToolApproved {
+                        call_id: call.id.clone(),
+                    });
+                }
+
+                let started = Instant::now();
+                let output = if is_tunnel {
+                    self.terminal.manage_tunnel(&request.arguments).await?
+                } else {
+                    self.terminal.sftp_transfer(&request.arguments).await?
+                };
+                let duration_ms = started.elapsed().as_millis() as u64;
+                let _ = self.events.send(AgentEvent::ToolFinished {
+                    step,
+                    call_id: call.id.clone(),
+                    exit_code: Some(0),
+                    output: output.clone(),
+                    timed_out: false,
+                    duration_ms,
+                });
+                Ok(truncate_for_model(
+                    &output,
+                    self.config.max_tool_output_chars,
+                ))
             }
             other => Err(AgentError::ToolFailure {
                 tool: other.to_owned(),
