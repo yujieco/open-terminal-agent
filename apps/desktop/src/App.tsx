@@ -7,7 +7,9 @@ import { useTranslation } from "react-i18next";
 import { AgentSidebar, type ExternalTaskTrigger } from "./components/AgentSidebar";
 import { CommandPalette } from "./components/CommandPalette";
 import { ExportLogDialog } from "./components/ExportLogDialog";
+import { FleetInspectDialog } from "./components/FleetInspectDialog";
 import { GlobalContextMenu } from "./components/GlobalContextMenu";
+import { extractVariables, RunbooksPanel } from "./components/RunbooksPanel";
 import { SaveSnippetDialog } from "./components/SaveSnippetDialog";
 import { SerialConnectDialog } from "./components/SerialConnectDialog";
 import { SessionSidebar } from "./components/SessionSidebar";
@@ -34,7 +36,9 @@ import {
   isTauri,
   type CommandSnippet,
   type EnvTag,
+  type Runbook,
   type SavedSession,
+  type SaveRunbookInput,
   type SaveSnippetInput,
   type SaveSshSessionInput,
   type SerialConnectInput,
@@ -53,7 +57,7 @@ const MODES: PermissionMode[] = ["ask", "supervised", "autonomous"];
 const DEMO_SNIPPETS_KEY = "ota.demo.snippets";
 
 type DialogKind = "ssh" | "serial" | null;
-type RightTabKind = "agent" | "snippets";
+type RightTabKind = "agent" | "snippets" | "runbooks";
 
 interface TabContextMenu {
   x: number;
@@ -103,6 +107,8 @@ export default function App() {
   const [shells, setShells] = useState<ShellProfile[]>([]);
   const [saved, setSaved] = useState<SavedSession[]>([]);
   const [snippets, setSnippets] = useState<CommandSnippet[]>([]);
+  const [runbooks, setRunbooks] = useState<Runbook[]>([]);
+  const [fleetOpen, setFleetOpen] = useState(false);
   const [mode, setMode] = useState<PermissionMode>(() => {
     try {
       const savedMode = window.localStorage.getItem("ota.pref.mode");
@@ -125,7 +131,7 @@ export default function App() {
   const [rightTab, setRightTab] = useState<RightTabKind>(() => {
     try {
       const val = window.localStorage.getItem("ota.pref.rightTab");
-      return val === "snippets" ? "snippets" : "agent";
+      return val === "snippets" || val === "runbooks" ? val : "agent";
     } catch {
       return "agent";
     }
@@ -209,6 +215,61 @@ export default function App() {
       console.warn("[ota] could not list command snippets", cause);
     }
   }, []);
+
+  const refreshRunbooks = useCallback(async () => {
+    if (!isTauri()) return;
+    try {
+      setRunbooks(await ipc.listRunbooks());
+    } catch (cause) {
+      console.warn("[ota] could not list runbooks", cause);
+    }
+  }, []);
+
+  const saveRunbook = useCallback(
+    async (input: SaveRunbookInput) => {
+      if (!isTauri()) {
+        const now = Date.now();
+        setRunbooks((prev) => {
+          const item: Runbook = {
+            id: input.id ?? `rb-${now}`,
+            name: input.name,
+            description: input.description ?? "",
+            steps: input.steps,
+            variables: input.variables ?? extractVariables(input.steps),
+            runCount: 0,
+            createdAt: now,
+            updatedAt: now,
+          };
+          return input.id ? prev.map((r) => (r.id === input.id ? item : r)) : [item, ...prev];
+        });
+        return;
+      }
+      await ipc.saveRunbook(input);
+      await refreshRunbooks();
+    },
+    [refreshRunbooks],
+  );
+
+  const deleteRunbook = useCallback(
+    async (id: string) => {
+      if (!isTauri()) {
+        setRunbooks((prev) => prev.filter((r) => r.id !== id));
+        return;
+      }
+      await ipc.deleteRunbook(id);
+      await refreshRunbooks();
+    },
+    [refreshRunbooks],
+  );
+
+  const runRunbookCommand = useCallback(
+    (command: string, execute: boolean) => {
+      const target = sessionsRef.current.find((session) => session.id === activeId);
+      if (!target || target.exited) return;
+      target.backend.write(execute ? `${command}\r` : command);
+    },
+    [activeId],
+  );
 
   const saveSnippet = useCallback(
     async (input: SaveSnippetInput) => {
@@ -784,11 +845,11 @@ export default function App() {
       } catch (cause) {
         console.warn("[ota] could not read locale, shells or agent capabilities", cause);
       }
-      await Promise.all([refreshSaved(), refreshSnippets()]);
+      await Promise.all([refreshSaved(), refreshSnippets(), refreshRunbooks()]);
       await createLocalSession();
       void checkUpdates();
     })();
-  }, [checkUpdates, createLocalSession, refreshSaved, refreshSnippets]);
+  }, [checkUpdates, createLocalSession, refreshRunbooks, refreshSaved, refreshSnippets]);
 
   const orderedSessions = useMemo(() => {
     const byId = new Map(sessions.map((session) => [session.id, session]));
@@ -1108,6 +1169,7 @@ export default function App() {
           }}
           onOpenSftp={() => setSftpOpen(true)}
           onOpenTunnels={() => setTunnelsOpen(true)}
+          onOpenFleet={() => setFleetOpen(true)}
           onOpenPalette={() => setPaletteOpen(true)}
         />
 
@@ -1148,11 +1210,11 @@ export default function App() {
           />
         </main>
 
-        {/* Right collapsible dual-tab panel: AI Agent | Command Handbook (pure typography segmented control) */}
+        {/* Right collapsible tri-tab panel: AI Agent | Command Handbook | 0-Token Runbooks */}
         {rightOpen ? (
           <aside className="flex w-[21rem] shrink-0 flex-col border-l border-[var(--border-subtle)] bg-[var(--bg-sidebar)]">
             <div className="border-b border-[var(--border-subtle)] bg-[var(--bg-chrome)] px-3 py-2">
-              <div className="ota-segmented w-full grid-cols-2">
+              <div className="ota-segmented w-full grid-cols-3">
                 <button
                   type="button"
                   data-active={rightTab === "agent"}
@@ -1169,8 +1231,21 @@ export default function App() {
                 >
                   <span>{t("snippets.tabTitle")}</span>
                   {snippets.length > 0 ? (
-                    <span className="ota-tabular rounded bg-[var(--bg-canvas)] px-1.5 text-[11px] font-normal text-[var(--text-muted)]">
+                    <span className="ota-tabular rounded bg-[var(--bg-canvas)] px-1 text-[10px] font-normal text-[var(--text-muted)]">
                       {snippets.length}
+                    </span>
+                  ) : null}
+                </button>
+                <button
+                  type="button"
+                  data-active={rightTab === "runbooks"}
+                  onClick={() => setRightTab("runbooks")}
+                  className="ota-segment"
+                >
+                  <span>{t("runbooks.tabTitle")}</span>
+                  {runbooks.length > 0 ? (
+                    <span className="ota-tabular rounded bg-[var(--bg-canvas)] px-1 text-[10px] font-normal text-[var(--text-muted)]">
+                      {runbooks.length}
                     </span>
                   ) : null}
                 </button>
@@ -1185,6 +1260,15 @@ export default function App() {
                 externalTask={externalTask}
                 onNextSuggestion={handleNextSuggestion}
                 onOpenSettings={() => setSettingsOpen(true)}
+                onSaveAsRunbook={(name, commands) => {
+                  const steps = commands.map((command) => ({ command, note: "" }));
+                  void saveRunbook({
+                    name,
+                    description: t("runbooks.savedFromAgentDesc"),
+                    steps,
+                    variables: extractVariables(steps),
+                  }).then(() => setRightTab("runbooks"));
+                }}
                 onRunningChange={handleAgentRunning}
               />
             </div>
@@ -1202,6 +1286,24 @@ export default function App() {
                 onFavoriteHandbook={(command) =>
                   setSnippetModal({ initialCommand: command, editing: null })
                 }
+              />
+            ) : null}
+
+            {rightTab === "runbooks" ? (
+              <RunbooksPanel
+                runbooks={runbooks}
+                hasSession={activeSession !== null && !activeSession.exited}
+                onSave={saveRunbook}
+                onDelete={deleteRunbook}
+                onRunCommand={runRunbookCommand}
+                onBumpUsage={(id) => {
+                  if (isTauri()) {
+                    void ipc
+                      .bumpRunbookUsage(id)
+                      .then(() => refreshRunbooks())
+                      .catch(console.warn);
+                  }
+                }}
               />
             ) : null}
           </aside>
@@ -1436,6 +1538,13 @@ export default function App() {
         <SshConfigImportDialog
           onImported={refreshSaved}
           onClose={() => setImportOpen(false)}
+        />
+      ) : null}
+
+      {fleetOpen ? (
+        <FleetInspectDialog
+          saved={saved}
+          onClose={() => setFleetOpen(false)}
         />
       ) : null}
 

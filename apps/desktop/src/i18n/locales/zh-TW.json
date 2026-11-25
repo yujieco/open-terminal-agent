@@ -562,5 +562,48 @@
     "addMacro": "新增自訂快捷指令按鈕",
     "macroName": "按鈕名稱",
     "resetCounters": "點擊歸零 RX/TX 位元組計數"
+  },
+  "fleet": {
+    "sidebarLabel": "多機巡檢",
+    "title": "多機並發 AI 巡檢",
+    "subtitle": "並發在多台已儲存 SSH 伺服器上執行唯讀巡檢，並由 AI 自動彙整異常節點。",
+    "hostsLabel": "目標 SSH 伺服器（已選 {{count}} / {{total}}）",
+    "selectAll": "全選",
+    "clearAll": "清空",
+    "noHosts": "尚無已儲存的 SSH 伺服器，請先儲存主機即可執行多機巡檢。",
+    "goalPlaceholder": "輸入巡檢目標（如：排查磁碟超過 80% 的節點）…",
+    "commandPlaceholder": "選填：直接指定巡檢指令（留空則由 AI 產生）…",
+    "approvalNeeded": "偵測到變更/高危指令，跨多機執行前請明確確認：",
+    "approveFleetRun": "確認跨主機執行",
+    "aiSummary": "AI 多機異常對比總結",
+    "details": "展開",
+    "running": "正在並發巡檢 {{count}} 台主機…",
+    "runAction": "並發巡檢 {{count}} 台主機",
+    "presets": {
+      "disk": "磁碟 >80% 排查",
+      "memory": "記憶體與 Top5",
+      "docker": "Docker 容器狀態",
+      "uptime": "負載與核心版本"
+    }
+  },
+  "runbooks": {
+    "tabTitle": "劇本",
+    "zeroTokenBadge": "0-Token 可重複維運劇本",
+    "new": "新增",
+    "namePlaceholder": "劇本名稱（如：安全重載 Nginx）",
+    "descPlaceholder": "簡短說明（選填）",
+    "stepsHint": "每行一條指令，支援 {{變數名稱}} 佔位符",
+    "back": "返回劇本列表",
+    "copyJson": "複製 JSON",
+    "invalidJson": "剪貼簿中不是有效的 Runbook JSON。",
+    "variables": "執行參數",
+    "pasteStep": "貼上",
+    "runStep": "執行",
+    "runAll": "一鍵串行執行全部 {{count}} 步（0 Token）",
+    "empty": "尚未儲存任何維運劇本。完成 AI Agent 排查後可點擊「存為劇本」一鍵沉澱。",
+    "stepCount": "{{count}} 步",
+    "runCount": "已執行 {{count}} 次",
+    "saveFromRun": "存為劇本",
+    "savedFromAgentDesc": "由 AI Agent 排查紀錄一鍵沉澱"
   }
 }

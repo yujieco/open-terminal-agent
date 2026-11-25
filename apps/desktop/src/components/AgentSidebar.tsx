@@ -44,6 +44,8 @@ interface AgentSidebarProps {
   externalTask: ExternalTaskTrigger | null;
   onNextSuggestion: (sessionId: string, suggestion: string | null) => void;
   onOpenSettings: () => void;
+  /** Saves executed commands from the current run as a 0-token reusable runbook. */
+  onSaveAsRunbook: (name: string, commands: string[]) => void;
   /** Tells the shell whether an agent owns this session, for Esc take-over. */
   onRunningChange: (sessionId: string, running: boolean) => void;
 }
@@ -55,6 +57,7 @@ export function AgentSidebar({
   externalTask,
   onNextSuggestion,
   onOpenSettings,
+  onSaveAsRunbook,
   onRunningChange,
 }: AgentSidebarProps) {
   const { t, i18n } = useTranslation();
@@ -639,7 +642,27 @@ export function AgentSidebar({
         ) : null}
 
         {summary ? (
-          <p className="font-mono text-[10px] text-[var(--text-muted)]">{summary}</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-mono text-[10px] text-[var(--text-muted)]">{summary}</p>
+            {!running && cards.some((card) => card.status === "done" && card.command.trim().length > 0) ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const executed = cards
+                    .filter((card) => card.status === "done" && card.command.trim().length > 0)
+                    .map((card) => card.command.trim());
+                  if (executed.length > 0) {
+                    const name = (lastTaskRef.current || executed[0] || "Runbook").slice(0, 48);
+                    onSaveAsRunbook(name, executed);
+                  }
+                }}
+                className="shrink-0 rounded-md border border-[var(--accent-border)] bg-[var(--accent-soft)] px-2 py-0.5 text-[10.5px] font-medium transition hover:opacity-85"
+                style={{ color: "var(--accent)" }}
+              >
+                {t("runbooks.saveFromRun")}
+              </button>
+            ) : null}
+          </div>
         ) : null}
 
         <div ref={timelineEndRef} />

@@ -562,5 +562,48 @@
     "addMacro": "新增自定义快捷指令按钮",
     "macroName": "按钮名",
     "resetCounters": "点击清零 RX/TX 收发字节计数"
+  },
+  "fleet": {
+    "sidebarLabel": "多机巡检",
+    "title": "多机并发 AI 巡检",
+    "subtitle": "并发在多台已保存 SSH 服务器上执行只读巡检，并由 AI 自动对比汇总异常节点。",
+    "hostsLabel": "目标 SSH 服务器（已选 {{count}} / {{total}}）",
+    "selectAll": "全选",
+    "clearAll": "清空",
+    "noHosts": "还没有已保存的 SSH 服务器，先保存主机后即可多机并发巡检。",
+    "goalPlaceholder": "输入巡检目标（如：排查所有节点磁盘超 80% 的目录）…",
+    "commandPlaceholder": "可选：直接指定巡检命令（留空则由 AI 生成）…",
+    "approvalNeeded": "检测到变更/高危命令，跨多机执行前请显式确认：",
+    "approveFleetRun": "确认跨主机执行",
+    "aiSummary": "AI 多机异常对比总结",
+    "details": "展开",
+    "running": "正在并发巡检 {{count}} 台主机…",
+    "runAction": "并发巡检 {{count}} 台主机",
+    "presets": {
+      "disk": "磁盘 >80% 排查",
+      "memory": "内存与 Top5 进程",
+      "docker": "Docker 容器状态",
+      "uptime": "负载与内核版本"
+    }
+  },
+  "runbooks": {
+    "tabTitle": "剧本",
+    "zeroTokenBadge": "0-Token 可复用运维剧本",
+    "new": "新建",
+    "namePlaceholder": "剧本名称（如：安全重载 Nginx）",
+    "descPlaceholder": "简短说明（可选）",
+    "stepsHint": "每行一条命令，支持 {{变量名}} 参数占位符",
+    "back": "返回剧本列表",
+    "copyJson": "复制 JSON",
+    "invalidJson": "剪贴板中不是有效的 Runbook JSON。",
+    "variables": "运行参数",
+    "pasteStep": "粘贴",
+    "runStep": "执行",
+    "runAll": "一键串行执行全部 {{count}} 步（0 Token）",
+    "empty": "还没有保存任何运维剧本。完成一次 AI Agent 排查后可点击「存为剧本」一键沉淀，或直接在此新建。",
+    "stepCount": "{{count}} 步",
+    "runCount": "已运行 {{count}} 次",
+    "saveFromRun": "存为剧本",
+    "savedFromAgentDesc": "从 AI Agent 排查记录一键沉淀"
   }
 }

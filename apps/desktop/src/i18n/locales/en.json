@@ -562,5 +562,48 @@
     "addMacro": "Add custom macro button",
     "macroName": "Button name",
     "resetCounters": "Click to reset RX/TX byte counters"
+  },
+  "fleet": {
+    "sidebarLabel": "Fleet Inspect",
+    "title": "Multi-Host Concurrent Fleet Inspection",
+    "subtitle": "Run one read-only inspection concurrently across selected SSH servers and let AI highlight anomalies.",
+    "hostsLabel": "Target SSH hosts ({{count}} / {{total}})",
+    "selectAll": "Select all",
+    "clearAll": "Clear",
+    "noHosts": "No saved SSH profiles yet. Save SSH hosts first to run fleet inspections.",
+    "goalPlaceholder": "Describe what to inspect (e.g. find disks over 80%)…",
+    "commandPlaceholder": "Optional explicit shell command (overrides AI)…",
+    "approvalNeeded": "State-changing / destructive fleet command requires explicit confirmation:",
+    "approveFleetRun": "Approve & run across fleet",
+    "aiSummary": "AI Cross-Host Summary",
+    "details": "Details",
+    "running": "Inspecting {{count}} host(s)…",
+    "runAction": "Inspect {{count}} host(s)",
+    "presets": {
+      "disk": "Disk >80%",
+      "memory": "Memory & Top5",
+      "docker": "Docker status",
+      "uptime": "Uptime & Kernel"
+    }
+  },
+  "runbooks": {
+    "tabTitle": "Runbooks",
+    "zeroTokenBadge": "0-Token Reusable SOP",
+    "new": "New",
+    "namePlaceholder": "Runbook name (e.g. Safe Nginx Reload)",
+    "descPlaceholder": "Short description (optional)",
+    "stepsHint": "Commands (one per line, supports {{variable}} placeholders)",
+    "back": "All runbooks",
+    "copyJson": "Copy JSON",
+    "invalidJson": "Clipboard does not contain valid Runbook JSON.",
+    "variables": "Parameters",
+    "pasteStep": "Paste",
+    "runStep": "Run",
+    "runAll": "Run all {{count}} steps (0 Token)",
+    "empty": "No saved runbooks yet. Finish an AI Agent run and click \"Save as Runbook\", or create one here.",
+    "stepCount": "{{count}} steps",
+    "runCount": "ran {{count}}×",
+    "saveFromRun": "Save as Runbook",
+    "savedFromAgentDesc": "Captured from an AI Agent troubleshooting run"
   }
 }

@@ -562,5 +562,48 @@
     "addMacro": "Добавить кнопку макроса",
     "macroName": "Имя кнопки",
     "resetCounters": "Сбросить счётчики RX/TX"
+  },
+  "fleet": {
+    "sidebarLabel": "Проверка парка",
+    "title": "Параллельная AI-инспекция серверов",
+    "subtitle": "Выполните проверку одновременно на выбранных SSH-хостах и получите сводку аномалий от AI.",
+    "hostsLabel": "Целевые SSH-хосты ({{count}} / {{total}})",
+    "selectAll": "Выбрать все",
+    "clearAll": "Очистить",
+    "noHosts": "Нет сохранённых SSH-профилей. Сначала сохраните хосты.",
+    "goalPlaceholder": "Что проверить (напр., диски заполнены >80%)…",
+    "commandPlaceholder": "Необязательно: своя команда (иначе сгенерирует AI)…",
+    "approvalNeeded": "Обнаружена изменяющая/опасная команда — подтвердите запуск по парку:",
+    "approveFleetRun": "Подтвердить запуск",
+    "aiSummary": "AI-сводка по хостам",
+    "details": "Подробнее",
+    "running": "Проверка {{count}} хост(ов)…",
+    "runAction": "Проверить {{count}} хост(ов)",
+    "presets": {
+      "disk": "Диск >80%",
+      "memory": "Память и Top5",
+      "docker": "Статус Docker",
+      "uptime": "Uptime и ядро"
+    }
+  },
+  "runbooks": {
+    "tabTitle": "Сценарии",
+    "zeroTokenBadge": "0-Token сценарии SOP",
+    "new": "Новый",
+    "namePlaceholder": "Название сценария (напр., Безопасный reload Nginx)",
+    "descPlaceholder": "Краткое описание (необязательно)",
+    "stepsHint": "Команды построчно, поддерживаются переменные {{var}}",
+    "back": "К списку",
+    "copyJson": "Копировать JSON",
+    "invalidJson": "В буфере обмена нет корректного JSON сценария.",
+    "variables": "Параметры",
+    "pasteStep": "Вставить",
+    "runStep": "Запуск",
+    "runAll": "Выполнить все {{count}} шаг(ов) (0 Token)",
+    "empty": "Сценариев пока нет. После работы AI Agent нажмите «Сохранить сценарий».",
+    "stepCount": "шагов: {{count}}",
+    "runCount": "запусков: {{count}}",
+    "saveFromRun": "Сохранить сценарий",
+    "savedFromAgentDesc": "Создано из успешного запуска AI Agent"
   }
 }

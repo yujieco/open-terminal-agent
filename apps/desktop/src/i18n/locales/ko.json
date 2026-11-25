@@ -562,5 +562,48 @@
     "addMacro": "사용자 정의 매크로 추가",
     "macroName": "버튼 이름",
     "resetCounters": "클릭하여 RX/TX 바이트 카운터 초기화"
+  },
+  "fleet": {
+    "sidebarLabel": "다중 서버 점검",
+    "title": "다중 호스트 동시 AI 점검",
+    "subtitle": "저장된 여러 SSH 서버를 동시에 점검하고 AI가 이상 징후를 요약합니다.",
+    "hostsLabel": "대상 SSH 호스트 ({{count}} / {{total}})",
+    "selectAll": "전체 선택",
+    "clearAll": "해제",
+    "noHosts": "저장된 SSH 프로필이 없습니다. 먼저 호스트를 저장하세요.",
+    "goalPlaceholder": "점검 목표 입력 (예: 디스크 80% 이상 서버 확인)…",
+    "commandPlaceholder": "선택: 직접 명령어 입력 (비우면 AI 자동 생성)…",
+    "approvalNeeded": "변경/위험 명령이 감지되었습니다. 다중 실행 전 승인하세요:",
+    "approveFleetRun": "승인 후 동시 실행",
+    "aiSummary": "AI 다중 호스트 비교 요약",
+    "details": "자세히",
+    "running": "{{count}}대 동시 점검 중…",
+    "runAction": "{{count}}대 동시 점검",
+    "presets": {
+      "disk": "디스크 >80%",
+      "memory": "메모리 & Top5",
+      "docker": "Docker 상태",
+      "uptime": "업타임 & 커널"
+    }
+  },
+  "runbooks": {
+    "tabTitle": "런북",
+    "zeroTokenBadge": "0-Token 재사용 SOP",
+    "new": "새로 만들기",
+    "namePlaceholder": "런북 이름 (예: Nginx 안전 리로드)",
+    "descPlaceholder": "간단한 설명 (선택)",
+    "stepsHint": "한 줄에 한 명령 ({{변수명}} 치환 지원)",
+    "back": "목록으로",
+    "copyJson": "JSON 복사",
+    "invalidJson": "클립보드에 올바른 런북 JSON이 없습니다.",
+    "variables": "매개변수",
+    "pasteStep": "붙여넣기",
+    "runStep": "실행",
+    "runAll": "전체 {{count}}단계 실행 (0 Token)",
+    "empty": "저장된 런북이 없습니다. AI Agent 실행 후 '런북으로 저장'을 눌러 보관하세요.",
+    "stepCount": "{{count}}단계",
+    "runCount": "{{count}}회 실행",
+    "saveFromRun": "런북으로 저장",
+    "savedFromAgentDesc": "AI Agent 장애 분석 기록에서 저장됨"
   }
 }

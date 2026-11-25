@@ -562,5 +562,48 @@
     "addMacro": "カスタムマクロを追加",
     "macroName": "ボタン名",
     "resetCounters": "クリックで RX/TX カウンタをリセット"
+  },
+  "fleet": {
+    "sidebarLabel": "複数機巡回",
+    "title": "マルチホスト並列 AI 巡回点検",
+    "subtitle": "複数の保存済み SSH ホストを並列で点検し、AI が異常を自動要約します。",
+    "hostsLabel": "対象 SSH ホスト ({{count}} / {{total}})",
+    "selectAll": "すべて選択",
+    "clearAll": "解除",
+    "noHosts": "保存済み SSH ホストがありません。先にホストを保存してください。",
+    "goalPlaceholder": "点検内容を入力（例：ディスク使用率 80% 超えを調査）…",
+    "commandPlaceholder": "任意：実行コマンドを直接指定（空欄なら AI 生成）…",
+    "approvalNeeded": "状態変更・破壊的コマンドのため、並列実行前に承認が必要です：",
+    "approveFleetRun": "承認して一括実行",
+    "aiSummary": "AI ホスト間比較サマリー",
+    "details": "詳細",
+    "running": "{{count}} 台を並列点検中…",
+    "runAction": "{{count}} 台を並列点検",
+    "presets": {
+      "disk": "ディスク >80%",
+      "memory": "メモリ & Top5",
+      "docker": "Docker 状態",
+      "uptime": "稼働時間・カーネル"
+    }
+  },
+  "runbooks": {
+    "tabTitle": "手順書",
+    "zeroTokenBadge": "0-Token 再利用 Runbook",
+    "new": "新規",
+    "namePlaceholder": "手順書名（例：Nginx 安全リロード）",
+    "descPlaceholder": "説明（任意）",
+    "stepsHint": "1行1コマンド（{{変数名}} プレースホルダ対応）",
+    "back": "一覧へ戻る",
+    "copyJson": "JSON コピー",
+    "invalidJson": "クリップボードに有効な Runbook JSON がありません。",
+    "variables": "パラメータ",
+    "pasteStep": "貼付",
+    "runStep": "実行",
+    "runAll": "全 {{count}} ステップを実行 (0 Token)",
+    "empty": "手順書はまだありません。AI Agent 実行後に「手順書として保存」できます。",
+    "stepCount": "{{count}} ステップ",
+    "runCount": "実行 {{count}} 回",
+    "saveFromRun": "手順書として保存",
+    "savedFromAgentDesc": "AI Agent の調査履歴から作成"
   }
 }

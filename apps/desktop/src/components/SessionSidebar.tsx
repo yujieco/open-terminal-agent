@@ -29,6 +29,7 @@ interface SessionSidebarProps {
   onOpenSerial: () => void;
   onOpenSftp: () => void;
   onOpenTunnels: () => void;
+  onOpenFleet: () => void;
   onOpenPalette: () => void;
 }
 
@@ -59,6 +60,7 @@ export function SessionSidebar({
   onOpenSerial,
   onOpenSftp,
   onOpenTunnels,
+  onOpenFleet,
   onOpenPalette,
 }: SessionSidebarProps) {
   const { t } = useTranslation();
@@ -319,6 +321,27 @@ export function SessionSidebar({
                   {activeTunnelCount}
                 </span>
               ) : null}
+            </button>
+
+            <button
+              type="button"
+              onClick={onOpenFleet}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            >
+              <svg
+                viewBox="0 0 16 16"
+                className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="2" y="2.5" width="5" height="4.5" rx="1" />
+                <rect x="9" y="2.5" width="5" height="4.5" rx="1" />
+                <rect x="5.5" y="9" width="5" height="4.5" rx="1" />
+              </svg>
+              <span className="truncate">{t("fleet.sidebarLabel")}</span>
             </button>
           </div>
         </section>

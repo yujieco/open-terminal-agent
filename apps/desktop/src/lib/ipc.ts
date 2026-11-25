@@ -166,6 +166,49 @@ export interface SaveSnippetInput {
   description?: string;
 }
 
+export interface RunbookStep {
+  command: string;
+  note: string;
+}
+
+export interface Runbook {
+  id: string;
+  name: string;
+  description: string;
+  steps: RunbookStep[];
+  variables: string[];
+  runCount: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface SaveRunbookInput {
+  id?: string;
+  name: string;
+  description?: string;
+  steps: RunbookStep[];
+  variables?: string[];
+}
+
+export interface FleetHostResult {
+  sessionId: string;
+  name: string;
+  target: string;
+  ok: boolean;
+  exitCode: number | null;
+  durationMs: number;
+  output: string;
+  error: string | null;
+}
+
+export interface FleetInspectResponse {
+  command: string;
+  risk: string;
+  needsApproval: boolean;
+  summary: string | null;
+  results: FleetHostResult[];
+}
+
 export interface SavedSession {
   id: string;
   name: string;
@@ -412,6 +455,32 @@ export const ipc = {
 
   bumpSnippetUsage(id: string): Promise<void> {
     return invoke<void>("bump_snippet_usage", { id });
+  },
+
+  listRunbooks(): Promise<Runbook[]> {
+    return invoke<Runbook[]>("list_runbooks");
+  },
+
+  saveRunbook(input: SaveRunbookInput): Promise<Runbook> {
+    return invoke<Runbook>("save_runbook", { request: input });
+  },
+
+  deleteRunbook(id: string): Promise<boolean> {
+    return invoke<boolean>("delete_runbook", { id });
+  },
+
+  bumpRunbookUsage(id: string): Promise<void> {
+    return invoke<void>("bump_runbook_usage", { id });
+  },
+
+  fleetInspect(request: {
+    sessionIds: string[];
+    goal: string;
+    command?: string;
+    allowMutating?: boolean;
+    language?: string;
+  }): Promise<FleetInspectResponse> {
+    return invoke<FleetInspectResponse>("fleet_inspect", { request });
   },
 
   agentCapabilities(): Promise<AgentCapabilities> {
