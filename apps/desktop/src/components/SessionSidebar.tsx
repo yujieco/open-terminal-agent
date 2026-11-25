@@ -15,6 +15,7 @@ interface SessionSidebarProps {
   saved: SavedSession[];
   creating: boolean;
   agentRunning: boolean;
+  activeTunnelCount: number;
   onSelect: (sessionId: string) => void;
   onRename: (sessionId: string, nextLabel: string) => void;
   onCloseSession: (sessionId: string) => void;
@@ -25,6 +26,7 @@ interface SessionSidebarProps {
   onOpenSsh: () => void;
   onOpenSerial: () => void;
   onOpenSftp: () => void;
+  onOpenTunnels: () => void;
   onOpenPalette: () => void;
 }
 
@@ -41,6 +43,7 @@ export function SessionSidebar({
   saved,
   creating,
   agentRunning,
+  activeTunnelCount,
   onSelect,
   onRename,
   onCloseSession,
@@ -51,6 +54,7 @@ export function SessionSidebar({
   onOpenSsh,
   onOpenSerial,
   onOpenSftp,
+  onOpenTunnels,
   onOpenPalette,
 }: SessionSidebarProps) {
   const { t } = useTranslation();
@@ -279,6 +283,37 @@ export function SessionSidebar({
                 />
               </svg>
               <span className="truncate">{t("sidebar.sftp")}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onOpenTunnels}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            >
+              <svg
+                viewBox="0 0 16 16"
+                className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M2.5 5.5h8.5M8.5 3l2.5 2.5L8.5 8" />
+                <path d="M13.5 10.5H5M7.5 8L5 10.5 7.5 13" />
+              </svg>
+              <span className="truncate">{t("sidebar.tunnels")}</span>
+              {activeTunnelCount > 0 ? (
+                <span
+                  className="ota-tabular ml-auto inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[10px] font-semibold"
+                  style={{
+                    backgroundColor: "var(--status-ok-soft)",
+                    color: "var(--status-ok)",
+                  }}
+                >
+                  {activeTunnelCount}
+                </span>
+              ) : null}
             </button>
           </div>
         </section>

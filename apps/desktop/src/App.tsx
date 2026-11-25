@@ -17,6 +17,7 @@ import { SnippetsPanel } from "./components/SnippetsPanel";
 import { SshConnectDialog } from "./components/SshConnectDialog";
 import { StatusBar } from "./components/StatusBar";
 import { TerminalWorkspace } from "./components/TerminalWorkspace";
+import { TunnelDrawer } from "./components/TunnelDrawer";
 import { UpdateDialog } from "./components/UpdateDialog";
 import { useTerminalConfig } from "./hooks/useTerminalConfig";
 import { useTheme } from "./hooks/useTheme";
@@ -104,6 +105,8 @@ export default function App() {
   const [rightTab, setRightTab] = useState<RightTabKind>("agent");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sftpOpen, setSftpOpen] = useState(false);
+  const [tunnelsOpen, setTunnelsOpen] = useState(false);
+  const [activeTunnelCount, setActiveTunnelCount] = useState(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
@@ -903,6 +906,7 @@ export default function App() {
           saved={saved}
           creating={creating}
           agentRunning={activeAgentRunning}
+          activeTunnelCount={activeTunnelCount}
           onSelect={setActiveId}
           onRename={renameSession}
           onCloseSession={closeSession}
@@ -921,6 +925,7 @@ export default function App() {
             setDialog("serial");
           }}
           onOpenSftp={() => setSftpOpen(true)}
+          onOpenTunnels={() => setTunnelsOpen(true)}
           onOpenPalette={() => setPaletteOpen(true)}
         />
 
@@ -1174,6 +1179,18 @@ export default function App() {
       ) : null}
 
       {sftpOpen ? <SftpDrawer saved={saved} onClose={() => setSftpOpen(false)} /> : null}
+
+      {tunnelsOpen ? (
+        <TunnelDrawer
+          saved={saved}
+          onOpenSsh={() => {
+            setDialogError(null);
+            setDialog("ssh");
+          }}
+          onActiveCountChange={setActiveTunnelCount}
+          onClose={() => setTunnelsOpen(false)}
+        />
+      ) : null}
 
       {paletteOpen ? (
         <CommandPalette

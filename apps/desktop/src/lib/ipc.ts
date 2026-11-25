@@ -210,6 +210,42 @@ export interface ExportLogResult {
   lines: number;
 }
 
+export type TunnelKind = "local" | "remote" | "dynamic";
+
+export interface TunnelStats {
+  activeConnections: number;
+  totalConnections: number;
+  bytesTx: number;
+  bytesRx: number;
+}
+
+export interface TunnelView {
+  id: string;
+  name: string;
+  sessionId: string;
+  sessionName: string;
+  sshTarget: string;
+  kind: TunnelKind;
+  bindHost: string;
+  bindPort: number;
+  activePort: number;
+  targetHost: string;
+  targetPort: number;
+  running: boolean;
+  stats: TunnelStats;
+}
+
+export interface SaveTunnelInput {
+  id?: string;
+  name: string;
+  sessionId: string;
+  kind: TunnelKind;
+  bindHost?: string;
+  bindPort: number;
+  targetHost?: string;
+  targetPort?: number;
+}
+
 export type UpdateDownloadEvent =
   | { event: "started"; contentLength: number | null }
   | { event: "progress"; downloaded: number; total: number | null }
@@ -405,5 +441,25 @@ export const ipc = {
 
   revealInFolder(path: string): Promise<void> {
     return invoke<void>("reveal_in_folder", { path });
+  },
+
+  listTunnels(): Promise<TunnelView[]> {
+    return invoke<TunnelView[]>("list_tunnels");
+  },
+
+  saveTunnel(input: SaveTunnelInput): Promise<TunnelView> {
+    return invoke<TunnelView>("save_tunnel", { request: input });
+  },
+
+  deleteTunnel(id: string): Promise<boolean> {
+    return invoke<boolean>("delete_tunnel", { id });
+  },
+
+  startTunnel(id: string): Promise<TunnelView> {
+    return invoke<TunnelView>("start_tunnel", { id });
+  },
+
+  stopTunnel(id: string): Promise<TunnelView> {
+    return invoke<TunnelView>("stop_tunnel", { id });
   },
 };
