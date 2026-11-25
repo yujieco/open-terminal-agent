@@ -53,6 +53,16 @@
       "copy": "コピー",
       "paste": "貼り付け",
       "clear": "ターミナルをクリア"
+    },
+    "search": {
+      "placeholder": "端末出力を検索…",
+      "noMatches": "0件",
+      "caseSensitive": "大文字・小文字を区別",
+      "regex": "正規表現を使用",
+      "previous": "前の一致 (Shift+Enter)",
+      "next": "次の一致 (Enter)",
+      "menuItem": "端末内を検索",
+      "tooltip": "端末内を検索 ({{shortcut}})"
     }
   },
   "contextMenu": {
@@ -213,7 +223,8 @@
     "close": "閉じる",
     "dismiss": "閉じる",
     "pending": "未対応",
-    "delete": "削除"
+    "delete": "削除",
+    "create": "作成"
   },
   "ssh": {
     "title": "SSH 接続",
@@ -263,7 +274,31 @@
     "downloadLocal": "ローカルの保存先パス",
     "uploadRemote": "リモートの保存先パス",
     "transferred": "転送完了",
-    "disconnect": "切断"
+    "disconnect": "切断",
+    "newFolder": "新規フォルダ",
+    "newFolderPlaceholder": "フォルダ名を入力",
+    "followCwd": "端末に追従",
+    "followCwdTooltip": "アクティブな端末のカレントディレクトリへ移動",
+    "followNotDetected": "端末プロンプトから作業ディレクトリを検出できませんでした。",
+    "followedCwd": "移動しました",
+    "filterPlaceholder": "ファイル絞り込み…",
+    "clickToEditPath": "クリックしてパスを直接入力",
+    "uploadedSummary": "{{count}} 件アップロード完了 ({{size}})",
+    "downloaded": "ダウンロード完了",
+    "savedFile": "保存しました",
+    "loading": "読み込み中…",
+    "emptyDir": "ディレクトリは空です。",
+    "dropHint": "ローカルファイルをここにドロップしてアップロード",
+    "dropToUpload": "ドロップしてアップロード",
+    "footerHint": "テキストファイルをダブルクリックで編集 · ドラッグ＆ドロップでアップロード",
+    "edit": "編集",
+    "editInline": "インライン表示 / 編集",
+    "rename": "名前変更",
+    "delete": "削除",
+    "confirmDelete": "削除確認",
+    "unsaved": "未保存",
+    "lines": "行",
+    "saving": "保存中…"
   },
   "palette": {
     "placeholder": "やりたいことを一文で。例: 8080 番ポートを使うプロセスを探す",
@@ -409,5 +444,49 @@
     "localInputPlaceholder": "ローカルで遅延なく入力し Enter で送信（↑↓ で履歴）…",
     "sendCommand": "送信",
     "interrupt": "リモートへ Ctrl+C 中断を送信"
+  },
+  "highlight": {
+    "title": "ログキーワード強調表示",
+    "shortLabel": "強調",
+    "tooltip": "キーワード強調ルールを設定",
+    "on": "オン",
+    "off": "オフ",
+    "reset": "リセット",
+    "addPlaceholder": "キーワードまたは正規表現…",
+    "add": "追加",
+    "invalidRegex": "正規表現が無効です"
+  },
+  "triage": {
+    "diagnoseNow": "AI 診断・修復",
+    "explainSelection": "選択部分を AI 解説 / 診断",
+    "agentPrompt": "端末でエラーが発生しました（{{summary}}）。以下の出力から原因を特定し、安全な修復案を提示してください：\n\n{{snippet}}",
+    "explainSelectionPrompt": "選択された端末出力の意味を解説し、問題がある場合は解決策を提案してください：\n\n{{snippet}}"
+  },
+  "prodGuard": {
+    "envLabel": "環境タグと誤操作ガード",
+    "envNormal": "標準",
+    "envDev": "開発",
+    "envStaging": "検証",
+    "envProd": "本番",
+    "badgeProd": "本番 · 保護",
+    "guardOff": "環境",
+    "toggleTooltip": "クリックで環境タグを切替（本番では危険コマンドを送信前にブロック）",
+    "title": "本番環境ガードレール発動",
+    "subtitle": "本番セッションで危険なコマンドを検出・停止しました（{{reason}}）。送信前にご確認ください。",
+    "typeToConfirm": "実行するには「{{target}}」と入力してください：",
+    "cancelAndClear": "中止して入力行をクリア",
+    "executeAnyway": "このまま実行",
+    "reasons": {
+      "recursiveDelete": "再帰的な強制削除",
+      "diskFormat": "ディスクフォーマット / パーティション操作",
+      "diskWrite": "ブロックデバイスへの直接書き込み",
+      "systemPower": "サーバー再起動 / シャットダウン",
+      "databaseDrop": "DB/テーブル削除またはキャッシュ全消去",
+      "firewallFlush": "ファイアウォールルール消去",
+      "rootPermissions": "ルート権限の再帰的変更",
+      "killCritical": "重要プロセスの強制終了",
+      "clusterWipe": "コンテナ / Namespace 一括削除",
+      "forcePush": "Git 強制プッシュ"
+    }
   }
 }

@@ -5,11 +5,21 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ResolvedTheme } from "../hooks/useTheme";
-import { ipc, isTauri, type SessionProbeStatus } from "../lib/ipc";
+import { ipc, isTauri, type EnvTag, type SessionProbeStatus } from "../lib/ipc";
 import { formatShortcut, isMac } from "../lib/platform";
+import { matchDangerousCommand, type DangerousCommandMatch } from "../lib/prodGuard";
+import {
+  loadHighlightEnabled,
+  loadHighlightRules,
+  saveHighlightEnabled,
+  saveHighlightRules,
+  type HighlightRule,
+} from "../lib/terminalHighlighter";
 import type { TerminalAppearanceConfig } from "../lib/terminalThemes";
 import type { SessionView, TabView } from "../types";
+import { HighlightRulesPopover } from "./HighlightRulesPopover";
 import { PaneTree } from "./PaneTree";
+import { ProdGuardDialog } from "./ProdGuardDialog";
 
 interface TerminalWorkspaceProps {
   sessions: SessionView[];
@@ -30,6 +40,8 @@ interface TerminalWorkspaceProps {
   onOpenPalette: () => void;
   onFavoriteCommand: (command: string) => void;
   onExportLog: (sessionId: string, label: string, lines?: string[]) => void;
+  onDiagnoseError: (sessionId: string, prompt: string) => void;
+  onSetEnvTag: (sessionId: string, envTag?: EnvTag) => void;
 }
 
 export function TerminalWorkspace({
@@ -51,6 +63,8 @@ export function TerminalWorkspace({
   onOpenPalette,
   onFavoriteCommand,
   onExportLog,
+  onDiagnoseError,
+  onSetEnvTag,
 }: TerminalWorkspaceProps) {
   const { t } = useTranslation();
   const [quickTask, setQuickTask] = useState("");
@@ -60,6 +74,14 @@ export function TerminalWorkspace({
   const [localCmd, setLocalCmd] = useState("");
   const [cmdHistory, setCmdHistory] = useState<string[]>([]);
   const [historyIdx, setHistoryIdx] = useState<number>(-1);
+  const [highlightEnabled, setHighlightEnabled] = useState<boolean>(() => loadHighlightEnabled());
+  const [highlightRules, setHighlightRules] = useState<HighlightRule[]>(() => loadHighlightRules());
+  const [highlightMenuOpen, setHighlightMenuOpen] = useState(false);
+  const [searchSignal, setSearchSignal] = useState(0);
+  const [localGuardPending, setLocalGuardPending] = useState<{
+    match: DangerousCommandMatch;
+    raw: string;
+  } | null>(null);
 
   const activeSession = sessions.find((session) => session.id === activeId) ?? null;
   const isSsh = activeSession?.kind === "ssh";
@@ -118,9 +140,8 @@ export function TerminalWorkspace({
     }));
   };
 
-  const sendLocalCommand = () => {
+  const commitLocalCommand = (raw: string) => {
     if (!activeSession || activeSession.exited) return;
-    const raw = localCmd;
     activeSession.backend.write(`${raw}\r`);
     const trimmed = raw.trim();
     if (trimmed.length > 0) {
@@ -132,6 +153,27 @@ export function TerminalWorkspace({
     }
     setLocalCmd("");
     setHistoryIdx(-1);
+  };
+
+  const sendLocalCommand = () => {
+    if (!activeSession || activeSession.exited) return;
+    const raw = localCmd;
+    if (activeSession.envTag === "prod") {
+      const hit = matchDangerousCommand(raw);
+      if (hit) {
+        setLocalGuardPending({ match: hit, raw });
+        return;
+      }
+    }
+    commitLocalCommand(raw);
+  };
+
+  const cycleEnvTag = () => {
+    if (!activeSession) return;
+    const order: (EnvTag | undefined)[] = [undefined, "dev", "staging", "prod"];
+    const idx = order.indexOf(activeSession.envTag);
+    const next = order[(idx + 1) % order.length];
+    onSetEnvTag(activeSession.id, next);
   };
 
   const submitQuickTask = () => {
@@ -153,7 +195,7 @@ export function TerminalWorkspace({
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[var(--bg-canvas)]">
       {/* Subtle metadata strip above the terminal viewport */}
-      <div className="flex h-9 shrink-0 items-center justify-between border-b border-[var(--border-subtle)] px-4">
+      <div className="relative flex h-9 shrink-0 items-center justify-between border-b border-[var(--border-subtle)] px-4">
         <div className="flex min-w-0 items-center gap-2">
           <span className="text-[11px] font-medium text-[var(--text-muted)]">
             {activeSession ? t(`sidebar.kinds.${activeSession.kind}`) : "—"}
@@ -162,6 +204,43 @@ export function TerminalWorkspace({
           <span className="truncate text-[12.5px] font-medium text-[var(--text-primary)]">
             {activeSession?.label ?? "terminal"}
           </span>
+
+          {activeSession ? (
+            <button
+              type="button"
+              onClick={cycleEnvTag}
+              title={t("prodGuard.toggleTooltip")}
+              className="inline-flex h-5 shrink-0 items-center gap-1 rounded-full border px-2 text-[10.5px] font-semibold leading-none transition hover:opacity-90"
+              style={{
+                borderColor:
+                  activeSession.envTag === "prod"
+                    ? "var(--status-danger)"
+                    : activeSession.envTag === "staging"
+                      ? "var(--status-warn)"
+                      : "var(--border-subtle)",
+                backgroundColor:
+                  activeSession.envTag === "prod"
+                    ? "rgba(239, 68, 68, 0.14)"
+                    : activeSession.envTag === "staging"
+                      ? "rgba(245, 158, 11, 0.14)"
+                      : "var(--bg-surface)",
+                color:
+                  activeSession.envTag === "prod"
+                    ? "var(--status-danger)"
+                    : activeSession.envTag === "staging"
+                      ? "var(--status-warn)"
+                      : "var(--text-muted)",
+              }}
+            >
+              {activeSession.envTag === "prod"
+                ? t("prodGuard.badgeProd")
+                : activeSession.envTag === "staging"
+                  ? t("prodGuard.envStaging")
+                  : activeSession.envTag === "dev"
+                    ? t("prodGuard.envDev")
+                    : t("prodGuard.guardOff")}
+            </button>
+          ) : null}
 
           {isSsh ? (
             <>
@@ -219,6 +298,41 @@ export function TerminalWorkspace({
 
           <button
             type="button"
+            title={t("terminal.search.tooltip", { shortcut: formatShortcut("F") })}
+            onClick={() => setSearchSignal((n) => n + 1)}
+            className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-[var(--text-muted)] transition hover:border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <circle cx="7" cy="7" r="4.2" />
+              <path d="M10.5 10.5L14 14" strokeLinecap="round" />
+            </svg>
+          </button>
+
+          <button
+            type="button"
+            title={t("highlight.tooltip")}
+            onClick={() => setHighlightMenuOpen((open) => !open)}
+            className="inline-flex h-6 items-center gap-1 rounded-md border px-1.5 text-[10.5px] font-medium transition"
+            style={{
+              borderColor:
+                highlightMenuOpen || highlightEnabled
+                  ? "var(--border-subtle)"
+                  : "transparent",
+              backgroundColor: highlightMenuOpen ? "var(--bg-surface)" : "transparent",
+              color: highlightEnabled ? "var(--accent)" : "var(--text-muted)",
+            }}
+          >
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{
+                backgroundColor: highlightEnabled ? "var(--accent)" : "var(--text-muted)",
+              }}
+            />
+            <span>{t("highlight.shortLabel")}</span>
+          </button>
+
+          <button
+            type="button"
             title={t("tabs.splitHorizontal", { shortcut: formatShortcut("D") })}
             onClick={() => onSplit("row")}
             className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-[var(--text-muted)] transition hover:border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
@@ -241,6 +355,25 @@ export function TerminalWorkspace({
             </svg>
           </button>
         </div>
+
+        {highlightMenuOpen ? (
+          <HighlightRulesPopover
+            enabled={highlightEnabled}
+            rules={highlightRules}
+            onToggleEnabled={() => {
+              setHighlightEnabled((prev) => {
+                const next = !prev;
+                saveHighlightEnabled(next);
+                return next;
+              });
+            }}
+            onChangeRules={(next) => {
+              setHighlightRules(next);
+              saveHighlightRules(next);
+            }}
+            onClose={() => setHighlightMenuOpen(false)}
+          />
+        ) : null}
       </div>
 
       {/* Main multi-tab split pane terminal viewport */}
@@ -256,16 +389,36 @@ export function TerminalWorkspace({
               activeId={activeId}
               theme={theme}
               terminalConfig={terminalConfig}
+              highlightEnabled={highlightEnabled}
+              highlightRules={highlightRules}
+              searchSignal={searchSignal}
               exitedLabel={exitedLabel}
               onSelect={onSelect}
               onResize={onResize}
               onExit={onExit}
               onFavoriteCommand={onFavoriteCommand}
               onExportLog={onExportLog}
+              onDiagnoseError={onDiagnoseError}
             />
           </div>
         ))}
       </div>
+
+      {localGuardPending && activeSession ? (
+        <ProdGuardDialog
+          sessionLabel={activeSession.label}
+          match={localGuardPending.match}
+          onCancel={(clearLine) => {
+            setLocalGuardPending(null);
+            if (clearLine) setLocalCmd("");
+          }}
+          onProceed={() => {
+            const raw = localGuardPending.raw;
+            setLocalGuardPending(null);
+            commitLocalCommand(raw);
+          }}
+        />
+      ) : null}
 
       {/* 0ms local-buffered SSH command composer (eliminates high-latency typing lag) */}
       {localEditEnabled && activeSession ? (

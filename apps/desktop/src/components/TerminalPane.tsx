@@ -1,14 +1,19 @@
 // Copyright 2026 yujieco
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FitAddon } from "@xterm/addon-fit";
+import { SearchAddon } from "@xterm/addon-search";
+import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
 
 import type { ResolvedTheme } from "../hooks/useTheme";
 import type { TerminalBackend } from "../lib/backend";
+import { detectTerminalError, type DetectedTerminalError } from "../lib/errorDetector";
+import { ipc, isTauri, type EnvTag } from "../lib/ipc";
+import { ProdInputTracker, type DangerousCommandMatch } from "../lib/prodGuard";
 import {
   buildClickMoveSequence,
   buildSelectionDeleteSequence,
@@ -16,9 +21,15 @@ import {
   extractTerminalLines,
 } from "../lib/terminalEditing";
 import {
+  applyKeywordHighlights,
+  compileHighlightRules,
+  type HighlightRule,
+} from "../lib/terminalHighlighter";
+import {
   resolveTerminalTheme,
   type TerminalAppearanceConfig,
 } from "../lib/terminalThemes";
+import { ProdGuardDialog } from "./ProdGuardDialog";
 
 /**
  * Same stack as the CSS theme token, spelled out because xterm needs a real
@@ -29,13 +40,20 @@ const MONO_FONT_STACK =
 
 interface TerminalPaneProps {
   backend: TerminalBackend;
+  sessionLabel: string;
+  envTag?: EnvTag;
+  focused: boolean;
   theme: ResolvedTheme;
   terminalConfig: TerminalAppearanceConfig;
+  highlightEnabled: boolean;
+  highlightRules: HighlightRule[];
+  searchSignal: number;
   exitedLabel: string;
   onResize: (cols: number, rows: number) => void;
   onExit: () => void;
   onFavoriteCommand: (command: string) => void;
   onExportLog: (lines: string[]) => void;
+  onDiagnoseError: (prompt: string) => void;
 }
 
 interface ContextMenuState {
@@ -44,36 +62,144 @@ interface ContextMenuState {
   selection: string;
 }
 
+interface PendingGuardState {
+  match: DangerousCommandMatch;
+  payload: string;
+}
+
 export function TerminalPane({
   backend,
+  sessionLabel,
+  envTag,
+  focused,
   theme,
   terminalConfig,
+  highlightEnabled,
+  highlightRules,
+  searchSignal,
   exitedLabel,
   onResize,
   onExit,
   onFavoriteCommand,
   onExportLog,
+  onDiagnoseError,
 }: TerminalPaneProps) {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const searchAddonRef = useRef<SearchAddon | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const prodTrackerRef = useRef<ProdInputTracker>(new ProdInputTracker());
+
   const [hexMode, setHexMode] = useState(false);
   const [hexLog, setHexLog] = useState<string[]>([]);
   const [hexInput, setHexInput] = useState("");
   const [hexError, setHexError] = useState<string | null>(null);
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
+
+  // #2 Terminal in-pane search state
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchCase, setSearchCase] = useState(false);
+  const [searchRegex, setSearchRegex] = useState(false);
+  const [searchCount, setSearchCount] = useState<{ index: number; count: number } | null>(null);
+
+  // #9 Floating instant error-triage pill state
+  const [detectedError, setDetectedError] = useState<DetectedTerminalError | null>(null);
+
+  // #10 Production destructive guardrail modal state
+  const [pendingGuard, setPendingGuard] = useState<PendingGuardState | null>(null);
+
   const onResizeRef = useRef(onResize);
   const onExitRef = useRef(onExit);
   const exitedLabelRef = useRef(exitedLabel);
+  const envTagRef = useRef(envTag);
   const resolvedPalette = resolveTerminalTheme(terminalConfig, theme);
   const configRef = useRef({ terminalConfig, resolvedPalette });
+
+  const compiledHighlights = useMemo(
+    () => (highlightEnabled ? compileHighlightRules(highlightRules) : []),
+    [highlightEnabled, highlightRules],
+  );
+  const highlightsRef = useRef(compiledHighlights);
+
+  useEffect(() => {
+    highlightsRef.current = compiledHighlights;
+  }, [compiledHighlights]);
 
   useEffect(() => {
     onResizeRef.current = onResize;
     onExitRef.current = onExit;
     exitedLabelRef.current = exitedLabel;
-  }, [onResize, onExit, exitedLabel]);
+    envTagRef.current = envTag;
+  }, [onResize, onExit, exitedLabel, envTag]);
+
+  // Open search bar whenever parent workspace increments searchSignal on focused pane.
+  useEffect(() => {
+    if (searchSignal > 0 && focused) {
+      setSearchOpen(true);
+      requestAnimationFrame(() => {
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      });
+    }
+  }, [focused, searchSignal]);
+
+  // Cmd/Ctrl+F opens in-terminal search when this pane is focused.
+  useEffect(() => {
+    if (!focused) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        setSearchOpen(true);
+        requestAnimationFrame(() => {
+          searchInputRef.current?.focus();
+          searchInputRef.current?.select();
+        });
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [focused]);
+
+  // Run live search whenever query or flags change.
+  const runSearch = useCallback(
+    (direction: "next" | "prev") => {
+      const addon = searchAddonRef.current;
+      if (!addon) return;
+      if (!searchQuery) {
+        addon.clearDecorations();
+        setSearchCount(null);
+        return;
+      }
+      const options = {
+        caseSensitive: searchCase,
+        regex: searchRegex,
+        decorations: {
+          matchOverviewRuler: "#f59e0b",
+          activeMatchColorOverviewRuler: "#ea580c",
+          matchBackground: "#f59e0b44",
+          activeMatchBackground: "#ea580caa",
+        },
+      };
+      if (direction === "prev") {
+        addon.findPrevious(searchQuery, options);
+      } else {
+        addon.findNext(searchQuery, options);
+      }
+    },
+    [searchCase, searchQuery, searchRegex],
+  );
+
+  useEffect(() => {
+    if (!searchOpen) {
+      searchAddonRef.current?.clearDecorations();
+      setSearchCount(null);
+      return;
+    }
+    runSearch("next");
+  }, [runSearch, searchOpen]);
 
   useEffect(() => {
     if (!menu) return;
@@ -123,6 +249,24 @@ export function TerminalPane({
     });
   }, [backend]);
 
+  const sendWithGuard = useCallback(
+    (data: string) => {
+      if (envTagRef.current === "prod") {
+        const result = prodTrackerRef.current.inspect(data);
+        if (result.blocked) {
+          setPendingGuard({ match: result.blocked, payload: result.pendingPayload });
+          return;
+        }
+      }
+      backend.write(data);
+    },
+    [backend],
+  );
+  const sendWithGuardRef = useRef(sendWithGuard);
+  useEffect(() => {
+    sendWithGuardRef.current = sendWithGuard;
+  }, [sendWithGuard]);
+
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -144,6 +288,29 @@ export function TerminalPane({
     const fitAddon = new FitAddon();
     fitAddonRef.current = fitAddon;
     term.loadAddon(fitAddon);
+
+    const searchAddon = new SearchAddon();
+    searchAddonRef.current = searchAddon;
+    term.loadAddon(searchAddon);
+    const searchResultsDisposable = searchAddon.onDidChangeResults((event) => {
+      if (event.resultCount === 0) {
+        setSearchCount({ index: 0, count: 0 });
+      } else {
+        setSearchCount({ index: event.resultIndex + 1, count: event.resultCount });
+      }
+    });
+
+    const webLinksAddon = new WebLinksAddon((event, uri) => {
+      if (event.metaKey || event.ctrlKey || !term.hasSelection()) {
+        if (isTauri()) {
+          void ipc.openExternalUrl(uri).catch(console.warn);
+        } else {
+          window.open(uri, "_blank", "noopener,noreferrer");
+        }
+      }
+    });
+    term.loadAddon(webLinksAddon);
+
     term.open(container);
 
     // Subtle left-gutter accent marker on every OSC 133;A prompt line so
@@ -166,6 +333,19 @@ export function TerminalPane({
         } catch {
           // Ignore decoration errors if terminal is disposing.
         }
+      } else if (data.startsWith("D;")) {
+        const code = Number.parseInt(data.slice(2).split(";")[0] ?? "0", 10);
+        if (Number.isFinite(code) && code > 0 && code !== 130) {
+          setDetectedError({
+            id: Date.now(),
+            summary: `Exit ${code}`,
+            sampleLine: `Command exited with code ${code}`,
+            exitCode: code,
+            timestamp: Date.now(),
+          });
+        } else if (code === 0) {
+          setDetectedError(null);
+        }
       }
       return true;
     });
@@ -186,8 +366,18 @@ export function TerminalPane({
       console.warn("[ota] WebGL renderer unavailable, using the DOM renderer", cause);
     }
 
-    const dataSubscription = term.onData((data) => backend.write(data));
-    const stopOutput = backend.onOutput((data) => term.write(data));
+    const dataSubscription = term.onData((data) => sendWithGuardRef.current(data));
+    const stopOutput = backend.onOutput((data) => {
+      const hit = detectTerminalError(data);
+      if (hit) {
+        setDetectedError(hit);
+      }
+      const decorated =
+        highlightsRef.current.length > 0
+          ? applyKeywordHighlights(data, highlightsRef.current)
+          : data;
+      term.write(decorated);
+    });
     const stopExit = backend.onExit(() => {
       term.write(`\r\n\x1b[38;5;244m[${exitedLabelRef.current}]\x1b[0m\r\n`);
       onExitRef.current();
@@ -197,6 +387,10 @@ export function TerminalPane({
     term.attachCustomKeyEventHandler((event) => {
       if (event.type !== "keydown" || event.isComposing || event.key === "Process") {
         return true;
+      }
+      // Let Cmd/Ctrl+F bubble up to open the in-terminal search bar.
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
+        return false;
       }
       if (event.ctrlKey || event.metaKey || event.altKey) {
         return true;
@@ -280,10 +474,12 @@ export function TerminalPane({
       disposed = true;
       terminalRef.current = null;
       fitAddonRef.current = null;
+      searchAddonRef.current = null;
       cancelAnimationFrame(frame);
       observer.disconnect();
       container.removeEventListener("mousedown", onMouseDown);
       container.removeEventListener("mouseup", onMouseUp);
+      searchResultsDisposable.dispose();
       oscDisposable.dispose();
       dataSubscription.dispose();
       stopOutput();
@@ -307,8 +503,8 @@ export function TerminalPane({
   const handleContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
     event.preventDefault();
     const selected = terminalRef.current?.getSelection().trim() ?? "";
-    const x = Math.min(event.clientX, window.innerWidth - 210);
-    const y = Math.min(event.clientY, window.innerHeight - 170);
+    const x = Math.min(event.clientX, window.innerWidth - 220);
+    const y = Math.min(event.clientY, window.innerHeight - 230);
     setMenu({ x: Math.max(8, x), y: Math.max(8, y), selection: selected });
   };
 
@@ -326,12 +522,26 @@ export function TerminalPane({
     try {
       const text = await navigator.clipboard.readText();
       if (text) {
-        backend.write(text);
+        sendWithGuard(text);
       }
     } catch (cause) {
       console.warn("[ota] clipboard read failed", cause);
     }
     setMenu(null);
+  };
+
+  const triggerDiagnoseLatestError = () => {
+    const recent = terminalRef.current
+      ? extractTerminalLines(terminalRef.current).slice(-35).join("\n")
+      : detectedError?.sampleLine ?? "";
+    const summary = detectedError?.summary ?? "error";
+    setDetectedError(null);
+    onDiagnoseError(
+      t("triage.agentPrompt", {
+        summary,
+        snippet: recent,
+      }),
+    );
   };
 
   return (
@@ -340,6 +550,90 @@ export function TerminalPane({
       style={{ backgroundColor: resolvedPalette.background }}
       onContextMenu={handleContextMenu}
     >
+      {/* #2 Floating terminal search bar (Cmd/Ctrl+F) */}
+      {searchOpen && !hexMode ? (
+        <div
+          onMouseDown={(event) => event.stopPropagation()}
+          className="absolute top-2.5 right-3 z-20 flex items-center gap-1 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2 py-1 shadow-xl"
+        >
+          <input
+            ref={searchInputRef}
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                runSearch(event.shiftKey ? "prev" : "next");
+              } else if (event.key === "Escape") {
+                event.preventDefault();
+                setSearchOpen(false);
+                terminalRef.current?.focus();
+              }
+            }}
+            placeholder={t("terminal.search.placeholder")}
+            className="h-6 w-44 bg-transparent font-mono text-xs text-[var(--text-primary)] outline-none placeholder:font-sans placeholder:text-[var(--text-muted)]"
+          />
+          {searchCount ? (
+            <span className="ota-tabular px-1 font-mono text-[10.5px] text-[var(--text-muted)]">
+              {searchCount.count === 0
+                ? t("terminal.search.noMatches")
+                : `${searchCount.index}/${searchCount.count}`}
+            </span>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setSearchCase((prev) => !prev)}
+            title={t("terminal.search.caseSensitive")}
+            className="inline-flex h-6 items-center rounded px-1.5 font-mono text-[11px] transition"
+            style={{
+              backgroundColor: searchCase ? "var(--accent-soft)" : "transparent",
+              color: searchCase ? "var(--accent)" : "var(--text-muted)",
+            }}
+          >
+            Aa
+          </button>
+          <button
+            type="button"
+            onClick={() => setSearchRegex((prev) => !prev)}
+            title={t("terminal.search.regex")}
+            className="inline-flex h-6 items-center rounded px-1.5 font-mono text-[11px] transition"
+            style={{
+              backgroundColor: searchRegex ? "var(--accent-soft)" : "transparent",
+              color: searchRegex ? "var(--accent)" : "var(--text-muted)",
+            }}
+          >
+            .*
+          </button>
+          <button
+            type="button"
+            onClick={() => runSearch("prev")}
+            title={t("terminal.search.previous")}
+            className="inline-flex h-6 w-6 items-center justify-center rounded text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          >
+            ↑
+          </button>
+          <button
+            type="button"
+            onClick={() => runSearch("next")}
+            title={t("terminal.search.next")}
+            className="inline-flex h-6 w-6 items-center justify-center rounded text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          >
+            ↓
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSearchOpen(false);
+              terminalRef.current?.focus();
+            }}
+            aria-label={t("common.close")}
+            className="inline-flex h-6 w-6 items-center justify-center rounded text-xs text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
+
       {backend.kind === "serial" ? (
         <button
           type="button"
@@ -354,6 +648,38 @@ export function TerminalPane({
         ref={containerRef}
         className={`h-full w-full px-3.5 py-2 ${hexMode ? "hidden" : ""}`}
       />
+
+      {/* #9 Floating Error-Line Instant AI Triage pill */}
+      {detectedError && !hexMode ? (
+        <div
+          onMouseDown={(event) => event.stopPropagation()}
+          className="absolute right-3.5 bottom-3 z-20 flex max-w-md items-center gap-2 rounded-full border border-[var(--border-strong)] bg-[var(--bg-surface)] py-1 pr-1.5 pl-3 shadow-xl backdrop-blur-md"
+        >
+          <span
+            className="h-2 w-2 shrink-0 rounded-full"
+            style={{ backgroundColor: "var(--status-danger)" }}
+          />
+          <span className="truncate text-[11.5px] font-medium text-[var(--text-primary)]">
+            {detectedError.summary}
+          </span>
+          <button
+            type="button"
+            onClick={triggerDiagnoseLatestError}
+            className="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium text-white transition hover:opacity-90"
+            style={{ backgroundColor: "var(--accent)" }}
+          >
+            {t("triage.diagnoseNow")}
+          </button>
+          <button
+            type="button"
+            onClick={() => setDetectedError(null)}
+            aria-label={t("common.close")}
+            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
 
       {hexMode ? (
         <div className="flex h-full flex-col bg-[var(--bg-canvas)] px-3 py-2">
@@ -388,13 +714,55 @@ export function TerminalPane({
         </div>
       ) : null}
 
+      {/* #10 Production destructive guardrail modal */}
+      {pendingGuard ? (
+        <ProdGuardDialog
+          sessionLabel={sessionLabel}
+          match={pendingGuard.match}
+          onCancel={(clearLine) => {
+            setPendingGuard(null);
+            prodTrackerRef.current.reset();
+            if (clearLine) {
+              backend.write("\x15");
+            }
+            terminalRef.current?.focus();
+          }}
+          onProceed={() => {
+            const payload = pendingGuard.payload;
+            setPendingGuard(null);
+            prodTrackerRef.current.reset();
+            backend.write(payload);
+            terminalRef.current?.focus();
+          }}
+        />
+      ) : null}
+
       {/* Localized terminal right-click context menu */}
       {menu ? (
         <div
           onMouseDown={(event) => event.stopPropagation()}
-          className="fixed z-50 w-48 overflow-hidden rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] py-1 shadow-xl"
+          className="fixed z-50 w-52 overflow-hidden rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] py-1 shadow-xl"
           style={{ left: menu.x, top: menu.y }}
         >
+          <button
+            type="button"
+            disabled={!menu.selection}
+            onClick={() => {
+              const snippet = menu.selection;
+              setMenu(null);
+              if (snippet) {
+                onDiagnoseError(t("triage.explainSelectionPrompt", { snippet }));
+              }
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
+            style={{ color: menu.selection ? "var(--accent)" : "var(--text-muted)" }}
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M8 2.2v2M8 11.8v2M2.2 8h2M11.8 8h2M4.1 4.1l1.4 1.4M10.5 10.5l1.4 1.4M11.9 4.1l-1.4 1.4M5.5 10.5l-1.4 1.4" strokeLinecap="round" />
+            </svg>
+            <span className="truncate font-medium">{t("triage.explainSelection")}</span>
+          </button>
+
           <button
             type="button"
             disabled={!menu.selection}
@@ -403,16 +771,31 @@ export function TerminalPane({
               setMenu(null);
               if (cmd) onFavoriteCommand(cmd);
             }}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
-            style={{ color: menu.selection ? "var(--accent)" : "var(--text-muted)" }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--text-primary)] transition hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M8 2.2l1.75 3.55 3.92.57-2.83 2.76.67 3.9L8 11.14 4.49 12.98l.67-3.9-2.83-2.76 3.92-.57L8 2.2z" strokeLinejoin="round" />
             </svg>
-            <span className="truncate font-medium">{t("snippets.saveSelection")}</span>
+            <span className="truncate">{t("snippets.saveSelection")}</span>
           </button>
 
           <div className="my-1 border-t border-[var(--border-subtle)]" />
+
+          <button
+            type="button"
+            onClick={() => {
+              setMenu(null);
+              setSearchOpen(true);
+              requestAnimationFrame(() => searchInputRef.current?.focus());
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--text-primary)] transition hover:bg-[var(--bg-hover)]"
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" fill="none" stroke="currentColor" strokeWidth="1.4">
+              <circle cx="7" cy="7" r="4.2" />
+              <path d="M10.5 10.5L14 14" strokeLinecap="round" />
+            </svg>
+            <span>{t("terminal.search.menuItem")}</span>
+          </button>
 
           <button
             type="button"

@@ -3,7 +3,7 @@
 
 import type { TerminalBackend } from "./lib/backend";
 import type { PaneNode } from "./lib/panes";
-import type { SessionKind } from "./lib/ipc";
+import type { EnvTag, SessionKind } from "./lib/ipc";
 
 /** Autonomy level mirrored from `term_agent::policy::PermissionMode`. */
 export type PermissionMode = "ask" | "supervised" | "autonomous";
@@ -15,6 +15,7 @@ export interface SessionView {
   backend: TerminalBackend;
   label: string;
   title: string;
+  envTag?: EnvTag;
   exited: boolean;
   size: { cols: number; rows: number };
 }

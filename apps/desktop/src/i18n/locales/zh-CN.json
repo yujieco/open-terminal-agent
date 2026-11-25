@@ -53,6 +53,16 @@
       "copy": "复制",
       "paste": "粘贴",
       "clear": "清空终端"
+    },
+    "search": {
+      "placeholder": "搜索终端输出…",
+      "noMatches": "无匹配",
+      "caseSensitive": "区分大小写",
+      "regex": "正则表达式",
+      "previous": "上一个匹配 (Shift+Enter)",
+      "next": "下一个匹配 (Enter)",
+      "menuItem": "搜索终端内容",
+      "tooltip": "搜索终端输出 ({{shortcut}})"
     }
   },
   "contextMenu": {
@@ -213,7 +223,8 @@
     "close": "关闭",
     "dismiss": "忽略",
     "pending": "待接入",
-    "delete": "删除"
+    "delete": "删除",
+    "create": "创建"
   },
   "ssh": {
     "title": "SSH 连接",
@@ -263,7 +274,31 @@
     "downloadLocal": "保存到本地路径",
     "uploadRemote": "远端目标路径",
     "transferred": "传输完成",
-    "disconnect": "断开"
+    "disconnect": "断开",
+    "newFolder": "新建文件夹",
+    "newFolderPlaceholder": "输入文件夹名",
+    "followCwd": "跟随终端",
+    "followCwdTooltip": "自动跳转到当前终端所在的工作目录",
+    "followNotDetected": "未在当前终端提示符中识别到工作目录。",
+    "followedCwd": "已跳转至",
+    "filterPlaceholder": "过滤文件名…",
+    "clickToEditPath": "点击直接输入路径跳转",
+    "uploadedSummary": "已上传 {{count}} 个文件（{{size}}）",
+    "downloaded": "已下载",
+    "savedFile": "已保存",
+    "loading": "加载中…",
+    "emptyDir": "当前目录为空。",
+    "dropHint": "支持直接从桌面拖入文件上传",
+    "dropToUpload": "松开鼠标即可上传",
+    "footerHint": "双击配置文件可在线编辑 · 支持直接拖入本地文件上传",
+    "edit": "编辑",
+    "editInline": "在线预览 / 编辑",
+    "rename": "重命名",
+    "delete": "删除",
+    "confirmDelete": "确认删除",
+    "unsaved": "未保存",
+    "lines": "行",
+    "saving": "保存中…"
   },
   "palette": {
     "placeholder": "用一句话描述你要做的事，例如：找出占用 8080 端口的进程",
@@ -409,5 +444,49 @@
     "localInputPlaceholder": "本地零延迟输入命令，回车整行发送到远端执行（↑↓ 翻阅历史）…",
     "sendCommand": "发送",
     "interrupt": "向远端发送 Ctrl+C 中断信号"
+  },
+  "highlight": {
+    "title": "日志关键字高亮",
+    "shortLabel": "高亮",
+    "tooltip": "配置终端日志关键字高亮规则",
+    "on": "已开启",
+    "off": "已关闭",
+    "reset": "重置",
+    "addPlaceholder": "输入关键字或正则…",
+    "add": "添加",
+    "invalidRegex": "正则语法无效"
+  },
+  "triage": {
+    "diagnoseNow": "AI 诊断修复",
+    "explainSelection": "AI 解释 / 诊断选中内容",
+    "agentPrompt": "终端刚刚出现报错（{{summary}}），请结合以下最近输出定位根因并给出修复方案：\n\n{{snippet}}",
+    "explainSelectionPrompt": "请解释以下终端选中的内容含义；如果存在报错或异常，请给出排查与修复建议：\n\n{{snippet}}"
+  },
+  "prodGuard": {
+    "envLabel": "环境标识与防误操护栏",
+    "envNormal": "普通",
+    "envDev": "开发",
+    "envStaging": "预发",
+    "envProd": "生产",
+    "badgeProd": "生产 · 护栏",
+    "guardOff": "环境",
+    "toggleTooltip": "点击切换环境标签（设为「生产」将自动开启高危命令拦截护栏）",
+    "title": "生产环境高危命令拦截",
+    "subtitle": "已在生产会话上拦截高危操作（{{reason}}），该命令尚未发送到远端服务器。",
+    "typeToConfirm": "请输入「{{target}}」确认放行执行：",
+    "cancelAndClear": "取消并清空命令行",
+    "executeAnyway": "确认强行执行",
+    "reasons": {
+      "recursiveDelete": "递归强制删除文件",
+      "diskFormat": "磁盘格式化或分区操作",
+      "diskWrite": "覆盖原始块设备",
+      "systemPower": "主机重启或关机",
+      "databaseDrop": "删库 / 清空数据表或缓存",
+      "firewallFlush": "清空或关闭防火墙规则",
+      "rootPermissions": "根目录递归修改权限",
+      "killCritical": "强制终止关键系统进程",
+      "clusterWipe": "清理容器或删除集群命名空间",
+      "forcePush": "Git 强制推送"
+    }
   }
 }

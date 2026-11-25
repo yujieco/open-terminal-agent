@@ -3,6 +3,7 @@
 
 import type { ResolvedTheme } from "../hooks/useTheme";
 import type { PaneNode } from "../lib/panes";
+import type { HighlightRule } from "../lib/terminalHighlighter";
 import type { TerminalAppearanceConfig } from "../lib/terminalThemes";
 import type { SessionView } from "../types";
 import { TerminalPane } from "./TerminalPane";
@@ -13,6 +14,9 @@ interface PaneTreeProps {
   activeId: string | null;
   theme: ResolvedTheme;
   terminalConfig: TerminalAppearanceConfig;
+  highlightEnabled: boolean;
+  highlightRules: HighlightRule[];
+  searchSignal: number;
   isSplit?: boolean;
   exitedLabel: string;
   onSelect: (sessionId: string) => void;
@@ -20,6 +24,7 @@ interface PaneTreeProps {
   onExit: (sessionId: string) => void;
   onFavoriteCommand: (command: string) => void;
   onExportLog: (sessionId: string, label: string, lines?: string[]) => void;
+  onDiagnoseError: (sessionId: string, prompt: string) => void;
 }
 
 /**
@@ -32,6 +37,9 @@ export function PaneTree({
   activeId,
   theme,
   terminalConfig,
+  highlightEnabled,
+  highlightRules,
+  searchSignal,
   isSplit = false,
   exitedLabel,
   onSelect,
@@ -39,6 +47,7 @@ export function PaneTree({
   onExit,
   onFavoriteCommand,
   onExportLog,
+  onDiagnoseError,
 }: PaneTreeProps) {
   if (node.kind === "leaf") {
     const session = sessions.find((entry) => entry.id === node.sessionId);
@@ -53,13 +62,20 @@ export function PaneTree({
       >
         <TerminalPane
           backend={session.backend}
+          sessionLabel={session.label}
+          envTag={session.envTag}
+          focused={focused}
           theme={theme}
           terminalConfig={terminalConfig}
+          highlightEnabled={highlightEnabled}
+          highlightRules={highlightRules}
+          searchSignal={focused ? searchSignal : 0}
           exitedLabel={exitedLabel}
           onResize={(cols, rows) => onResize(session.id, cols, rows)}
           onExit={() => onExit(session.id)}
           onFavoriteCommand={onFavoriteCommand}
           onExportLog={(lines) => onExportLog(session.id, session.label, lines)}
+          onDiagnoseError={(prompt) => onDiagnoseError(session.id, prompt)}
         />
       </div>
     );
@@ -78,6 +94,9 @@ export function PaneTree({
           activeId={activeId}
           theme={theme}
           terminalConfig={terminalConfig}
+          highlightEnabled={highlightEnabled}
+          highlightRules={highlightRules}
+          searchSignal={searchSignal}
           isSplit
           exitedLabel={exitedLabel}
           onSelect={onSelect}
@@ -85,6 +104,7 @@ export function PaneTree({
           onExit={onExit}
           onFavoriteCommand={onFavoriteCommand}
           onExportLog={onExportLog}
+          onDiagnoseError={onDiagnoseError}
         />
       </div>
       <div className={row ? "w-px bg-[var(--border-subtle)]" : "h-px bg-[var(--border-subtle)]"} />
@@ -98,6 +118,9 @@ export function PaneTree({
           activeId={activeId}
           theme={theme}
           terminalConfig={terminalConfig}
+          highlightEnabled={highlightEnabled}
+          highlightRules={highlightRules}
+          searchSignal={searchSignal}
           isSplit
           exitedLabel={exitedLabel}
           onSelect={onSelect}
@@ -105,6 +128,7 @@ export function PaneTree({
           onExit={onExit}
           onFavoriteCommand={onFavoriteCommand}
           onExportLog={onExportLog}
+          onDiagnoseError={onDiagnoseError}
         />
       </div>
     </div>

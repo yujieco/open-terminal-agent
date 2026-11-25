@@ -53,6 +53,16 @@
       "copy": "복사",
       "paste": "붙여넣기",
       "clear": "터미널 지우기"
+    },
+    "search": {
+      "placeholder": "터미널 출력 검색…",
+      "noMatches": "0/0",
+      "caseSensitive": "대소문자 구분",
+      "regex": "정규식 사용",
+      "previous": "이전 항목 (Shift+Enter)",
+      "next": "다음 항목 (Enter)",
+      "menuItem": "터미널에서 찾기",
+      "tooltip": "터미널에서 찾기 ({{shortcut}})"
     }
   },
   "contextMenu": {
@@ -213,7 +223,8 @@
     "close": "닫기",
     "dismiss": "닫기",
     "pending": "미지원",
-    "delete": "삭제"
+    "delete": "삭제",
+    "create": "생성"
   },
   "ssh": {
     "title": "SSH 연결",
@@ -263,7 +274,31 @@
     "downloadLocal": "로컬 저장 경로",
     "uploadRemote": "원격 대상 경로",
     "transferred": "전송 완료",
-    "disconnect": "연결 해제"
+    "disconnect": "연결 해제",
+    "newFolder": "새 폴더",
+    "newFolderPlaceholder": "폴더 이름 입력",
+    "followCwd": "터미널 따라가기",
+    "followCwdTooltip": "현재 터미널의 작업 디렉터리로 이동",
+    "followNotDetected": "현재 터미널 프롬프트에서 작업 디렉터리를 감지하지 못했습니다.",
+    "followedCwd": "이동 완료",
+    "filterPlaceholder": "파일 필터…",
+    "clickToEditPath": "클릭하여 경로 직접 입력",
+    "uploadedSummary": "{{count}}개 파일 업로드 완료 ({{size}})",
+    "downloaded": "다운로드 완료",
+    "savedFile": "저장됨",
+    "loading": "불러오는 중…",
+    "emptyDir": "빈 디렉터리입니다.",
+    "dropHint": "로컬 파일을 여기로 드래그하여 업로드",
+    "dropToUpload": "파일을 놓아 업로드",
+    "footerHint": "텍스트 파일 더블클릭으로 편집 · 파일 드래그 앤 드롭 업로드",
+    "edit": "편집",
+    "editInline": "인라인 보기 / 편집",
+    "rename": "이름 바꾸기",
+    "delete": "삭제",
+    "confirmDelete": "삭제 확인",
+    "unsaved": "저장 안 됨",
+    "lines": "줄",
+    "saving": "저장 중…"
   },
   "palette": {
     "placeholder": "하고 싶은 일을 한 문장으로. 예: 8080 포트를 쓰는 프로세스 찾기",
@@ -409,5 +444,49 @@
     "localInputPlaceholder": "로컬에서 지연 없이 입력 후 Enter로 원격 전송 (↑↓ 기록)…",
     "sendCommand": "전송",
     "interrupt": "원격 셸로 Ctrl+C 중단 신호 전송"
+  },
+  "highlight": {
+    "title": "로그 키워드 강조",
+    "shortLabel": "강조",
+    "tooltip": "로그 키워드 강조 규칙 설정",
+    "on": "켜짐",
+    "off": "꺼짐",
+    "reset": "초기화",
+    "addPlaceholder": "키워드 또는 정규식…",
+    "add": "추가",
+    "invalidRegex": "잘못된 정규식"
+  },
+  "triage": {
+    "diagnoseNow": "AI 진단/복구",
+    "explainSelection": "선택 영역 AI 설명 / 진단",
+    "agentPrompt": "터미널에서 오류가 발생했습니다 ({{summary}}). 아래 최근 출력을 바탕으로 원인을 진단하고 안전한 해결책을 제시하세요:\n\n{{snippet}}",
+    "explainSelectionPrompt": "선택한 터미널 출력의 의미를 설명하고 문제가 있다면 해결 방법을 제안하세요:\n\n{{snippet}}"
+  },
+  "prodGuard": {
+    "envLabel": "환경 태그 및 실수 방지 가드",
+    "envNormal": "일반",
+    "envDev": "개발",
+    "envStaging": "스테이징",
+    "envProd": "운영",
+    "badgeProd": "운영 · 보호",
+    "guardOff": "환경",
+    "toggleTooltip": "클릭하여 환경 태그 전환 (운영 환경에서는 위험 명령을 사전 차단)",
+    "title": "운영 환경 위험 명령 차단",
+    "subtitle": "운영 세션에서 위험 명령이 차단되었습니다 ({{reason}}). 전송 전 신중히 확인하세요.",
+    "typeToConfirm": "실행하려면 \"{{target}}\"을(를) 입력하세요:",
+    "cancelAndClear": "취소 및 입력줄 지우기",
+    "executeAnyway": "그래도 실행",
+    "reasons": {
+      "recursiveDelete": "재귀 강제 삭제",
+      "diskFormat": "디스크 포맷/파티션 작업",
+      "diskWrite": "블록 장치 직접 덮어쓰기",
+      "systemPower": "서버 재부팅 또는 종료",
+      "databaseDrop": "데이터베이스/테이블 삭제 또는 캐시 초기화",
+      "firewallFlush": "방화벽 규칙 초기화",
+      "rootPermissions": "루트 디렉터리 권한 일괄 변경",
+      "killCritical": "핵심 시스템 프로세스 강제 종료",
+      "clusterWipe": "컨테이너/네임스페이스 대량 삭제",
+      "forcePush": "Git 강제 푸시"
+    }
   }
 }

@@ -53,6 +53,16 @@
       "copy": "Копировать",
       "paste": "Вставить",
       "clear": "Очистить терминал"
+    },
+    "search": {
+      "placeholder": "Поиск в терминале…",
+      "noMatches": "0/0",
+      "caseSensitive": "С учётом регистра",
+      "regex": "Регулярное выражение",
+      "previous": "Предыдущее (Shift+Enter)",
+      "next": "Следующее (Enter)",
+      "menuItem": "Найти в терминале",
+      "tooltip": "Найти в терминале ({{shortcut}})"
     }
   },
   "contextMenu": {
@@ -213,7 +223,8 @@
     "close": "Закрыть",
     "dismiss": "Скрыть",
     "pending": "ожидает",
-    "delete": "Удалить"
+    "delete": "Удалить",
+    "create": "Создать"
   },
   "ssh": {
     "title": "Подключение SSH",
@@ -263,7 +274,31 @@
     "downloadLocal": "Сохранить по локальному пути",
     "uploadRemote": "Путь назначения на сервере",
     "transferred": "Передано",
-    "disconnect": "Отключить"
+    "disconnect": "Отключить",
+    "newFolder": "Новая папка",
+    "newFolderPlaceholder": "имя-папки",
+    "followCwd": "Путь терминала",
+    "followCwdTooltip": "Перейти в текущий каталог активного терминала",
+    "followNotDetected": "Не удалось определить каталог из приглашения терминала.",
+    "followedCwd": "Переход в",
+    "filterPlaceholder": "Фильтр файлов…",
+    "clickToEditPath": "Нажмите, чтобы ввести путь вручную",
+    "uploadedSummary": "Загружено файлов: {{count}} ({{size}})",
+    "downloaded": "Скачано",
+    "savedFile": "Сохранено",
+    "loading": "Загрузка…",
+    "emptyDir": "Каталог пуст.",
+    "dropHint": "Перетащите сюда локальные файлы для загрузки",
+    "dropToUpload": "Отпустите файлы для загрузки",
+    "footerHint": "Двойной клик по текстовому файлу — редактор · Перетаскивание — загрузка",
+    "edit": "Править",
+    "editInline": "Просмотр / Редактирование",
+    "rename": "Переименовать",
+    "delete": "Удалить",
+    "confirmDelete": "Удалить?",
+    "unsaved": "Не сохранено",
+    "lines": "строк",
+    "saving": "Сохранение…"
   },
   "palette": {
     "placeholder": "Опишите задачу одной фразой, напр. найти процесс на порту 8080",
@@ -409,5 +444,49 @@
     "localInputPlaceholder": "Введите команду локально и нажмите Enter для отправки (↑↓ история)…",
     "sendCommand": "Отправить",
     "interrupt": "Отправить Ctrl+C на удалённый сервер"
+  },
+  "highlight": {
+    "title": "Подсветка ключевых слов",
+    "shortLabel": "Подсветка",
+    "tooltip": "Настроить правила подсветки логов",
+    "on": "Вкл",
+    "off": "Выкл",
+    "reset": "Сброс",
+    "addPlaceholder": "Слово или regex…",
+    "add": "Добавить",
+    "invalidRegex": "Некорректный regex"
+  },
+  "triage": {
+    "diagnoseNow": "AI-диагностика",
+    "explainSelection": "AI: объяснить / исправить",
+    "agentPrompt": "В терминале возникла ошибка ({{summary}}). Определи причину по последнему выводу ниже и предложи безопасное исправление:\n\n{{snippet}}",
+    "explainSelectionPrompt": "Объясни этот фрагмент вывода терминала и предложи исправление, если есть проблема:\n\n{{snippet}}"
+  },
+  "prodGuard": {
+    "envLabel": "Среда и защита от ошибок",
+    "envNormal": "Обычная",
+    "envDev": "Dev",
+    "envStaging": "Stage",
+    "envProd": "PROD",
+    "badgeProd": "PROD · Защита",
+    "guardOff": "Среда",
+    "toggleTooltip": "Переключить метку среды (PROD включает перехват опасных команд)",
+    "title": "Сработала защита PROD",
+    "subtitle": "Опасная команда перехвачена в продакшн-сессии ({{reason}}). Она ещё не отправлена на сервер.",
+    "typeToConfirm": "Введите «{{target}}» для подтверждения выполнения:",
+    "cancelAndClear": "Отменить и очистить строку",
+    "executeAnyway": "Выполнить всё равно",
+    "reasons": {
+      "recursiveDelete": "рекурсивное принудительное удаление",
+      "diskFormat": "форматирование или разметка диска",
+      "diskWrite": "перезапись блочного устройства",
+      "systemPower": "перезагрузка или выключение сервера",
+      "databaseDrop": "удаление БД/таблицы или сброс кэша",
+      "firewallFlush": "сброс правил брандмауэра",
+      "rootPermissions": "массовая смена прав в корне",
+      "killCritical": "завершение критического процесса",
+      "clusterWipe": "очистка контейнеров или namespace",
+      "forcePush": "принудительный git push"
+    }
   }
 }

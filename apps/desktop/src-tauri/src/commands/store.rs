@@ -41,6 +41,10 @@ pub struct SaveSshSessionRequest {
     /// Whether a password should be remembered in the OS keyring.
     #[serde(default)]
     pub remember_password: bool,
+    /// Optional environment tag (`prod`, `staging`, `dev`) for safety badges
+    /// and production guardrails.
+    #[serde(default)]
+    pub env_tag: Option<String>,
 }
 
 /// Persists an SSH connection, storing the password in the OS keyring only.
@@ -66,12 +70,21 @@ pub fn save_ssh_session(
         }
     };
 
-    let payload = json!({
+    let mut payload = json!({
         "host": request.host,
         "port": request.port,
         "username": request.username,
         "auth": auth_payload,
     });
+    if let Some(tag) = request
+        .env_tag
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        && let Some(object) = payload.as_object_mut()
+    {
+        object.insert(String::from("envTag"), json!(tag));
+    }
 
     Ok(store.save(NewSavedSession {
         name: request.name,

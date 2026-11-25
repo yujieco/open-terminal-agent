@@ -32,6 +32,7 @@ import {
   ipc,
   isTauri,
   type CommandSnippet,
+  type EnvTag,
   type SavedSession,
   type SaveSnippetInput,
   type SerialConnectInput,
@@ -286,7 +287,7 @@ export default function App() {
   }, []);
 
   const openSession = useCallback(
-    async (spec: SessionSpec) => {
+    async (spec: SessionSpec, envTag?: EnvTag) => {
       setCreating(true);
       setError(null);
       try {
@@ -301,6 +302,7 @@ export default function App() {
           backend,
           label: displayLabel,
           title: `${displayLabel} · ${spec.cols}×${spec.rows}`,
+          envTag,
           exited: false,
           size: { cols: spec.cols, rows: spec.rows },
         });
@@ -331,6 +333,10 @@ export default function App() {
       setCreating(true);
       setError(null);
       try {
+        const savedProfile = saved.find((item) => item.id === id);
+        const rawEnv = savedProfile?.payload?.envTag;
+        const envTag: EnvTag | undefined =
+          rawEnv === "prod" || rawEnv === "staging" || rawEnv === "dev" ? rawEnv : undefined;
         const backend = await connectSavedTerminalBackend(id);
         const displayLabel =
           backend.kind === "local"
@@ -342,6 +348,7 @@ export default function App() {
           backend,
           label: displayLabel,
           title: `${displayLabel} · ${DEFAULT_COLS}×${DEFAULT_ROWS}`,
+          envTag,
           exited: false,
           size: { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
         });
@@ -351,7 +358,7 @@ export default function App() {
         setCreating(false);
       }
     },
-    [registerView],
+    [registerView, saved],
   );
 
   const deleteSaved = useCallback(
@@ -376,14 +383,18 @@ export default function App() {
   const connectSsh = useCallback(
     async (
       input: Omit<SshConnectInput, "cols" | "rows">,
-      save: { name: string; rememberPassword: boolean } | null,
+      save: { name: string; rememberPassword: boolean; envTag?: EnvTag } | null,
+      envTag?: EnvTag,
     ) => {
-      const opened = await openSession({
-        kind: "ssh",
-        cols: DEFAULT_COLS,
-        rows: DEFAULT_ROWS,
-        ...input,
-      });
+      const opened = await openSession(
+        {
+          kind: "ssh",
+          cols: DEFAULT_COLS,
+          rows: DEFAULT_ROWS,
+          ...input,
+        },
+        envTag,
+      );
       if (!opened) return;
 
       if (save && isTauri()) {
@@ -395,6 +406,7 @@ export default function App() {
             username: input.username,
             auth: input.auth,
             rememberPassword: save.rememberPassword,
+            envTag: save.envTag,
           });
           await refreshSaved();
         } catch (cause) {
@@ -453,6 +465,19 @@ export default function App() {
     setRightOpen(true);
     setRightTab("agent");
     setExternalTask({ id: taskCounterRef.current++, text });
+  }, []);
+
+  const handleDiagnoseError = useCallback((sessionId: string, prompt: string) => {
+    setActiveId(sessionId);
+    setRightOpen(true);
+    setRightTab("agent");
+    setExternalTask({ id: taskCounterRef.current++, text: prompt });
+  }, []);
+
+  const handleSetEnvTag = useCallback((sessionId: string, envTag?: EnvTag) => {
+    setSessions((previous) =>
+      previous.map((item) => (item.id === sessionId ? { ...item, envTag } : item)),
+    );
   }, []);
 
   const handleTakeOver = useCallback(() => {
@@ -703,12 +728,21 @@ export default function App() {
                     allSessionIds: tabIds,
                   });
                 }}
-                className={`group flex h-7 shrink-0 items-center gap-1.5 rounded-[7px] border px-2.5 transition ${
+                className={`group relative flex h-7 shrink-0 items-center gap-1.5 overflow-hidden rounded-[7px] border px-2.5 transition ${
                   isActive
                     ? "border-[var(--border-strong)] bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
                     : "border-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
                 }`}
               >
+                {lead?.envTag === "prod" || lead?.envTag === "staging" ? (
+                  <span
+                    className="pointer-events-none absolute inset-x-0 top-0 h-[2px]"
+                    style={{
+                      backgroundColor:
+                        lead.envTag === "prod" ? "var(--status-danger)" : "var(--status-warn)",
+                    }}
+                  />
+                ) : null}
                 {isEditing && lead ? (
                   <input
                     autoFocus
@@ -953,6 +987,8 @@ export default function App() {
             onExportLog={(sessionId, label, lines) =>
               setExportTarget({ sessionId, label, lines })
             }
+            onDiagnoseError={handleDiagnoseError}
+            onSetEnvTag={handleSetEnvTag}
           />
         </main>
 
@@ -1178,7 +1214,13 @@ export default function App() {
         />
       ) : null}
 
-      {sftpOpen ? <SftpDrawer saved={saved} onClose={() => setSftpOpen(false)} /> : null}
+      {sftpOpen ? (
+        <SftpDrawer
+          saved={saved}
+          activeSessionId={activeId}
+          onClose={() => setSftpOpen(false)}
+        />
+      ) : null}
 
       {tunnelsOpen ? (
         <TunnelDrawer
@@ -1205,7 +1247,7 @@ export default function App() {
           busy={creating}
           error={dialogError}
           onClose={() => setDialog(null)}
-          onSubmit={(input, save) => void connectSsh(input, save)}
+          onSubmit={(input, save, envTag) => void connectSsh(input, save, envTag)}
         />
       ) : null}
 

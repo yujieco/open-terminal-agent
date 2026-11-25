@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ipc, isTauri, type SshAuthInput, type SshConnectInput } from "../lib/ipc";
+import { ipc, isTauri, type EnvTag, type SshAuthInput, type SshConnectInput } from "../lib/ipc";
 
 interface SshConnectDialogProps {
   busy: boolean;
@@ -12,7 +12,8 @@ interface SshConnectDialogProps {
   onClose: () => void;
   onSubmit: (
     input: Omit<SshConnectInput, "cols" | "rows">,
-    save: { name: string; rememberPassword: boolean } | null,
+    save: { name: string; rememberPassword: boolean; envTag?: EnvTag } | null,
+    envTag?: EnvTag,
   ) => void;
 }
 
@@ -28,6 +29,7 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
   const [keyPath, setKeyPath] = useState("~/.ssh/id_ed25519");
   const [passphrase, setPassphrase] = useState("");
   const [save, setSave] = useState(false);
+  const [envTag, setEnvTag] = useState<EnvTag | undefined>(undefined);
   const [pendingFingerprint, setPendingFingerprint] = useState<string | null>(null);
   const [sessionName, setSessionName] = useState("");
 
@@ -49,7 +51,8 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
         auth,
         trustFingerprint,
       },
-      save ? { name: sessionName.trim(), rememberPassword: true } : null,
+      save ? { name: sessionName.trim(), rememberPassword: true, envTag } : null,
+      envTag,
     );
   };
 
@@ -94,7 +97,8 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
               ? { method: "password", password }
               : { method: "privateKey", path: keyPath },
         },
-        save ? { name: sessionName.trim(), rememberPassword: true } : null,
+        save ? { name: sessionName.trim(), rememberPassword: true, envTag } : null,
+        envTag,
       );
       console.warn("[ota] host key probe failed, connecting with stored rules", cause);
     }
@@ -260,6 +264,52 @@ export function SshConnectDialog({ busy, error, onClose, onSubmit }: SshConnectD
               </div>
             </div>
           ) : null}
+
+          <div>
+            <span className="mb-1 block text-[10px] font-medium text-[var(--text-muted)] uppercase">
+              {t("prodGuard.envLabel")}
+            </span>
+            <div className="grid grid-cols-4 gap-1">
+              {(
+                [
+                  { id: undefined, label: t("prodGuard.envNormal") },
+                  { id: "dev" as EnvTag, label: t("prodGuard.envDev") },
+                  { id: "staging" as EnvTag, label: t("prodGuard.envStaging") },
+                  { id: "prod" as EnvTag, label: t("prodGuard.envProd") },
+                ] as const
+              ).map((item) => {
+                const active = envTag === item.id;
+                const isProd = item.id === "prod";
+                return (
+                  <button
+                    key={item.id ?? "normal"}
+                    type="button"
+                    onClick={() => setEnvTag(item.id)}
+                    className="h-7 rounded-md border text-[11px] font-medium transition"
+                    style={{
+                      borderColor: active
+                        ? isProd
+                          ? "var(--status-danger)"
+                          : "var(--accent-border)"
+                        : "var(--border-subtle)",
+                      backgroundColor: active
+                        ? isProd
+                          ? "rgba(239, 68, 68, 0.14)"
+                          : "var(--accent-soft)"
+                        : "var(--bg-elevated)",
+                      color: active
+                        ? isProd
+                          ? "var(--status-danger)"
+                          : "var(--accent)"
+                        : "var(--text-secondary)",
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           <label className="flex cursor-pointer items-center gap-2 text-[11px] text-[var(--text-secondary)]">
             <input

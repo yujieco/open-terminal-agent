@@ -53,6 +53,16 @@
       "copy": "Copy",
       "paste": "Paste",
       "clear": "Clear terminal"
+    },
+    "search": {
+      "placeholder": "Find in terminal…",
+      "noMatches": "0/0",
+      "caseSensitive": "Match case",
+      "regex": "Use regular expression",
+      "previous": "Previous match (Shift+Enter)",
+      "next": "Next match (Enter)",
+      "menuItem": "Find in terminal",
+      "tooltip": "Find in terminal ({{shortcut}})"
     }
   },
   "contextMenu": {
@@ -213,7 +223,8 @@
     "close": "Close",
     "dismiss": "Dismiss",
     "pending": "pending",
-    "delete": "Delete"
+    "delete": "Delete",
+    "create": "Create"
   },
   "ssh": {
     "title": "SSH connection",
@@ -263,7 +274,31 @@
     "downloadLocal": "Save to local path",
     "uploadRemote": "Remote destination path",
     "transferred": "Transferred",
-    "disconnect": "Disconnect"
+    "disconnect": "Disconnect",
+    "newFolder": "New folder",
+    "newFolderPlaceholder": "folder-name",
+    "followCwd": "Follow CWD",
+    "followCwdTooltip": "Jump to the current working directory detected in the active terminal",
+    "followNotDetected": "Could not detect working directory from the active terminal prompt.",
+    "followedCwd": "Jumped to",
+    "filterPlaceholder": "Filter files…",
+    "clickToEditPath": "Click to enter a path directly",
+    "uploadedSummary": "Uploaded {{count}} file(s) ({{size}})",
+    "downloaded": "Downloaded",
+    "savedFile": "Saved",
+    "loading": "Loading…",
+    "emptyDir": "This directory is empty.",
+    "dropHint": "Drag and drop local files here to upload",
+    "dropToUpload": "Drop files to upload",
+    "footerHint": "Double-click a text file to edit inline · Drag files from your desktop to upload",
+    "edit": "Edit",
+    "editInline": "Preview / Edit inline",
+    "rename": "Rename",
+    "delete": "Delete",
+    "confirmDelete": "Delete?",
+    "unsaved": "Unsaved",
+    "lines": "lines",
+    "saving": "Saving…"
   },
   "palette": {
     "placeholder": "Describe the task in one sentence, e.g. find the process on port 8080",
@@ -409,5 +444,49 @@
     "localInputPlaceholder": "Type locally with zero lag, press Enter to push to remote (↑↓ history)…",
     "sendCommand": "Send",
     "interrupt": "Send Ctrl+C interrupt to remote shell"
+  },
+  "highlight": {
+    "title": "Log keyword highlights",
+    "shortLabel": "Highlight",
+    "tooltip": "Configure log keyword highlighting",
+    "on": "On",
+    "off": "Off",
+    "reset": "Reset",
+    "addPlaceholder": "Keyword or regex…",
+    "add": "Add",
+    "invalidRegex": "Invalid regex"
+  },
+  "triage": {
+    "diagnoseNow": "AI Diagnose",
+    "explainSelection": "AI Explain / Fix selection",
+    "agentPrompt": "The terminal just hit an error ({{summary}}). Diagnose the root cause from the recent output below and propose or run a safe fix:\n\n{{snippet}}",
+    "explainSelectionPrompt": "Explain what this terminal output means and suggest next steps or fixes if there is an issue:\n\n{{snippet}}"
+  },
+  "prodGuard": {
+    "envLabel": "Environment & safety guardrail",
+    "envNormal": "Normal",
+    "envDev": "Dev",
+    "envStaging": "Staging",
+    "envProd": "PROD",
+    "badgeProd": "PROD · Guard",
+    "guardOff": "Env",
+    "toggleTooltip": "Click to cycle environment tag (PROD enables destructive command guardrail)",
+    "title": "Production Guardrail Triggered",
+    "subtitle": "High-risk command intercepted on a production session ({{reason}}). Confirm carefully before sending.",
+    "typeToConfirm": "Type \"{{target}}\" to confirm execution:",
+    "cancelAndClear": "Cancel & clear line",
+    "executeAnyway": "Execute anyway",
+    "reasons": {
+      "recursiveDelete": "recursive force deletion",
+      "diskFormat": "disk partitioning or formatting",
+      "diskWrite": "raw block device overwrite",
+      "systemPower": "host reboot or shutdown",
+      "databaseDrop": "destructive database drop/flush",
+      "firewallFlush": "firewall ruleset flush",
+      "rootPermissions": "recursive root permission change",
+      "killCritical": "critical process termination",
+      "clusterWipe": "container/cluster deletion",
+      "forcePush": "force git push"
+    }
   }
 }

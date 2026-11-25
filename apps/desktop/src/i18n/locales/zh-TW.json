@@ -53,6 +53,16 @@
       "copy": "複製",
       "paste": "貼上",
       "clear": "清空終端機"
+    },
+    "search": {
+      "placeholder": "搜尋終端輸出…",
+      "noMatches": "無相符項",
+      "caseSensitive": "區分大小寫",
+      "regex": "正規表示式",
+      "previous": "上一個相符項 (Shift+Enter)",
+      "next": "下一個相符項 (Enter)",
+      "menuItem": "搜尋終端內容",
+      "tooltip": "搜尋終端輸出 ({{shortcut}})"
     }
   },
   "contextMenu": {
@@ -213,7 +223,8 @@
     "close": "關閉",
     "dismiss": "忽略",
     "pending": "待接入",
-    "delete": "刪除"
+    "delete": "刪除",
+    "create": "建立"
   },
   "ssh": {
     "title": "SSH 連線",
@@ -263,7 +274,31 @@
     "downloadLocal": "儲存到本機路徑",
     "uploadRemote": "遠端目標路徑",
     "transferred": "傳輸完成",
-    "disconnect": "中斷"
+    "disconnect": "中斷",
+    "newFolder": "新增資料夾",
+    "newFolderPlaceholder": "輸入資料夾名稱",
+    "followCwd": "跟隨終端",
+    "followCwdTooltip": "自動跳轉至目前終端所在的工作目錄",
+    "followNotDetected": "未能從目前終端提示字元辨識工作目錄。",
+    "followedCwd": "已跳轉至",
+    "filterPlaceholder": "篩選檔名…",
+    "clickToEditPath": "點擊直接輸入路徑跳轉",
+    "uploadedSummary": "已上傳 {{count}} 個檔案（{{size}}）",
+    "downloaded": "已下載",
+    "savedFile": "已儲存",
+    "loading": "載入中…",
+    "emptyDir": "此目錄為空。",
+    "dropHint": "支援直接從桌面拖曳檔案上傳",
+    "dropToUpload": "放開滑鼠即可上傳",
+    "footerHint": "雙擊設定檔可線上編輯 · 支援直接拖入本機檔案上傳",
+    "edit": "編輯",
+    "editInline": "線上預覽 / 編輯",
+    "rename": "重新命名",
+    "delete": "刪除",
+    "confirmDelete": "確認刪除",
+    "unsaved": "未儲存",
+    "lines": "行",
+    "saving": "儲存中…"
   },
   "palette": {
     "placeholder": "用一句話描述你要做的事，例如：找出佔用 8080 埠的程序",
@@ -409,5 +444,49 @@
     "localInputPlaceholder": "本機零延遲輸入指令，Enter 整行傳送到遠端執行（↑↓ 查閱歷史）…",
     "sendCommand": "送出",
     "interrupt": "向遠端傳送 Ctrl+C 中斷訊號"
+  },
+  "highlight": {
+    "title": "日誌關鍵字醒目提示",
+    "shortLabel": "醒目",
+    "tooltip": "設定終端日誌關鍵字醒目提示規則",
+    "on": "已開啟",
+    "off": "已關閉",
+    "reset": "重設",
+    "addPlaceholder": "輸入關鍵字或正規式…",
+    "add": "新增",
+    "invalidRegex": "正規表示式無效"
+  },
+  "triage": {
+    "diagnoseNow": "AI 診斷修復",
+    "explainSelection": "AI 解釋 / 診斷選取內容",
+    "agentPrompt": "終端剛剛出現錯誤（{{summary}}），請根據以下近期輸出定位根因並提出修復方案：\n\n{{snippet}}",
+    "explainSelectionPrompt": "請解釋以下終端選取內容的含義；若有錯誤或異常，請提供排查與修復建議：\n\n{{snippet}}"
+  },
+  "prodGuard": {
+    "envLabel": "環境標記與防誤操作護欄",
+    "envNormal": "一般",
+    "envDev": "開發",
+    "envStaging": "預發",
+    "envProd": "正式",
+    "badgeProd": "正式 · 護欄",
+    "guardOff": "環境",
+    "toggleTooltip": "點擊切換環境標籤（設為「正式」將自動啟用高危指令攔截護欄）",
+    "title": "正式環境高危指令攔截",
+    "subtitle": "已在正式環境工作階段攔截高危操作（{{reason}}），指令尚未送往遠端伺服器。",
+    "typeToConfirm": "請輸入「{{target}}」確認放行執行：",
+    "cancelAndClear": "取消並清除指令列",
+    "executeAnyway": "確認強制執行",
+    "reasons": {
+      "recursiveDelete": "遞迴強制刪除檔案",
+      "diskFormat": "磁碟格式化或分割操作",
+      "diskWrite": "覆寫原始區塊裝置",
+      "systemPower": "主機重啟或關機",
+      "databaseDrop": "刪除資料庫 / 清空資料表或快取",
+      "firewallFlush": "清空或關閉防火牆規則",
+      "rootPermissions": "根目錄遞迴修改權限",
+      "killCritical": "強制終止關鍵系統程序",
+      "clusterWipe": "清除容器或刪除叢集命名空間",
+      "forcePush": "Git 強制推送"
+    }
   }
 }
