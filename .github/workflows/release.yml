@@ -26,7 +26,7 @@ jobs:
             args: --bundles deb,appimage
           - platform: windows-x86_64
             os: windows-latest
-            args: --bundles nsis,msi
+            args: --bundles nsis
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -68,7 +68,13 @@ jobs:
           projectPath: apps/desktop
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('Open Terminal Agent {0}', github.ref_name) || '' }}
-          releaseBody: "Automated desktop release built by GitHub Actions."
+          releaseBody: |
+            ### Downloads
+            - **Windows (x64):** `*_x64-setup.exe` (first run: click **More info → Run anyway** if SmartScreen prompts)
+            - **macOS (Apple Silicon):** `*_aarch64.dmg` (first run: if Gatekeeper blocks, run `xattr -cr "/Applications/Open Terminal Agent.app"`)
+            - **Linux (x64):** `*_amd64.deb` or `*_amd64.AppImage`
+
+            In-app signed updates (`latest.json`) are enabled automatically for all platforms.
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true
