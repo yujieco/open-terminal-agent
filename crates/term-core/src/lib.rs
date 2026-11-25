@@ -15,6 +15,7 @@ pub mod serial;
 pub mod sftp;
 pub mod ssh;
 pub mod transport;
+pub mod tunnel;
 
 pub use error::{CoreError, Result};
 pub use pty::{PtyConfig, PtyTransport, SharedPtyTransport, default_shell};
@@ -33,3 +34,4 @@ pub use transport::{
     SessionId, StreamBatcher, TerminalOutput, TerminalTransport, TransportEvent,
     generate_session_id,
 };
+pub use tunnel::{SshTunnel, TunnelKind, TunnelSpec, TunnelStatsSnapshot};

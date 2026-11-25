@@ -24,6 +24,7 @@ use crate::transport::{
     CHUNK_CHANNEL_CAPACITY, OUTPUT_CHANNEL_CAPACITY, SessionId, StreamBatcher, TerminalOutput,
     TerminalTransport, generate_session_id,
 };
+use crate::tunnel::RemoteForwardTarget;
 
 /// Terminal type advertised to the remote host.
 const TERM_VALUE: &str = "xterm-256color";
@@ -100,7 +101,8 @@ impl SshConfig {
     }
 }
 
-/// Client handler that records the server key fingerprint.
+/// Client handler that records the server key fingerprint and optionally routes
+/// inbound remote-forwarded (`-R`) TCP channels to a local target.
 #[derive(Debug, Clone)]
 pub(crate) struct SshClientHandler {
     pub(crate) fingerprint: Arc<Mutex<Option<String>>>,
@@ -108,6 +110,8 @@ pub(crate) struct SshClientHandler {
     mismatch: Arc<AtomicBool>,
     /// Stop after capturing the key instead of completing the handshake.
     capture_only: bool,
+    /// Optional local target for inbound remote port forwarding (`-R`).
+    remote_forward: Option<RemoteForwardTarget>,
 }
 
 impl client::Handler for SshClientHandler {
@@ -153,11 +157,37 @@ impl client::Handler for SshClientHandler {
         }
         Ok(true)
     }
+
+    async fn server_channel_open_forwarded_tcpip(
+        &mut self,
+        channel: russh::Channel<client::Msg>,
+        _connected_address: &str,
+        _connected_port: u32,
+        _originator_address: &str,
+        _originator_port: u32,
+        reply: client::ChannelOpenHandle,
+        _session: &mut client::Session,
+    ) -> std::result::Result<(), Self::Error> {
+        let Some(target) = self.remote_forward.clone() else {
+            return Ok(());
+        };
+        reply.accept().await;
+        crate::tunnel::spawn_remote_forward_bridge(channel, target);
+        Ok(())
+    }
 }
 
-/// Handshake plus authentication, shared by the shell transport and SFTP.
+/// Handshake plus authentication, shared by the shell transport, SFTP, and tunnels.
 pub(crate) async fn open_authenticated_session(
     config: &SshConfig,
+) -> Result<(Handle<SshClientHandler>, Arc<Mutex<Option<String>>>)> {
+    open_authenticated_session_with_forward(config, None).await
+}
+
+/// Handshake plus authentication with an optional remote-forward (`-R`) target.
+pub(crate) async fn open_authenticated_session_with_forward(
+    config: &SshConfig,
+    remote_forward: Option<RemoteForwardTarget>,
 ) -> Result<(Handle<SshClientHandler>, Arc<Mutex<Option<String>>>)> {
     let fingerprint = Arc::new(Mutex::new(None));
     let mismatch = Arc::new(AtomicBool::new(false));
@@ -166,6 +196,7 @@ pub(crate) async fn open_authenticated_session(
         expected: config.known_host_fingerprint.clone(),
         mismatch: Arc::clone(&mismatch),
         capture_only: false,
+        remote_forward,
     };
 
     let mut handle = client::connect(
@@ -240,6 +271,7 @@ pub async fn probe_host_key(host: &str, port: u16, timeout: Duration) -> Result<
         expected: None,
         mismatch: Arc::new(AtomicBool::new(false)),
         capture_only: true,
+        remote_forward: None,
     };
 
     // The handshake is expected to fail; only the captured key matters.
