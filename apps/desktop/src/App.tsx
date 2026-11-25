@@ -1,6 +1,7 @@
 // Copyright 2026 yujieco
 // SPDX-License-Identifier: Apache-2.0
 
+import { PanelLeft, PanelRight, Plus, Square, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -48,7 +49,7 @@ import {
 } from "./lib/ipc";
 import { resolveLanguage } from "./lib/locale";
 import { leaf, remove, sessionIds, split } from "./lib/panes";
-import { formatShortcut } from "./lib/platform";
+import { formatShortcut, isMac } from "./lib/platform";
 import type { PermissionMode, SessionView, TabView } from "./types";
 
 const DEFAULT_COLS = 100;
@@ -120,6 +121,14 @@ export default function App() {
     }
     return "supervised";
   });
+  const [leftOpen, setLeftOpen] = useState(() => {
+    try {
+      const val = window.localStorage.getItem("ota.pref.leftOpen");
+      return val === null ? true : val === "1";
+    } catch {
+      return true;
+    }
+  });
   const [rightOpen, setRightOpen] = useState(() => {
     try {
       const val = window.localStorage.getItem("ota.pref.rightOpen");
@@ -183,12 +192,13 @@ export default function App() {
   useEffect(() => {
     try {
       window.localStorage.setItem("ota.pref.mode", mode);
+      window.localStorage.setItem("ota.pref.leftOpen", leftOpen ? "1" : "0");
       window.localStorage.setItem("ota.pref.rightOpen", rightOpen ? "1" : "0");
       window.localStorage.setItem("ota.pref.rightTab", rightTab);
     } catch {
       // Ignore storage errors.
     }
-  }, [mode, rightOpen, rightTab]);
+  }, [leftOpen, mode, rightOpen, rightTab]);
 
   useEffect(() => {
     if (!tabMenu) return;
@@ -866,18 +876,31 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col bg-[var(--bg-canvas)] text-[var(--text-primary)]">
-      {/* Clean top chrome: inline renamable tabs + autonomy mode + accent CTA + theme + settings */}
-      <header className="flex h-11 shrink-0 items-center border-b border-[var(--border-subtle)] bg-[var(--bg-chrome)]">
-        {/* Session tabs start cleanly from the left */}
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-3">
+      {/* Native unified 40px overlay titlebar (macOS traffic lights float seamlessly inside) */}
+      <header
+        data-tauri-drag-region
+        className={`flex h-10 shrink-0 items-center border-b border-[var(--border-subtle)] bg-[var(--bg-chrome)] select-none ${
+          isMac && !demo ? "pl-[76px]" : "pl-2"
+        } pr-2.5`}
+      >
+        <button
+          type="button"
+          data-active={leftOpen}
+          onClick={() => setLeftOpen((open) => !open)}
+          title={t("sidebar.workspace")}
+          aria-label={t("sidebar.workspace")}
+          className="ota-icon-btn mr-1"
+        >
+          <PanelLeft className="h-3.5 w-3.5" strokeWidth={1.65} />
+        </button>
+
+        {/* Flush Ghostty / Linear borderless tab strip */}
+        <div
+          data-tauri-drag-region
+          className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto pr-2"
+        >
           {demo ? (
-            <span
-              className="mr-1 shrink-0 rounded px-1.5 py-0.5 font-mono text-[9.5px] font-medium uppercase"
-              style={{
-                backgroundColor: "var(--accent-soft)",
-                color: "var(--accent)",
-              }}
-            >
+            <span className="mr-1 shrink-0 rounded bg-[var(--bg-elevated)] px-1.5 py-0.5 font-mono text-[9.5px] font-medium uppercase text-[var(--text-muted)]">
               {t("status.demo")}
             </span>
           ) : null}
@@ -924,12 +947,12 @@ export default function App() {
                   setDragTabId(null);
                   setDragOverTabId(null);
                 }}
-                className={`group relative flex h-7 shrink-0 items-center gap-1.5 overflow-hidden rounded-[7px] border px-2.5 transition ${
+                className={`group relative flex h-7 shrink-0 items-center gap-1.5 overflow-hidden rounded-md px-2.5 transition ${
                   dragOverTabId === tab.id
-                    ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+                    ? "bg-[var(--accent-soft)] text-[var(--accent)]"
                     : isActive
-                      ? "border-[var(--border-strong)] bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
-                      : "border-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                      ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                      : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
                 }`}
               >
                 {lead?.envTag ? (
@@ -964,7 +987,7 @@ export default function App() {
                         setEditingTabId(null);
                       }
                     }}
-                    className="w-28 rounded bg-[var(--bg-surface)] px-1.5 py-0.5 text-[12.5px] text-[var(--text-primary)] outline-none"
+                    className="w-28 rounded bg-[var(--bg-surface)] px-1.5 py-0.5 text-[12px] text-[var(--text-primary)] outline-none"
                   />
                 ) : (
                   <button
@@ -978,13 +1001,13 @@ export default function App() {
                       setTabNameDraft(lead.label);
                     }}
                     title={t("tabs.renameHint")}
-                    className={`flex items-center gap-1.5 text-[12.5px] ${
+                    className={`flex items-center gap-1.5 text-[12px] ${
                       isActive ? "font-medium" : "font-normal"
                     }`}
                   >
-                    <span className="max-w-[11rem] truncate">{lead?.label ?? "terminal"}</span>
+                    <span className="max-w-[10.5rem] truncate">{lead?.label ?? "terminal"}</span>
                     {tabIds.length > 1 ? (
-                      <span className="ota-tabular rounded bg-[var(--bg-surface)] px-1 text-[11px] text-[var(--text-muted)]">
+                      <span className="ota-tabular font-mono text-[10px] text-[var(--text-muted)]">
                         ×{tabIds.length}
                       </span>
                     ) : null}
@@ -997,33 +1020,28 @@ export default function App() {
                   onClick={() => {
                     for (const id of tabIds) closeSession(id);
                   }}
-                  className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-[var(--text-muted)] opacity-0 transition group-hover:opacity-100 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
+                  className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-[var(--text-muted)] opacity-0 transition group-hover:opacity-100 hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
                 >
-                  <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
-                    <path d="M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6" />
-                  </svg>
+                  <X className="h-3 w-3" strokeWidth={1.7} />
                 </button>
               </div>
             );
           })}
 
-          {/* Optically centered SVG + button */}
           <button
             type="button"
             onClick={() => void createLocalSession()}
             disabled={creating}
             title={t("sidebar.newSession")}
             aria-label={t("sidebar.newSession")}
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+            className="ota-icon-btn ml-0.5"
           >
-            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
-              <path d="M8 3.2v9.6M3.2 8h9.6" />
-            </svg>
+            <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />
           </button>
         </div>
 
-        {/* Right studio controls */}
-        <div className="flex shrink-0 items-center gap-2 px-3">
+        {/* Calm right controls — mode switch + right panel toggle */}
+        <div className="flex shrink-0 items-center gap-1.5">
           <div className="ota-segmented hidden grid-cols-3 lg:inline-grid">
             {MODES.map((candidate) => (
               <button
@@ -1039,75 +1057,26 @@ export default function App() {
           </div>
 
           {activeAgentRunning ? (
-            <button type="button" onClick={handleTakeOver} className="ota-ctrl-primary">
-              {t("agent.takeOver")}
-            </button>
-          ) : (
             <button
               type="button"
-              onClick={() => setRightOpen((open) => !open)}
-              className={rightOpen ? "ota-ctrl-primary" : "ota-ctrl"}
+              onClick={handleTakeOver}
+              className="inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-[11.5px] font-medium text-white transition hover:opacity-90"
+              style={{ backgroundColor: "var(--status-danger)" }}
             >
-              {t("agent.title")}
+              <Square className="h-2.5 w-2.5 fill-current" />
+              <span>{t("agent.takeOver")}</span>
             </button>
-          )}
+          ) : null}
 
-          {/* Theme toggle: clean Light (Sun) / Dark (Moon) binary switch */}
           <button
             type="button"
-            onClick={toggleTheme}
-            title={`${t("settings.appearance")}: ${t(`settings.theme.${resolvedTheme}`)}`}
-            aria-label={t("settings.appearance")}
-            className="ota-ctrl !w-7 !px-0"
+            data-active={rightOpen}
+            onClick={() => setRightOpen((open) => !open)}
+            title={t("agent.title")}
+            aria-label={t("agent.title")}
+            className="ota-icon-btn"
           >
-            {resolvedTheme === "light" ? (
-              <svg
-                viewBox="0 0 24 24"
-                className="h-3.5 w-3.5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.9"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="4" />
-                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-              </svg>
-            ) : (
-              <svg
-                viewBox="0 0 24 24"
-                className="h-3.5 w-3.5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.9"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-              </svg>
-            )}
-          </button>
-
-          {/* Settings cog/gear button */}
-          <button
-            type="button"
-            onClick={() => setSettingsOpen(true)}
-            title={t("settings.title")}
-            aria-label={t("settings.title")}
-            className="ota-ctrl !w-7 !px-0"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              className="h-3.5 w-3.5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.9"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
+            <PanelRight className="h-3.5 w-3.5" strokeWidth={1.65} />
           </button>
         </div>
       </header>
@@ -1135,43 +1104,47 @@ export default function App() {
       ) : null}
 
       <div className="flex min-h-0 flex-1">
-        <SessionSidebar
-          sessions={orderedSessions}
-          activeId={activeId}
-          shells={shells}
-          saved={saved}
-          creating={creating}
-          agentRunning={activeAgentRunning}
-          activeTunnelCount={activeTunnelCount}
-          onSelect={setActiveId}
-          onRename={renameSession}
-          onCloseSession={closeSession}
-          onExportLog={(session) =>
-            setExportTarget({ sessionId: session.id, label: session.label })
-          }
-          onCreate={createLocalSession}
-          onOpenSaved={(id) => void openSaved(id)}
-          onEditSaved={(profile) => {
-            setEditingSaved(profile);
-            setDialogError(null);
-            setDialog("ssh");
-          }}
-          onDeleteSaved={(id) => void deleteSaved(id)}
-          onImportSshConfig={() => setImportOpen(true)}
-          onOpenSsh={() => {
-            setEditingSaved(null);
-            setDialogError(null);
-            setDialog("ssh");
-          }}
-          onOpenSerial={() => {
-            setDialogError(null);
-            setDialog("serial");
-          }}
-          onOpenSftp={() => setSftpOpen(true)}
-          onOpenTunnels={() => setTunnelsOpen(true)}
-          onOpenFleet={() => setFleetOpen(true)}
-          onOpenPalette={() => setPaletteOpen(true)}
-        />
+        {leftOpen ? (
+          <SessionSidebar
+            sessions={orderedSessions}
+            activeId={activeId}
+            shells={shells}
+            saved={saved}
+            creating={creating}
+            activeTunnelCount={activeTunnelCount}
+            resolvedTheme={resolvedTheme}
+            onSelect={setActiveId}
+            onRename={renameSession}
+            onCloseSession={closeSession}
+            onExportLog={(session) =>
+              setExportTarget({ sessionId: session.id, label: session.label })
+            }
+            onCreate={createLocalSession}
+            onOpenSaved={(id) => void openSaved(id)}
+            onEditSaved={(profile) => {
+              setEditingSaved(profile);
+              setDialogError(null);
+              setDialog("ssh");
+            }}
+            onDeleteSaved={(id) => void deleteSaved(id)}
+            onImportSshConfig={() => setImportOpen(true)}
+            onOpenSsh={() => {
+              setEditingSaved(null);
+              setDialogError(null);
+              setDialog("ssh");
+            }}
+            onOpenSerial={() => {
+              setDialogError(null);
+              setDialog("serial");
+            }}
+            onOpenSftp={() => setSftpOpen(true)}
+            onOpenTunnels={() => setTunnelsOpen(true)}
+            onOpenFleet={() => setFleetOpen(true)}
+            onOpenPalette={() => setPaletteOpen(true)}
+            onToggleTheme={toggleTheme}
+            onOpenSettings={() => setSettingsOpen(true)}
+          />
+        ) : null}
 
         <main className="flex min-w-0 flex-1 flex-col">
           <TerminalWorkspace

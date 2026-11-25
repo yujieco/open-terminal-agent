@@ -1,6 +1,7 @@
 // Copyright 2026 yujieco
 // SPDX-License-Identifier: Apache-2.0
 
+import { Sparkles } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -347,41 +348,12 @@ export function AgentSidebar({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Header */}
-      <header className="border-b border-[var(--border-subtle)] px-4 py-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-[12.5px] font-semibold text-[var(--text-primary)]">
-            {t("agent.timeline")}
-          </h2>
-          <span className="ota-tabular text-[11px] text-[var(--text-muted)]">
-            {t("agent.stepsCount", { count: cards.length })}
-          </span>
-        </div>
-
-        {/* Observe -> Reason -> Act -> Verify live phase strip */}
-        <div className="mt-2.5 flex items-center gap-1">
-          {PHASES.map((item) => {
-            const active = phase === item;
-            return (
-              <span
-                key={item}
-                className="flex-1 rounded-md px-1.5 py-1 text-center text-[11px] font-medium transition"
-                style={{
-                  backgroundColor: active ? "var(--accent-soft)" : "var(--bg-surface)",
-                  color: active ? "var(--accent)" : "var(--text-muted)",
-                  border: `1px solid ${active ? "var(--accent-border)" : "var(--border-subtle)"}`,
-                }}
-              >
-                {t(`agent.phases.${item}`)}
-              </span>
-            );
-          })}
-        </div>
-
-        <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
+      <header className="border-b border-[var(--border-subtle)] px-3.5 py-2.5">
+        <div className="flex items-center justify-between gap-2 text-[11px]">
           <span className="truncate font-mono text-[var(--text-muted)]">
             {llm ? `${llm.provider}/${llm.model}` : t("agent.noProvider")}
           </span>
-          <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-[var(--text-secondary)]">
+          <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-[var(--text-secondary)] select-none">
             <input
               type="checkbox"
               checked={stepApproval}
@@ -391,6 +363,27 @@ export function AgentSidebar({
             <span className="text-[11px]">{t("agent.modes.ask")}</span>
           </label>
         </div>
+
+        {/* Live Observe -> Reason -> Act -> Verify indicator only while actively running */}
+        {running && phase ? (
+          <div className="mt-2 flex items-center gap-1">
+            {PHASES.map((item) => {
+              const active = phase === item;
+              return (
+                <span
+                  key={item}
+                  className="flex-1 rounded px-1.5 py-0.5 text-center text-[10.5px] font-medium transition"
+                  style={{
+                    backgroundColor: active ? "var(--accent-soft)" : "transparent",
+                    color: active ? "var(--accent)" : "var(--text-muted)",
+                  }}
+                >
+                  {t(`agent.phases.${item}`)}
+                </span>
+              );
+            })}
+          </div>
+        ) : null}
       </header>
 
       {/* Missing API key friendly notice */}
@@ -475,8 +468,11 @@ export function AgentSidebar({
         ) : null}
 
         {cards.length === 0 && answer.length === 0 && !running && !approval && !failure ? (
-          <div className="rounded-lg border border-dashed border-[var(--border-subtle)] px-3.5 py-4 text-[12px] leading-relaxed text-[var(--text-muted)]">
-            {t("agent.empty")}
+          <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
+            <Sparkles className="mb-2.5 h-5 w-5 text-[var(--text-muted)] opacity-50" strokeWidth={1.5} />
+            <p className="max-w-[16rem] text-[12px] leading-relaxed text-[var(--text-muted)]">
+              {t("agent.empty")}
+            </p>
           </div>
         ) : null}
 

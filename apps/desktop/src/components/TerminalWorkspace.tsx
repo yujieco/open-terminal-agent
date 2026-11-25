@@ -1,13 +1,28 @@
 // Copyright 2026 yujieco
 // SPDX-License-Identifier: Apache-2.0
 
+import {
+  Activity,
+  ArrowUp,
+  Columns2,
+  Highlighter,
+  Keyboard,
+  Layers,
+  Radio,
+  Rows2,
+  Search,
+  Shield,
+  ShieldAlert,
+  Sparkles,
+  Square,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ResolvedTheme } from "../hooks/useTheme";
 import { ipc, isTauri, type EnvTag, type SessionProbeStatus } from "../lib/ipc";
 import { sessionIds } from "../lib/panes";
-import { formatShortcut, isMac } from "../lib/platform";
+import { formatShortcut } from "../lib/platform";
 import { matchDangerousCommand, type DangerousCommandMatch } from "../lib/prodGuard";
 import {
   loadHighlightEnabled,
@@ -224,51 +239,79 @@ export function TerminalWorkspace({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[var(--bg-canvas)]">
-      {/* Subtle metadata strip above the terminal viewport */}
-      <div className="relative flex h-9 shrink-0 items-center justify-between border-b border-[var(--border-subtle)] px-4">
+      {/* Ultra-clean 32px native workspace toolbar — zero pill clutter */}
+      <div className="relative flex h-8 shrink-0 items-center justify-between border-b border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-3 select-none">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="text-[11px] font-medium text-[var(--text-muted)]">
-            {activeSession ? t(`sidebar.kinds.${activeSession.kind}`) : "—"}
-          </span>
-          <span className="text-[var(--text-muted)] opacity-40">·</span>
-          <span className="truncate text-[12.5px] font-medium text-[var(--text-primary)]">
+          <span className="truncate text-[12px] font-medium text-[var(--text-primary)]">
             {activeSession?.label ?? "terminal"}
           </span>
 
-          {activeSession ? (
+          {activeSession?.envTag ? (
             <button
               type="button"
               onClick={cycleEnvTag}
               title={t("prodGuard.toggleTooltip")}
-              className="inline-flex h-5 shrink-0 items-center gap-1 rounded-full border px-2 text-[10.5px] font-semibold leading-none transition hover:opacity-90"
+              className="inline-flex h-4.5 shrink-0 items-center gap-1 rounded px-1.5 font-mono text-[10px] font-semibold leading-none transition hover:opacity-85"
               style={{
-                borderColor:
-                  activeSession.envTag === "prod"
-                    ? "var(--status-danger)"
-                    : activeSession.envTag === "staging"
-                      ? "var(--status-warn)"
-                      : "var(--border-subtle)",
                 backgroundColor:
                   activeSession.envTag === "prod"
-                    ? "rgba(239, 68, 68, 0.14)"
+                    ? "var(--status-danger-soft)"
                     : activeSession.envTag === "staging"
-                      ? "rgba(245, 158, 11, 0.14)"
-                      : "var(--bg-surface)",
+                      ? "var(--status-warn-soft)"
+                      : "var(--accent-soft)",
                 color:
                   activeSession.envTag === "prod"
                     ? "var(--status-danger)"
                     : activeSession.envTag === "staging"
                       ? "var(--status-warn)"
-                      : "var(--text-muted)",
+                      : "var(--accent)",
               }}
             >
-              {activeSession.envTag === "prod"
-                ? t("prodGuard.badgeProd")
-                : activeSession.envTag === "staging"
-                  ? t("prodGuard.envStaging")
-                  : activeSession.envTag === "dev"
-                    ? t("prodGuard.envDev")
-                    : t("prodGuard.guardOff")}
+              {activeSession.envTag === "prod" ? (
+                <ShieldAlert className="h-2.5 w-2.5 shrink-0" strokeWidth={2} />
+              ) : null}
+              <span>
+                {activeSession.envTag === "prod"
+                  ? "PROD"
+                  : activeSession.envTag === "staging"
+                    ? "STG"
+                    : "DEV"}
+              </span>
+            </button>
+          ) : null}
+
+          {isSsh ? (
+            <button
+              type="button"
+              onClick={() => void runProbe()}
+              title={t("sshProbe.probeTooltip")}
+              className="ota-tabular inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 font-mono text-[11px] leading-none text-[var(--text-muted)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
+            >
+              <span
+                className="h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ backgroundColor: probeDotColor }}
+              />
+              <span>
+                {probe?.rttMs !== null && probe?.rttMs !== undefined
+                  ? `${probe.rttMs} ms`
+                  : probe?.quality === "offline"
+                    ? t("sshProbe.offline")
+                    : "…"}
+              </span>
+            </button>
+          ) : null}
+        </div>
+
+        {/* Quiet ghost icon action rail */}
+        <div className="flex items-center gap-0.5">
+          {activeSession && !activeSession.envTag ? (
+            <button
+              type="button"
+              onClick={cycleEnvTag}
+              title={t("prodGuard.toggleTooltip")}
+              className="ota-icon-btn"
+            >
+              <Shield className="h-3.5 w-3.5" strokeWidth={1.65} />
             </button>
           ) : null}
 
@@ -276,39 +319,16 @@ export function TerminalWorkspace({
             <>
               <button
                 type="button"
-                onClick={() => void runProbe()}
-                title={t("sshProbe.probeTooltip")}
-                className="ota-tabular inline-flex h-5 shrink-0 items-center gap-1.5 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 font-mono text-[11px] leading-none text-[var(--text-secondary)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
-              >
-                <span
-                  className="h-1.5 w-1.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: probeDotColor }}
-                />
-                <span>
-                  {probe?.rttMs !== null && probe?.rttMs !== undefined
-                    ? `${probe.rttMs} ms`
-                    : probe?.quality === "offline"
-                      ? t("sshProbe.offline")
-                      : "…"}
-                </span>
-              </button>
-
-              <button
-                type="button"
+                data-active={localEditEnabled}
                 onClick={toggleLocalEdit}
                 title={t("sshProbe.localEditHint")}
-                className="inline-flex h-5 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-medium leading-none transition active:scale-[0.97]"
-                style={{
-                  borderColor: localEditEnabled ? "var(--accent-border)" : "var(--border-subtle)",
-                  backgroundColor: localEditEnabled ? "var(--accent-soft)" : "var(--bg-surface)",
-                  color: localEditEnabled ? "var(--accent)" : "var(--text-secondary)",
-                }}
+                className="ota-icon-btn"
               >
-                <span>{t("sshProbe.localEdit")}</span>
+                <Keyboard className="h-3.5 w-3.5" strokeWidth={1.65} />
               </button>
-
               <button
                 type="button"
+                data-active={metricsEnabled}
                 onClick={() => {
                   if (!activeSessionId) return;
                   setMetricsMap((prev) => ({
@@ -317,14 +337,9 @@ export function TerminalWorkspace({
                   }));
                 }}
                 title={t("metrics.toggleTooltip")}
-                className="inline-flex h-5 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-medium leading-none transition active:scale-[0.97]"
-                style={{
-                  borderColor: metricsEnabled ? "var(--accent-border)" : "var(--border-subtle)",
-                  backgroundColor: metricsEnabled ? "var(--accent-soft)" : "var(--bg-surface)",
-                  color: metricsEnabled ? "var(--accent)" : "var(--text-secondary)",
-                }}
+                className="ota-icon-btn"
               >
-                <span>{t("metrics.toggle")}</span>
+                <Activity className="h-3.5 w-3.5" strokeWidth={1.65} />
               </button>
             </>
           ) : null}
@@ -339,102 +354,66 @@ export function TerminalWorkspace({
                 }))
               }
               title={t("broadcast.tooltip")}
-              className="inline-flex h-5 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-semibold leading-none transition active:scale-[0.97]"
-              style={{
-                borderColor: broadcastEnabled ? "var(--status-warn)" : "var(--border-subtle)",
-                backgroundColor: broadcastEnabled
-                  ? "rgba(245, 158, 11, 0.16)"
-                  : "var(--bg-surface)",
-                color: broadcastEnabled ? "var(--status-warn)" : "var(--text-secondary)",
-              }}
+              className="ota-icon-btn"
+              style={
+                broadcastEnabled
+                  ? {
+                      backgroundColor: "var(--status-warn-soft)",
+                      color: "var(--status-warn)",
+                    }
+                  : undefined
+              }
             >
-              <span>{broadcastEnabled ? t("broadcast.active") : t("broadcast.off")}</span>
+              <Radio className="h-3.5 w-3.5" strokeWidth={1.7} />
             </button>
           ) : null}
-        </div>
-
-        <div className="flex items-center gap-1">
-          <span
-            className="mr-1.5 flex items-center gap-1.5 text-[11px] font-medium"
-            style={{
-              color: agentRunning ? "var(--accent)" : "var(--text-muted)",
-            }}
-          >
-            <span
-              className="h-1.5 w-1.5 rounded-full"
-              style={{
-                backgroundColor: agentRunning ? "var(--accent)" : "var(--status-ok)",
-              }}
-            />
-            {agentRunning ? t("status.agentControl") : t("status.humanControl")}
-          </span>
 
           <button
             type="button"
             title={t("blocks.tooltip")}
             onClick={() => setBlocksSignal((n) => n + 1)}
-            className="inline-flex h-6 items-center gap-1 rounded-md border border-transparent px-1.5 text-[10.5px] font-medium text-[var(--text-muted)] transition hover:border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
+            className="ota-icon-btn"
           >
-            <span>{t("blocks.shortLabel")}</span>
+            <Layers className="h-3.5 w-3.5" strokeWidth={1.65} />
+          </button>
+
+          <button
+            type="button"
+            data-active={highlightMenuOpen || highlightEnabled}
+            title={t("highlight.tooltip")}
+            onClick={() => setHighlightMenuOpen((open) => !open)}
+            className="ota-icon-btn"
+          >
+            <Highlighter className="h-3.5 w-3.5" strokeWidth={1.65} />
           </button>
 
           <button
             type="button"
             title={t("terminal.search.tooltip", { shortcut: formatShortcut("F") })}
             onClick={() => setSearchSignal((n) => n + 1)}
-            className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-[var(--text-muted)] transition hover:border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
+            className="ota-icon-btn"
           >
-            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <circle cx="7" cy="7" r="4.2" />
-              <path d="M10.5 10.5L14 14" strokeLinecap="round" />
-            </svg>
+            <Search className="h-3.5 w-3.5" strokeWidth={1.65} />
           </button>
 
-          <button
-            type="button"
-            title={t("highlight.tooltip")}
-            onClick={() => setHighlightMenuOpen((open) => !open)}
-            className="inline-flex h-6 items-center gap-1 rounded-md border px-1.5 text-[10.5px] font-medium transition"
-            style={{
-              borderColor:
-                highlightMenuOpen || highlightEnabled
-                  ? "var(--border-subtle)"
-                  : "transparent",
-              backgroundColor: highlightMenuOpen ? "var(--bg-surface)" : "transparent",
-              color: highlightEnabled ? "var(--accent)" : "var(--text-muted)",
-            }}
-          >
-            <span
-              className="h-1.5 w-1.5 rounded-full"
-              style={{
-                backgroundColor: highlightEnabled ? "var(--accent)" : "var(--text-muted)",
-              }}
-            />
-            <span>{t("highlight.shortLabel")}</span>
-          </button>
+          <div className="mx-1 h-3.5 w-px bg-[var(--border-subtle)]" />
 
           <button
             type="button"
             title={t("tabs.splitHorizontal", { shortcut: formatShortcut("D") })}
             onClick={() => onSplit("row")}
-            className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-[var(--text-muted)] transition hover:border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
+            className="ota-icon-btn"
           >
-            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.4">
-              <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
-              <path d="M8 2.5V13.5" />
-            </svg>
+            <Columns2 className="h-3.5 w-3.5" strokeWidth={1.65} />
           </button>
 
           <button
             type="button"
             title={t("tabs.splitVertical", { shortcut: formatShortcut("D", true) })}
             onClick={() => onSplit("column")}
-            className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-[var(--text-muted)] transition hover:border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
+            className="ota-icon-btn"
           >
-            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.4">
-              <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
-              <path d="M2 8H14" />
-            </svg>
+            <Rows2 className="h-3.5 w-3.5" strokeWidth={1.65} />
           </button>
         </div>
 
@@ -680,9 +659,10 @@ export function TerminalWorkspace({
         </div>
       ) : null}
 
-      {/* Bottom docked Quick Agent bar — clean Apple-style composer with uniform 28px controls */}
-      <div className="shrink-0 border-t border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-4 py-2.5">
-        <div className="flex items-center gap-1.5 rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-1.5 pl-3 transition focus-within:border-[var(--border-strong)] focus-within:shadow-[0_0_0_3px_var(--accent-soft)]">
+      {/* Calm, minimal bottom AI prompt bar (Raycast / Cursor composer aesthetic) */}
+      <div className="shrink-0 border-t border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-3 py-2">
+        <div className="flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] py-1 pr-1.5 pl-2.5 transition focus-within:border-[var(--accent-border)] focus-within:shadow-[0_0_0_2.5px_var(--accent-soft)]">
+          <Sparkles className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" strokeWidth={1.65} />
           <input
             type="text"
             value={quickTask}
@@ -700,58 +680,49 @@ export function TerminalWorkspace({
               }
             }}
             placeholder={activePlaceholder}
-            className="h-7 min-w-0 flex-1 bg-transparent text-[12.5px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-50"
+            className="h-6 min-w-0 flex-1 bg-transparent text-[12.5px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-50"
           />
 
           {quickTask.length === 0 && !agentRunning ? (
             <button
               type="button"
-              onClick={() => {
-                if (activePlaceholder.length > 0) setQuickTask(activePlaceholder);
-              }}
-              title={t("agent.tabAcceptHint")}
-              className="ota-ctrl hidden font-sans sm:inline-flex"
+              onClick={onOpenPalette}
+              title={formatShortcut("K")}
+              className="hidden rounded px-1.5 py-0.5 font-sans text-[10.5px] text-[var(--text-muted)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)] sm:inline-flex"
             >
-              <span className="inline-flex items-center justify-center gap-1">
-                <svg viewBox="0 0 16 16" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M2.5 8h8M7.8 5l3 3-3 3M13 4.2v7.6" />
-                </svg>
-                <span className="text-[11px] font-medium leading-none">Tab</span>
-              </span>
+              {formatShortcut("K")}
             </button>
           ) : null}
 
-          <button
-            type="button"
-            onClick={onOpenPalette}
-            className="ota-ctrl hidden font-sans sm:inline-flex"
-          >
-            <span className="inline-flex items-center justify-center gap-[3px]">
-              {isMac ? (
-                <>
-                  <span className="text-[13px] leading-none">⌘</span>
-                  <span className="text-[11px] font-medium leading-none">K</span>
-                </>
-              ) : (
-                <span className="text-[11px] font-medium leading-none">Ctrl+K</span>
-              )}
-            </span>
-          </button>
-
           {agentRunning ? (
-            <button type="button" onClick={onTakeOver} className="ota-ctrl-primary">
-              {t("agent.takeOver")}
+            <button
+              type="button"
+              onClick={onTakeOver}
+              className="inline-flex h-6 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-white transition hover:opacity-90"
+              style={{ backgroundColor: "var(--status-danger)" }}
+            >
+              <Square className="h-2.5 w-2.5 fill-current" />
+              <span>{t("agent.takeOver")}</span>
             </button>
           ) : (
             <button
               type="button"
               onClick={submitQuickTask}
               disabled={!activeId || quickTask.trim().length === 0}
-              className={
-                quickTask.trim().length > 0 && activeId ? "ota-ctrl-primary" : "ota-ctrl"
-              }
+              aria-label={t("agent.run")}
+              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition disabled:opacity-30"
+              style={{
+                backgroundColor:
+                  quickTask.trim().length > 0 && activeId
+                    ? "var(--accent)"
+                    : "var(--bg-elevated)",
+                color:
+                  quickTask.trim().length > 0 && activeId
+                    ? "var(--accent-fg)"
+                    : "var(--text-muted)",
+              }}
             >
-              {t("agent.run")}
+              <ArrowUp className="h-3.5 w-3.5" strokeWidth={2} />
             </button>
           )}
         </div>

@@ -74,7 +74,7 @@ export function FleetInspectDialog({ saved, onClose }: FleetInspectDialogProps) 
       onClick={onClose}
     >
       <div
-        className="flex max-h-[86vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)] shadow-2xl"
+        className="ota-dialog-panel flex max-h-[86vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-[var(--bg-surface)]"
         onClick={(event) => event.stopPropagation()}
       >
         <header className="flex shrink-0 items-center justify-between border-b border-[var(--border-subtle)] px-5 py-3.5">

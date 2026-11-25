@@ -258,7 +258,7 @@ export function CommandPalette({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-xl overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)] shadow-2xl"
+        className="ota-dialog-panel w-full max-w-xl overflow-hidden rounded-xl bg-[var(--bg-surface)]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center gap-2 px-3.5 py-2.5">

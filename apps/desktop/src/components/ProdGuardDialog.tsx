@@ -35,7 +35,7 @@ export function ProdGuardDialog({
       onClick={() => onCancel(false)}
     >
       <div
-        className="w-full max-w-md overflow-hidden rounded-xl border border-[var(--status-danger)] bg-[var(--bg-surface)] shadow-2xl"
+        className="ota-dialog-panel w-full max-w-md overflow-hidden rounded-xl border border-[var(--status-danger)] bg-[var(--bg-surface)]"
         onClick={(event) => event.stopPropagation()}
       >
         <header className="flex items-center justify-between border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-4 py-3">

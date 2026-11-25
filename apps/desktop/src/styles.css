@@ -6,86 +6,94 @@
 @import "tailwindcss";
 
 @theme {
-  /* Native OS UI stack first (SF Pro + PingFang SC on macOS, Segoe UI + YaHei on Windows) */
   --font-sans:
     -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
     "Hiragino Sans GB", "Segoe UI", "Microsoft YaHei", "Noto Sans SC",
     sans-serif;
-  /* Bundled JetBrains Mono (SIL OFL 1.1) + CJK monospace fallback strictly for terminal/code */
   --font-mono:
     "JetBrains Mono", "Sarasa Mono SC", "Noto Sans Mono CJK SC", "Menlo",
     "Consolas", monospace;
 }
 
-/* Studio Light Theme — warm editorial paper & calibrated Apple ink hierarchy */
+/* Native Crisp Light — macOS Finder / Linear Light neutral alabaster */
 :root,
 :root[data-theme="light"] {
-  --bg-canvas: #faf9f6;
-  --bg-sidebar: #f2f0eb;
-  --bg-chrome: #f5f3ee;
+  --bg-canvas: #ffffff;
+  --bg-sidebar: #f5f5f7;
+  --bg-chrome: #f7f7f8;
   --bg-surface: #ffffff;
-  --bg-elevated: #eae7e0;
-  --bg-hover: #e5e1d8;
-  --bg-terminal: #faf9f6;
+  --bg-elevated: rgba(0, 0, 0, 0.045);
+  --bg-hover: rgba(0, 0, 0, 0.06);
+  --bg-active: rgba(0, 0, 0, 0.085);
+  --bg-terminal: #ffffff;
 
-  --border-subtle: #e3dfd7;
-  --border-strong: #cbc6bb;
+  --border-subtle: rgba(0, 0, 0, 0.075);
+  --border-strong: rgba(0, 0, 0, 0.14);
 
-  --text-primary: #141518;
-  --text-secondary: #4e525c;
-  --text-muted: #7c818d;
+  --text-primary: #111318;
+  --text-secondary: #525866;
+  --text-muted: #868c98;
 
-  --accent: #e86f16;
-  --accent-hover: #d3600b;
-  --accent-soft: rgba(232, 111, 22, 0.11);
-  --accent-border: rgba(232, 111, 22, 0.45);
+  --accent: #007aff;
+  --accent-hover: #0066d6;
+  --accent-soft: rgba(0, 122, 255, 0.1);
+  --accent-border: rgba(0, 122, 255, 0.36);
   --accent-fg: #ffffff;
 
-  --status-ok: #15803d;
-  --status-ok-soft: rgba(21, 128, 61, 0.1);
-  --status-warn: #b45309;
-  --status-warn-soft: rgba(180, 83, 9, 0.11);
+  --status-ok: #16a34a;
+  --status-ok-soft: rgba(22, 163, 74, 0.1);
+  --status-warn: #d97706;
+  --status-warn-soft: rgba(217, 119, 6, 0.11);
   --status-danger: #dc2626;
   --status-danger-soft: rgba(220, 38, 38, 0.1);
 
-  --overlay: rgba(20, 21, 26, 0.34);
-  --scrollbar-thumb: #d2cdc3;
-  --scrollbar-thumb-hover: #b8b2a6;
+  --overlay: rgba(15, 17, 22, 0.28);
+  --dialog-shadow:
+    0 24px 64px -12px rgba(0, 0, 0, 0.18),
+    0 4px 16px -4px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(0, 0, 0, 0.08);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.28);
 }
 
-/* Studio Dark Theme — obsidian charcoal & calibrated Apple luminance hierarchy */
+/* Native Graphite Obsidian Dark — Ghostty / Linear / Cursor neutral dark */
 :root[data-theme="dark"] {
-  --bg-canvas: #0e0f12;
-  --bg-sidebar: #111216;
-  --bg-chrome: #131419;
-  --bg-surface: #17191f;
-  --bg-elevated: #1e2128;
-  --bg-hover: #252831;
-  --bg-terminal: #0e0f12;
+  --bg-canvas: #0c0d0f;
+  --bg-sidebar: #111215;
+  --bg-chrome: #101114;
+  --bg-surface: #16181c;
+  --bg-elevated: rgba(255, 255, 255, 0.055);
+  --bg-hover: rgba(255, 255, 255, 0.065);
+  --bg-active: rgba(255, 255, 255, 0.1);
+  --bg-terminal: #0c0d0f;
 
-  --border-subtle: #20222a;
-  --border-strong: #2f333f;
+  --border-subtle: rgba(255, 255, 255, 0.075);
+  --border-strong: rgba(255, 255, 255, 0.14);
 
-  --text-primary: #f4f5f7;
-  --text-secondary: #a7acb8;
-  --text-muted: #747a88;
+  --text-primary: #ededef;
+  --text-secondary: #9a9fa8;
+  --text-muted: #646a74;
 
-  --accent: #f58220;
-  --accent-hover: #fb943a;
-  --accent-soft: rgba(245, 130, 32, 0.14);
-  --accent-border: rgba(245, 130, 32, 0.48);
-  --accent-fg: #12100e;
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-soft: rgba(59, 130, 246, 0.14);
+  --accent-border: rgba(59, 130, 246, 0.42);
+  --accent-fg: #ffffff;
 
-  --status-ok: #4ade80;
-  --status-ok-soft: rgba(74, 222, 128, 0.12);
+  --status-ok: #34d399;
+  --status-ok-soft: rgba(52, 211, 153, 0.12);
   --status-warn: #fbbf24;
-  --status-warn-soft: rgba(251, 191, 36, 0.14);
+  --status-warn-soft: rgba(251, 191, 36, 0.13);
   --status-danger: #f87171;
-  --status-danger-soft: rgba(248, 113, 113, 0.14);
+  --status-danger-soft: rgba(248, 113, 113, 0.13);
 
-  --overlay: rgba(6, 7, 10, 0.72);
-  --scrollbar-thumb: #262932;
-  --scrollbar-thumb-hover: #383d4a;
+  --overlay: rgba(0, 0, 0, 0.56);
+  --dialog-shadow:
+    0 28px 72px -12px rgba(0, 0, 0, 0.65),
+    0 8px 24px -6px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.09);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.22);
 }
 
 html,
@@ -101,10 +109,10 @@ body {
   font-family: var(--font-sans);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
-/* Keep xterm viewport transparent so the themed canvas shows through cleanly. */
 .xterm .xterm-viewport {
   background-color: transparent !important;
 }
@@ -113,7 +121,7 @@ body {
   image-rendering: auto;
 }
 
-/* Subtle short left-gutter pill on OSC 133 prompt lines so consecutive commands stay distinct. */
+/* Subtle left-gutter hairline on OSC 133 prompt lines */
 .ota-prompt-gutter {
   pointer-events: none;
   margin-left: -8px;
@@ -124,19 +132,19 @@ body {
   position: absolute;
   left: 0;
   top: 50%;
-  width: 2.5px;
-  height: 52%;
+  width: 2px;
+  height: 50%;
   min-height: 8px;
   max-height: 11px;
   transform: translateY(-50%);
   border-radius: 9999px;
   background-color: var(--accent);
-  opacity: 0.85;
+  opacity: 0.75;
 }
 
 *::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
 }
 
 *::-webkit-scrollbar-track {
@@ -162,26 +170,42 @@ select:focus {
 
 button:focus-visible,
 a:focus-visible {
-  outline: 1.5px solid var(--border-strong);
-  outline-offset: 2px;
+  outline: 1.5px solid var(--accent-border);
+  outline-offset: 1px;
 }
 
-/* Shared semantic form control style (Tier 2: 12.5px regular ink, uniform 32px height across input & select) */
+@keyframes ota-pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.ota-dialog-panel {
+  box-shadow: var(--dialog-shadow);
+  animation: ota-pop 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Uniform 32px native form controls */
 .ota-input {
   width: 100%;
   box-sizing: border-box;
-  border-radius: 0.5rem;
+  border-radius: 7px;
   border: 1px solid var(--border-subtle);
   background-color: var(--bg-canvas);
-  padding: 0.44rem 0.65rem;
+  padding: 0.42rem 0.65rem;
   font-size: 12.5px;
   line-height: 1.45;
   color: var(--text-primary);
   outline: none;
   transition:
-    border-color 150ms ease,
-    box-shadow 150ms ease,
-    background-color 150ms ease;
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
 }
 
 input.ota-input,
@@ -196,22 +220,10 @@ select.ota-input {
   appearance: none;
   -webkit-appearance: none;
   padding-right: 1.9rem;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%238c919e' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4.5 6.25L8 9.75l3.5-3.5'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23868c98' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4.5 6.25L8 9.75l3.5-3.5'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.55rem center;
   background-size: 12px 12px;
-}
-
-/* Tier 4: quiet Apple sidebar/panel section label (never louder than primary content) */
-.ota-section-label {
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  color: var(--text-muted);
-}
-
-.ota-tabular {
-  font-variant-numeric: tabular-nums;
 }
 
 .ota-input::placeholder {
@@ -219,22 +231,66 @@ select.ota-input {
 }
 
 .ota-input:focus {
-  border-color: var(--border-strong);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 2.5px var(--accent-soft);
+}
+
+.ota-section-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--text-muted);
+}
+
+.ota-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Borderless ghost toolbar button — calm macOS / Linear interactive control */
+.ota-icon-btn {
+  display: inline-flex;
+  height: 1.625rem;
+  min-width: 1.625rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  border-radius: 6px;
+  padding: 0 0.35rem;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text-muted);
+  user-select: none;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    opacity 120ms ease;
+}
+
+.ota-icon-btn:hover:not(:disabled) {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.ota-icon-btn[data-active="true"] {
+  background-color: var(--accent-soft);
+  color: var(--accent);
+}
+
+.ota-icon-btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
 }
 
 .ota-btn-primary {
   background-color: var(--accent);
   color: var(--accent-fg);
-  font-weight: 600;
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.14),
-    inset 0 0.5px 0 rgba(255, 255, 255, 0.24);
+  font-weight: 500;
   transition:
-    background-color 140ms ease,
-    box-shadow 140ms ease,
-    opacity 140ms ease,
-    transform 110ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    background-color 130ms ease,
+    opacity 130ms ease,
+    transform 100ms ease;
 }
 
 .ota-btn-primary:hover:not(:disabled) {
@@ -242,16 +298,15 @@ select.ota-input {
 }
 
 .ota-btn-primary:active:not(:disabled) {
-  transform: scale(0.97);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+  transform: scale(0.98);
 }
 
 .ota-btn-primary:disabled {
-  opacity: 0.42;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
-/* Unified Apple-inspired compact toolbar & composer controls (all exact 28px height) */
+/* Unified compact 28px controls */
 .ota-ctrl,
 .ota-ctrl-primary,
 .ota-ctrl-danger {
@@ -269,21 +324,17 @@ select.ota-input {
   user-select: none;
   white-space: nowrap;
   transition:
-    background-color 140ms ease,
-    border-color 140ms ease,
-    color 140ms ease,
-    box-shadow 140ms ease,
-    opacity 140ms ease,
-    transform 110ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    background-color 130ms ease,
+    border-color 130ms ease,
+    color 130ms ease,
+    opacity 130ms ease,
+    transform 100ms ease;
 }
 
 .ota-ctrl {
   border: 1px solid var(--border-subtle);
   background-color: var(--bg-elevated);
   color: var(--text-secondary);
-  box-shadow:
-    0 0.5px 1px rgba(0, 0, 0, 0.06),
-    inset 0 0.5px 0 rgba(255, 255, 255, 0.14);
 }
 
 .ota-ctrl:hover:not(:disabled) {
@@ -293,12 +344,11 @@ select.ota-input {
 }
 
 .ota-ctrl:active:not(:disabled) {
-  transform: scale(0.965);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12);
+  transform: scale(0.97);
 }
 
 .ota-ctrl:disabled {
-  opacity: 0.42;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
@@ -306,11 +356,8 @@ select.ota-input {
   border: 1px solid transparent;
   background-color: var(--accent);
   color: var(--accent-fg);
-  font-weight: 600;
+  font-weight: 500;
   padding: 0 0.75rem;
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.14),
-    inset 0 0.5px 0 rgba(255, 255, 255, 0.24);
 }
 
 .ota-ctrl-primary:hover:not(:disabled) {
@@ -318,75 +365,61 @@ select.ota-input {
 }
 
 .ota-ctrl-primary:active:not(:disabled) {
-  transform: scale(0.965);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+  transform: scale(0.97);
 }
 
 .ota-ctrl-primary:disabled {
-  opacity: 0.42;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .ota-ctrl-danger {
-  border: 1px solid var(--status-danger);
+  border: 1px solid transparent;
   background-color: var(--status-danger-soft);
   color: var(--status-danger);
-  font-weight: 600;
+  font-weight: 500;
   padding: 0 0.75rem;
 }
 
 .ota-ctrl-danger:hover:not(:disabled) {
-  filter: brightness(1.06);
+  filter: brightness(1.08);
 }
 
-.ota-ctrl-danger:active:not(:disabled) {
-  transform: scale(0.965);
-}
-
-/* Apple macOS-style segmented control (pure text, recessed track, elevated active pill) */
+/* Quiet native segmented track */
 .ota-segmented {
   display: inline-grid;
   align-items: center;
   gap: 2px;
-  border-radius: 8px;
-  border: 1px solid var(--border-subtle);
-  background-color: var(--bg-surface);
+  border-radius: 7px;
+  background-color: var(--bg-elevated);
   padding: 2px;
-  box-shadow: inset 0 1px 1.5px rgba(0, 0, 0, 0.05);
 }
 
 .ota-segment {
   display: inline-flex;
-  height: 1.5rem;
+  height: 1.45rem;
   align-items: center;
   justify-content: center;
-  gap: 0.375rem;
-  border-radius: 6px;
-  padding: 0 0.625rem;
-  font-size: 12px;
+  gap: 0.3rem;
+  border-radius: 5.5px;
+  padding: 0 0.55rem;
+  font-size: 11.5px;
   font-weight: 500;
   line-height: 1;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   user-select: none;
   transition:
-    background-color 140ms ease,
-    color 140ms ease,
-    box-shadow 140ms ease,
-    transform 110ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    background-color 130ms ease,
+    color 130ms ease,
+    box-shadow 130ms ease;
 }
 
 .ota-segment:hover:not([data-active="true"]) {
   color: var(--text-secondary);
 }
 
-.ota-segment:active {
-  transform: scale(0.975);
-}
-
 .ota-segment[data-active="true"] {
-  background-color: var(--bg-elevated);
+  background-color: var(--bg-surface);
   color: var(--text-primary);
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.08),
-    inset 0 0.5px 0 rgba(255, 255, 255, 0.14);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.14);
 }
