@@ -7,7 +7,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 rust-version = "1.90"
 license = "Apache-2.0"
@@ -21,7 +21,7 @@ term-agent = { path = "crates/term-agent" }
 
 # Async runtime & primitives
 async-trait = "0.1.92"
-tokio = { version = "1.54", features = ["rt-multi-thread", "sync", "macros", "time", "io-util", "process", "fs"] }
+tokio = { version = "1.54", features = ["rt-multi-thread", "sync", "macros", "time", "io-util", "net", "process", "fs"] }
 
 # Terminal transports & screen state
 portable-pty = "0.9"
