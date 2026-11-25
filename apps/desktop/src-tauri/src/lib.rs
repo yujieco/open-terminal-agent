@@ -28,6 +28,7 @@ pub fn run() {
     let builder = builder
         .manage(state::SessionRegistry::default())
         .manage(state::SftpRegistry::default())
+        .manage(state::TunnelRegistry::default())
         .manage(secrets::SecretStore::new())
         .manage(std::sync::Arc::new(agent::AgentControl::default()))
         .setup(|app| {
@@ -67,6 +68,11 @@ pub fn run() {
             commands::sftp::sftp_download,
             commands::sftp::sftp_upload,
             commands::sftp::sftp_close,
+            commands::tunnel::list_tunnels,
+            commands::tunnel::save_tunnel,
+            commands::tunnel::delete_tunnel,
+            commands::tunnel::start_tunnel,
+            commands::tunnel::stop_tunnel,
             commands::store::save_ssh_session,
             commands::store::list_saved_sessions,
             commands::store::delete_saved_session,

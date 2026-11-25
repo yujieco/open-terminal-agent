@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
-use term_core::{SftpClient, ShadowScreen, TerminalTransport};
+use term_core::{SftpClient, ShadowScreen, SshTunnel, TerminalTransport};
 use tokio::sync::Mutex as AsyncMutex;
 
 use crate::error::ApiError;
@@ -117,5 +117,35 @@ impl SftpRegistry {
     pub fn remove(&self, id: &str) -> Result<Option<Arc<SftpClient>>, ApiError> {
         let mut clients = self.clients.lock().map_err(|_| ApiError::StatePoisoned)?;
         Ok(clients.remove(id))
+    }
+}
+
+/// Thread-safe map of saved tunnel id to its running [`SshTunnel`].
+#[derive(Default)]
+pub struct TunnelRegistry {
+    tunnels: Mutex<HashMap<String, Arc<SshTunnel>>>,
+}
+
+impl TunnelRegistry {
+    /// Registers a live tunnel under its saved rule id, returning any previous one.
+    pub fn insert(
+        &self,
+        id: String,
+        tunnel: Arc<SshTunnel>,
+    ) -> Result<Option<Arc<SshTunnel>>, ApiError> {
+        let mut tunnels = self.tunnels.lock().map_err(|_| ApiError::StatePoisoned)?;
+        Ok(tunnels.insert(id, tunnel))
+    }
+
+    /// Returns the running tunnel for `id`, if active.
+    pub fn get(&self, id: &str) -> Result<Option<Arc<SshTunnel>>, ApiError> {
+        let tunnels = self.tunnels.lock().map_err(|_| ApiError::StatePoisoned)?;
+        Ok(tunnels.get(id).cloned())
+    }
+
+    /// Removes and returns the running tunnel for `id`.
+    pub fn remove(&self, id: &str) -> Result<Option<Arc<SshTunnel>>, ApiError> {
+        let mut tunnels = self.tunnels.lock().map_err(|_| ApiError::StatePoisoned)?;
+        Ok(tunnels.remove(id))
     }
 }

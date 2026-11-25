@@ -7,6 +7,7 @@ pub mod agent;
 pub mod session;
 pub mod sftp;
 pub mod store;
+pub mod tunnel;
 
 use std::path::PathBuf;
 

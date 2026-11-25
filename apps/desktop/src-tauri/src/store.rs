@@ -195,6 +195,53 @@ pub struct NewCommandSnippet {
     pub description: String,
 }
 
+/// One saved SSH port-forwarding rule.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedTunnel {
+    /// Stable identifier.
+    pub id: String,
+    /// Friendly rule name, e.g. "Prod MySQL".
+    pub name: String,
+    /// Saved SSH session id this tunnel connects through.
+    pub session_id: String,
+    /// Forwarding kind: `local`, `remote`, or `dynamic`.
+    pub kind: String,
+    /// Listen host (`127.0.0.1` by default).
+    pub bind_host: String,
+    /// Listen port.
+    pub bind_port: u16,
+    /// Target host (`127.0.0.1` for local/remote; empty for dynamic SOCKS5).
+    pub target_host: String,
+    /// Target port (`0` for dynamic SOCKS5).
+    pub target_port: u16,
+    /// Creation time in milliseconds since the Unix epoch.
+    pub created_at: i64,
+    /// Last update time in milliseconds since the Unix epoch.
+    pub updated_at: i64,
+}
+
+/// Values needed to create or update a saved SSH tunnel rule.
+#[derive(Debug, Clone)]
+pub struct NewSavedTunnel {
+    /// Existing id when updating, or `None` when creating a new rule.
+    pub id: Option<String>,
+    /// Friendly rule name.
+    pub name: String,
+    /// Saved SSH session id.
+    pub session_id: String,
+    /// Forwarding kind (`local`, `remote`, or `dynamic`).
+    pub kind: String,
+    /// Listen host.
+    pub bind_host: String,
+    /// Listen port.
+    pub bind_port: u16,
+    /// Target host.
+    pub target_host: String,
+    /// Target port.
+    pub target_port: u16,
+}
+
 /// Handle to the local database. Cloning is cheap and keeps the same file.
 #[derive(Clone)]
 pub struct Store {
@@ -275,7 +322,19 @@ impl Store {
                  created_at INTEGER NOT NULL,
                  updated_at INTEGER NOT NULL
              );
-             PRAGMA user_version = 4;",
+             CREATE TABLE IF NOT EXISTS ssh_tunnels (
+                 id TEXT PRIMARY KEY,
+                 name TEXT NOT NULL,
+                 session_id TEXT NOT NULL,
+                 kind TEXT NOT NULL,
+                 bind_host TEXT NOT NULL DEFAULT '127.0.0.1',
+                 bind_port INTEGER NOT NULL,
+                 target_host TEXT NOT NULL DEFAULT '127.0.0.1',
+                 target_port INTEGER NOT NULL DEFAULT 0,
+                 created_at INTEGER NOT NULL,
+                 updated_at INTEGER NOT NULL
+             );
+             PRAGMA user_version = 5;",
         )?;
         Ok(())
     }
@@ -724,6 +783,131 @@ impl Store {
             .execute("DELETE FROM command_snippets WHERE id = ?1", params![id])?;
         Ok(removed > 0)
     }
+
+    /// Creates or updates one saved SSH tunnel rule.
+    pub fn save_tunnel(&self, draft: NewSavedTunnel) -> Result<SavedTunnel, StoreError> {
+        let now = now_millis();
+        let name = draft.name.trim().to_owned();
+        let bind_host = if draft.bind_host.trim().is_empty() {
+            String::from("127.0.0.1")
+        } else {
+            draft.bind_host.trim().to_owned()
+        };
+        let target_host = draft.target_host.trim().to_owned();
+
+        if let Some(existing_id) = draft.id {
+            let connection = self.lock()?;
+            let updated = connection.execute(
+                "UPDATE ssh_tunnels
+                 SET name = ?1, session_id = ?2, kind = ?3, bind_host = ?4, bind_port = ?5,
+                     target_host = ?6, target_port = ?7, updated_at = ?8
+                 WHERE id = ?9",
+                params![
+                    name,
+                    draft.session_id,
+                    draft.kind,
+                    bind_host,
+                    i64::from(draft.bind_port),
+                    target_host,
+                    i64::from(draft.target_port),
+                    now,
+                    existing_id
+                ],
+            )?;
+            if updated > 0 {
+                let row = connection.query_row(
+                    "SELECT id, name, session_id, kind, bind_host, bind_port, target_host, target_port, created_at, updated_at
+                     FROM ssh_tunnels WHERE id = ?1",
+                    params![existing_id],
+                    row_to_saved_tunnel,
+                )?;
+                return Ok(row);
+            }
+        }
+
+        let id = term_core::generate_session_id("tun").into_string();
+        self.lock()?.execute(
+            "INSERT INTO ssh_tunnels (id, name, session_id, kind, bind_host, bind_port, target_host, target_port, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![
+                id,
+                name,
+                draft.session_id,
+                draft.kind,
+                bind_host,
+                i64::from(draft.bind_port),
+                target_host,
+                i64::from(draft.target_port),
+                now,
+                now
+            ],
+        )?;
+
+        Ok(SavedTunnel {
+            id,
+            name,
+            session_id: draft.session_id,
+            kind: draft.kind,
+            bind_host,
+            bind_port: draft.bind_port,
+            target_host,
+            target_port: draft.target_port,
+            created_at: now,
+            updated_at: now,
+        })
+    }
+
+    /// Lists all saved SSH tunnel rules, newest updated first.
+    pub fn list_tunnels(&self) -> Result<Vec<SavedTunnel>, StoreError> {
+        let connection = self.lock()?;
+        let mut statement = connection.prepare(
+            "SELECT id, name, session_id, kind, bind_host, bind_port, target_host, target_port, created_at, updated_at
+             FROM ssh_tunnels
+             ORDER BY updated_at DESC, name COLLATE NOCASE",
+        )?;
+        let rows = statement.query_map([], row_to_saved_tunnel)?;
+        let mut tunnels = Vec::new();
+        for row in rows {
+            tunnels.push(row?);
+        }
+        Ok(tunnels)
+    }
+
+    /// Looks up one saved SSH tunnel rule by id.
+    pub fn get_tunnel(&self, id: &str) -> Result<Option<SavedTunnel>, StoreError> {
+        let connection = self.lock()?;
+        Ok(connection
+            .query_row(
+                "SELECT id, name, session_id, kind, bind_host, bind_port, target_host, target_port, created_at, updated_at
+                 FROM ssh_tunnels WHERE id = ?1",
+                params![id],
+                row_to_saved_tunnel,
+            )
+            .optional()?)
+    }
+
+    /// Deletes one saved SSH tunnel rule.
+    pub fn delete_tunnel(&self, id: &str) -> Result<bool, StoreError> {
+        let removed = self
+            .lock()?
+            .execute("DELETE FROM ssh_tunnels WHERE id = ?1", params![id])?;
+        Ok(removed > 0)
+    }
+}
+
+fn row_to_saved_tunnel(row: &rusqlite::Row<'_>) -> rusqlite::Result<SavedTunnel> {
+    Ok(SavedTunnel {
+        id: row.get(0)?,
+        name: row.get(1)?,
+        session_id: row.get(2)?,
+        kind: row.get(3)?,
+        bind_host: row.get(4)?,
+        bind_port: row.get::<_, i64>(5)? as u16,
+        target_host: row.get(6)?,
+        target_port: row.get::<_, i64>(7)? as u16,
+        created_at: row.get(8)?,
+        updated_at: row.get(9)?,
+    })
 }
 
 fn now_millis() -> i64 {
@@ -947,5 +1131,43 @@ mod tests {
         assert_eq!(listed.len(), 1);
         assert!(store.delete_snippet(&created.id).expect("delete"));
         assert!(store.list_snippets().expect("empty").is_empty());
+    }
+
+    #[test]
+    fn saves_lists_updates_and_deletes_tunnels() {
+        let store = Store::open_in_memory().expect("store");
+        let created = store
+            .save_tunnel(NewSavedTunnel {
+                id: None,
+                name: String::from("Prod MySQL"),
+                session_id: String::from("saved-0001"),
+                kind: String::from("local"),
+                bind_host: String::from("127.0.0.1"),
+                bind_port: 13306,
+                target_host: String::from("127.0.0.1"),
+                target_port: 3306,
+            })
+            .expect("create tunnel");
+        assert_eq!(created.bind_port, 13306);
+
+        let updated = store
+            .save_tunnel(NewSavedTunnel {
+                id: Some(created.id.clone()),
+                name: String::from("Prod MySQL RO"),
+                session_id: String::from("saved-0001"),
+                kind: String::from("local"),
+                bind_host: String::from("127.0.0.1"),
+                bind_port: 23306,
+                target_host: String::from("10.0.0.8"),
+                target_port: 3306,
+            })
+            .expect("update tunnel");
+        assert_eq!(updated.name, "Prod MySQL RO");
+        assert_eq!(updated.bind_port, 23306);
+
+        assert_eq!(store.list_tunnels().expect("list").len(), 1);
+        assert!(store.get_tunnel(&created.id).expect("get").is_some());
+        assert!(store.delete_tunnel(&created.id).expect("delete"));
+        assert!(store.list_tunnels().expect("empty").is_empty());
     }
 }
