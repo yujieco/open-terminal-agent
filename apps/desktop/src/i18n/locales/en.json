@@ -367,7 +367,7 @@
     "noSshHint": "Save at least one SSH server connection first so tunnels can authenticate through it.",
     "addSshFirst": "New SSH connection",
     "ruleName": "Rule name",
-    "ruleNamePlaceholder": "e.g. Prod MySQL / Internal Proxy",
+    "ruleNamePlaceholder": "Custom rule name",
     "sshServer": "SSH server",
     "localBindHost": "Local listen address",
     "localBindPort": "Local port",
@@ -400,5 +400,14 @@
       "remote": "Forward a port on the remote SSH server back to a service running on your machine.",
       "dynamic": "Run a local SOCKS5 proxy that routes traffic through the SSH server."
     }
+  },
+  "sshProbe": {
+    "probeTooltip": "Live SSH round-trip latency (click to probe now)",
+    "offline": "Timeout",
+    "localEdit": "Local edit",
+    "localEditHint": "Zero-lag input for high-latency SSH: compose commands locally and push on Enter (auto-enabled above 160 ms)",
+    "localInputPlaceholder": "Type locally with zero lag, press Enter to push to remote (↑↓ history)…",
+    "sendCommand": "Send",
+    "interrupt": "Send Ctrl+C interrupt to remote shell"
   }
 }

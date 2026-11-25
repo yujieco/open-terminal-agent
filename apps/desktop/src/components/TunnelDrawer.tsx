@@ -444,10 +444,7 @@ export function TunnelDrawer({
           {/* Saved rules list */}
           {tunnels.length === 0 && sshSessions.length > 0 && !formOpen ? (
             <div className="rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-4 py-6 text-center">
-              <p className="text-[12.5px] text-[var(--text-secondary)]">{t("tunnels.empty")}</p>
-              <button type="button" onClick={openNewForm} className="ota-ctrl-primary mt-3">
-                {t("tunnels.newRule")}
-              </button>
+              <p className="text-[12.5px] text-[var(--text-muted)]">{t("tunnels.empty")}</p>
             </div>
           ) : null}
 

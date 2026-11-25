@@ -367,7 +367,7 @@
     "noSshHint": "터널을 만들려면 먼저 SSH 서버 연결을 하나 이상 저장하세요.",
     "addSshFirst": "SSH 연결 추가",
     "ruleName": "규칙 이름",
-    "ruleNamePlaceholder": "예: 운영 MySQL / 사내 프록시",
+    "ruleNamePlaceholder": "사용자 지정 규칙 이름",
     "sshServer": "SSH 서버",
     "localBindHost": "로컬 수신 주소",
     "localBindPort": "로컬 포트",
@@ -400,5 +400,14 @@
       "remote": "로컬에서 실행 중인 포트를 원격 SSH 서버 포트로 역방향 노출합니다.",
       "dynamic": "로컬에 SOCKS5 프록시를 열어 SSH 서버를 통해 내부망에 접근합니다."
     }
+  },
+  "sshProbe": {
+    "probeTooltip": "실시간 SSH 왕복 지연 (클릭하여 즉시 측정)",
+    "offline": "시간 초과",
+    "localEdit": "로컬 편집",
+    "localEditHint": "고지연 SSH 무지연 입력: 로컬에서 명령을 작성하고 Enter로 한 번에 전송 (160ms 초과 시 자동 활성화)",
+    "localInputPlaceholder": "로컬에서 지연 없이 입력 후 Enter로 원격 전송 (↑↓ 기록)…",
+    "sendCommand": "전송",
+    "interrupt": "원격 셸로 Ctrl+C 중단 신호 전송"
   }
 }

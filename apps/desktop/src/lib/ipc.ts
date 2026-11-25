@@ -210,6 +210,11 @@ export interface ExportLogResult {
   lines: number;
 }
 
+export interface SessionProbeStatus {
+  rttMs: number | null;
+  quality: "good" | "fair" | "poor" | "offline";
+}
+
 export type TunnelKind = "local" | "remote" | "dynamic";
 
 export interface TunnelStats {
@@ -314,6 +319,10 @@ export const ipc = {
 
   screenSnapshot(sessionId: string): Promise<ScreenSnapshot> {
     return invoke<ScreenSnapshot>("screen_snapshot", { sessionId });
+  },
+
+  probeSessionLatency(sessionId: string): Promise<SessionProbeStatus> {
+    return invoke<SessionProbeStatus>("probe_session_latency", { sessionId });
   },
 
   systemLocale(): Promise<LocaleInfo> {

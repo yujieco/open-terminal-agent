@@ -367,7 +367,7 @@
     "noSshHint": "建立隧道需要先保存至少一个 SSH 服务器连接（密码或私钥安全存在系统凭据库中）。",
     "addSshFirst": "新建 SSH 连接",
     "ruleName": "规则名称",
-    "ruleNamePlaceholder": "例如：生产 MySQL / 内网代理",
+    "ruleNamePlaceholder": "自定义规则名称",
     "sshServer": "SSH 跳板服务器",
     "localBindHost": "本地监听地址",
     "localBindPort": "本地端口",
@@ -400,5 +400,14 @@
       "remote": "把本机运行的服务端口反向暴露到远端服务器端口上。",
       "dynamic": "在本机开启 SOCKS5 代理端口，浏览器或客户端可通过该 SSH 服务器访问目标内网。"
     }
+  },
+  "sshProbe": {
+    "probeTooltip": "SSH 实时往返延迟（点击立即重新探测）",
+    "offline": "超时",
+    "localEdit": "本地编辑",
+    "localEditHint": "高延迟 SSH 零卡顿模式：先在本地编辑命令，按回车整行推送到服务端执行（延迟超过 160ms 自动开启）",
+    "localInputPlaceholder": "本地零延迟输入命令，回车整行发送到远端执行（↑↓ 翻阅历史）…",
+    "sendCommand": "发送",
+    "interrupt": "向远端发送 Ctrl+C 中断信号"
   }
 }

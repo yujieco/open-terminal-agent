@@ -367,7 +367,7 @@
     "noSshHint": "トンネルを作成するには、先に SSH 接続を 1 件以上保存してください。",
     "addSshFirst": "SSH 接続を追加",
     "ruleName": "ルール名",
-    "ruleNamePlaceholder": "例：本番 MySQL / 社内プロキシ",
+    "ruleNamePlaceholder": "カスタムルール名",
     "sshServer": "SSH サーバー",
     "localBindHost": "ローカル待受アドレス",
     "localBindPort": "ローカルポート",
@@ -400,5 +400,14 @@
       "remote": "ローカルで稼働中のサービスをリモートサーバー側のポートに公開します。",
       "dynamic": "ローカルに SOCKS5 プロキシを起動し、SSH 経由で内部ネットワークへ接続します。"
     }
+  },
+  "sshProbe": {
+    "probeTooltip": "SSH 往復遅延（クリックで再計測）",
+    "offline": "タイムアウト",
+    "localEdit": "ローカル編集",
+    "localEditHint": "高遅延 SSH 向けのゼロ遅延入力：ローカルでコマンドを編集し Enter で一括送信（160ms 超で自動有効化）",
+    "localInputPlaceholder": "ローカルで遅延なく入力し Enter で送信（↑↓ で履歴）…",
+    "sendCommand": "送信",
+    "interrupt": "リモートへ Ctrl+C 中断を送信"
   }
 }

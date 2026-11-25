@@ -367,7 +367,7 @@
     "noSshHint": "建立通道前需先儲存至少一個 SSH 伺服器連線。",
     "addSshFirst": "新增 SSH 連線",
     "ruleName": "規則名稱",
-    "ruleNamePlaceholder": "例如：正式 MySQL / 內網代理",
+    "ruleNamePlaceholder": "自訂規則名稱",
     "sshServer": "SSH 跳板伺服器",
     "localBindHost": "本機監聽位址",
     "localBindPort": "本機連接埠",
@@ -400,5 +400,14 @@
       "remote": "將本機服務連接埠反向公開至遠端伺服器連接埠。",
       "dynamic": "在本機開啟 SOCKS5 代理連接埠，透過此 SSH 伺服器存取遠端內網。"
     }
+  },
+  "sshProbe": {
+    "probeTooltip": "SSH 即時往返延遲（點擊立即重新探測）",
+    "offline": "逾時",
+    "localEdit": "本機編輯",
+    "localEditHint": "高延遲 SSH 零卡頓模式：在本機編輯指令，按 Enter 整行送至遠端執行（延遲超過 160ms 自動啟用）",
+    "localInputPlaceholder": "本機零延遲輸入指令，Enter 整行傳送到遠端執行（↑↓ 查閱歷史）…",
+    "sendCommand": "送出",
+    "interrupt": "向遠端傳送 Ctrl+C 中斷訊號"
   }
 }
