@@ -143,6 +143,12 @@ pub trait TerminalTransport: Send + Sync {
     async fn probe_latency(&self) -> Result<Option<u64>> {
         Ok(None)
     }
+
+    /// Runs a short non-interactive command over an auxiliary channel when
+    /// supported (e.g. SSH `exec` channel for zero-overhead server telemetry).
+    async fn exec_aux(&self, _command: &str) -> Result<Option<String>> {
+        Ok(None)
+    }
 }
 
 /// Coalesces transport chunks into at most one frame per tick.

@@ -43,6 +43,21 @@ pub enum SshAuth {
     },
 }
 
+/// Bastion / jump-host parameters for `ProxyJump` tunneling.
+#[derive(Debug, Clone)]
+pub struct SshJumpConfig {
+    /// Bastion hostname or IP address.
+    pub host: String,
+    /// Bastion TCP port, usually 22.
+    pub port: u16,
+    /// Bastion remote user.
+    pub username: String,
+    /// Bastion authentication method.
+    pub auth: SshAuth,
+    /// Optional pinned fingerprint for the bastion host.
+    pub known_host_fingerprint: Option<String>,
+}
+
 /// Connection parameters for one SSH session.
 #[derive(Debug, Clone)]
 pub struct SshConfig {
@@ -61,6 +76,8 @@ pub struct SshConfig {
     /// Fingerprint pinned by a previous connection. When set, a server
     /// presenting a different key is rejected instead of trusted.
     pub known_host_fingerprint: Option<String>,
+    /// Optional bastion host (`ProxyJump`) to tunnel this SSH connection through.
+    pub jump: Option<Box<SshJumpConfig>>,
 }
 
 impl SshConfig {
@@ -79,6 +96,7 @@ impl SshConfig {
             cols: 80,
             rows: 24,
             known_host_fingerprint: None,
+            jump: None,
         }
     }
 
@@ -99,6 +117,22 @@ impl SshConfig {
         };
         self
     }
+
+    /// Routes this connection through an SSH jump / bastion host.
+    pub fn with_jump(mut self, jump: SshJumpConfig) -> Self {
+        self.jump = Some(Box::new(jump));
+        self
+    }
+}
+
+fn expand_home(path: &std::path::Path) -> PathBuf {
+    if let Some(raw) = path.to_str()
+        && let Some(stripped) = raw.strip_prefix("~/")
+        && let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"))
+    {
+        return PathBuf::from(home).join(stripped);
+    }
+    path.to_path_buf()
 }
 
 /// Client handler that records the server key fingerprint and optionally routes
@@ -177,62 +211,34 @@ impl client::Handler for SshClientHandler {
     }
 }
 
+/// Authenticated primary SSH handle, optional bastion handle, and captured
+/// server key fingerprint.
+pub(crate) type AuthenticatedSsh = (
+    Handle<SshClientHandler>,
+    Option<Handle<SshClientHandler>>,
+    Arc<Mutex<Option<String>>>,
+);
+
 /// Handshake plus authentication, shared by the shell transport, SFTP, and tunnels.
-pub(crate) async fn open_authenticated_session(
-    config: &SshConfig,
-) -> Result<(Handle<SshClientHandler>, Arc<Mutex<Option<String>>>)> {
+pub(crate) async fn open_authenticated_session(config: &SshConfig) -> Result<AuthenticatedSsh> {
     open_authenticated_session_with_forward(config, None).await
 }
 
-/// Handshake plus authentication with an optional remote-forward (`-R`) target.
-pub(crate) async fn open_authenticated_session_with_forward(
-    config: &SshConfig,
-    remote_forward: Option<RemoteForwardTarget>,
-) -> Result<(Handle<SshClientHandler>, Arc<Mutex<Option<String>>>)> {
-    let fingerprint = Arc::new(Mutex::new(None));
-    let mismatch = Arc::new(AtomicBool::new(false));
-    let handler = SshClientHandler {
-        fingerprint: Arc::clone(&fingerprint),
-        expected: config.known_host_fingerprint.clone(),
-        mismatch: Arc::clone(&mismatch),
-        capture_only: false,
-        remote_forward,
-    };
-
-    let mut handle = client::connect(
-        Arc::new(Config::default()),
-        (config.host.clone(), config.port),
-        handler,
-    )
-    .await
-    .map_err(|error| {
-        if mismatch.load(Ordering::SeqCst) {
-            let actual = fingerprint
-                .lock()
-                .ok()
-                .and_then(|slot| slot.clone())
-                .unwrap_or_default();
-            return CoreError::SshHostKeyMismatch {
-                host: config.host.clone(),
-                expected: config.known_host_fingerprint.clone().unwrap_or_default(),
-                actual,
-            };
-        }
-        CoreError::Ssh(format!(
-            "handshake with {}:{} failed: {error}",
-            config.host, config.port
-        ))
-    })?;
-
-    let authenticated = match &config.auth {
+async fn authenticate_handle(
+    handle: &mut Handle<SshClientHandler>,
+    username: &str,
+    auth: &SshAuth,
+) -> Result<()> {
+    let authenticated = match auth {
         SshAuth::Password(password) => handle
-            .authenticate_password(config.username.clone(), password.clone())
+            .authenticate_password(username.to_owned(), password.clone())
             .await
             .map_err(|error| CoreError::Ssh(format!("password auth failed: {error}")))?
             .success(),
         SshAuth::PrivateKey { path, passphrase } => {
-            let key = load_secret_key(path, passphrase.as_deref()).map_err(|error| {
-                CoreError::Ssh(format!("could not load `{}`: {error}", path.display()))
+            let resolved = expand_home(path);
+            let key = load_secret_key(&resolved, passphrase.as_deref()).map_err(|error| {
+                CoreError::Ssh(format!("could not load `{}`: {error}", resolved.display()))
             })?;
             let hash_alg = handle
                 .best_supported_rsa_hash()
@@ -242,7 +248,7 @@ pub(crate) async fn open_authenticated_session_with_forward(
                 .flatten();
             handle
                 .authenticate_publickey(
-                    config.username.clone(),
+                    username.to_owned(),
                     PrivateKeyWithHashAlg::new(Arc::new(key), hash_alg),
                 )
                 .await
@@ -253,11 +259,120 @@ pub(crate) async fn open_authenticated_session_with_forward(
 
     if !authenticated {
         return Err(CoreError::SshAuth {
-            username: config.username.clone(),
+            username: username.to_owned(),
         });
     }
+    Ok(())
+}
 
-    Ok((handle, fingerprint))
+/// Handshake plus authentication with an optional remote-forward (`-R`) target
+/// and optional `ProxyJump` bastion hop.
+pub(crate) async fn open_authenticated_session_with_forward(
+    config: &SshConfig,
+    remote_forward: Option<RemoteForwardTarget>,
+) -> Result<AuthenticatedSsh> {
+    let fingerprint = Arc::new(Mutex::new(None));
+    let mismatch = Arc::new(AtomicBool::new(false));
+    let handler = SshClientHandler {
+        fingerprint: Arc::clone(&fingerprint),
+        expected: config.known_host_fingerprint.clone(),
+        mismatch: Arc::clone(&mismatch),
+        capture_only: false,
+        remote_forward,
+    };
+
+    let (mut handle, jump_handle) = if let Some(jump) = &config.jump {
+        let jump_fp = Arc::new(Mutex::new(None));
+        let jump_mismatch = Arc::new(AtomicBool::new(false));
+        let jump_handler = SshClientHandler {
+            fingerprint: Arc::clone(&jump_fp),
+            expected: jump.known_host_fingerprint.clone(),
+            mismatch: Arc::clone(&jump_mismatch),
+            capture_only: false,
+            remote_forward: None,
+        };
+        let mut bastion = client::connect(
+            Arc::new(Config::default()),
+            (jump.host.clone(), jump.port),
+            jump_handler,
+        )
+        .await
+        .map_err(|error| {
+            CoreError::Ssh(format!(
+                "bastion handshake with {}:{} failed: {error}",
+                jump.host, jump.port
+            ))
+        })?;
+        authenticate_handle(&mut bastion, &jump.username, &jump.auth).await?;
+
+        let channel = bastion
+            .channel_open_direct_tcpip(
+                config.host.clone(),
+                u32::from(config.port),
+                String::from("127.0.0.1"),
+                0,
+            )
+            .await
+            .map_err(|error| {
+                CoreError::Ssh(format!(
+                    "bastion could not forward to {}:{}: {error}",
+                    config.host, config.port
+                ))
+            })?;
+
+        let inner =
+            client::connect_stream(Arc::new(Config::default()), channel.into_stream(), handler)
+                .await
+                .map_err(|error| {
+                    if mismatch.load(Ordering::SeqCst) {
+                        let actual = fingerprint
+                            .lock()
+                            .ok()
+                            .and_then(|slot| slot.clone())
+                            .unwrap_or_default();
+                        return CoreError::SshHostKeyMismatch {
+                            host: config.host.clone(),
+                            expected: config.known_host_fingerprint.clone().unwrap_or_default(),
+                            actual,
+                        };
+                    }
+                    CoreError::Ssh(format!(
+                        "handshake with {}:{} via bastion {}:{} failed: {error}",
+                        config.host, config.port, jump.host, jump.port
+                    ))
+                })?;
+        (inner, Some(bastion))
+    } else {
+        let direct = client::connect(
+            Arc::new(Config::default()),
+            (config.host.clone(), config.port),
+            handler,
+        )
+        .await
+        .map_err(|error| {
+            if mismatch.load(Ordering::SeqCst) {
+                let actual = fingerprint
+                    .lock()
+                    .ok()
+                    .and_then(|slot| slot.clone())
+                    .unwrap_or_default();
+                return CoreError::SshHostKeyMismatch {
+                    host: config.host.clone(),
+                    expected: config.known_host_fingerprint.clone().unwrap_or_default(),
+                    actual,
+                };
+            }
+            CoreError::Ssh(format!(
+                "handshake with {}:{} failed: {error}",
+                config.host, config.port
+            ))
+        })?;
+        (direct, None)
+    };
+
+    authenticate_handle(&mut handle, &config.username, &config.auth).await?;
+
+    Ok((handle, jump_handle, fingerprint))
 }
 
 /// Connects only far enough to learn the server key, then aborts.
@@ -298,6 +413,7 @@ pub struct SshTransport {
     host: String,
     username: String,
     handle: Mutex<Option<Arc<Handle<SshClientHandler>>>>,
+    jump_handle: Mutex<Option<Handle<SshClientHandler>>>,
     writer: ChannelWriteHalf<client::Msg>,
     output: broadcast::Sender<TerminalOutput>,
     fingerprint: Arc<Mutex<Option<String>>>,
@@ -308,7 +424,7 @@ impl SshTransport {
     /// Connects, authenticates and opens an interactive shell channel.
     pub async fn connect(config: SshConfig) -> Result<(Self, broadcast::Receiver<TerminalOutput>)> {
         let session_id = generate_session_id("ssh");
-        let (handle, fingerprint) = open_authenticated_session(&config).await?;
+        let (handle, jump_handle, fingerprint) = open_authenticated_session(&config).await?;
 
         let channel = handle
             .channel_open_session()
@@ -368,6 +484,7 @@ impl SshTransport {
             host: config.host,
             username: config.username,
             handle: Mutex::new(Some(Arc::new(handle))),
+            jump_handle: Mutex::new(jump_handle),
             writer,
             output,
             fingerprint,
@@ -438,6 +555,16 @@ impl TerminalTransport for SshTransport {
                 .disconnect(Disconnect::ByApplication, "session closed", "en")
                 .await;
         }
+        let jump_handle = self
+            .jump_handle
+            .lock()
+            .ok()
+            .and_then(|mut slot| slot.take());
+        if let Some(jump) = jump_handle {
+            let _ = jump
+                .disconnect(Disconnect::ByApplication, "bastion closed", "en")
+                .await;
+        }
         Ok(())
     }
 
@@ -463,6 +590,55 @@ impl TerminalTransport for SshTransport {
             Ok(Ok(())) => Ok(Some(started.elapsed().as_millis().max(1) as u64)),
             Ok(Err(error)) => Err(CoreError::Ssh(format!("latency probe failed: {error}"))),
             Err(_) => Err(CoreError::Ssh(String::from("latency probe timed out"))),
+        }
+    }
+
+    async fn exec_aux(&self, command: &str) -> Result<Option<String>> {
+        if self.closed.load(Ordering::Relaxed) {
+            return Err(CoreError::SessionClosed(
+                self.session_id.as_str().to_owned(),
+            ));
+        }
+        let handle = self
+            .handle
+            .lock()
+            .ok()
+            .and_then(|slot| slot.as_ref().map(Arc::clone));
+        let Some(handle) = handle else {
+            return Err(CoreError::SessionClosed(
+                self.session_id.as_str().to_owned(),
+            ));
+        };
+
+        let fut = async {
+            let mut channel = handle
+                .channel_open_session()
+                .await
+                .map_err(|error| CoreError::Ssh(format!("aux exec channel failed: {error}")))?;
+            channel
+                .exec(true, command)
+                .await
+                .map_err(|error| CoreError::Ssh(format!("aux exec rejected: {error}")))?;
+
+            let mut out = Vec::with_capacity(1024);
+            while let Some(msg) = channel.wait().await {
+                match msg {
+                    ChannelMsg::Data { data } => {
+                        if out.len() < 64 * 1024 {
+                            out.extend_from_slice(&data);
+                        }
+                    }
+                    ChannelMsg::Eof | ChannelMsg::Close => break,
+                    _ => {}
+                }
+            }
+            let _ = channel.close().await;
+            Ok::<Option<String>, CoreError>(Some(String::from_utf8_lossy(&out).into_owned()))
+        };
+
+        match tokio::time::timeout(Duration::from_secs(5), fut).await {
+            Ok(res) => res,
+            Err(_) => Err(CoreError::Ssh(String::from("aux exec timed out"))),
         }
     }
 }

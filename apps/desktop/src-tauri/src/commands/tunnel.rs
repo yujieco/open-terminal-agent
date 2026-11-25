@@ -9,11 +9,10 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::State;
-use term_core::{SshConfig, SshTunnel, TunnelKind, TunnelSpec, TunnelStatsSnapshot};
+use term_core::{SshTunnel, TunnelKind, TunnelSpec, TunnelStatsSnapshot};
 
-use crate::commands::{SshAuthRequest, string_field};
 use crate::error::ApiError;
-use crate::secrets::{SecretStore, ssh_secret_account};
+use crate::secrets::SecretStore;
 use crate::state::TunnelRegistry;
 use crate::store::{NewSavedTunnel, SavedTunnel, Store};
 
@@ -244,44 +243,10 @@ pub async fn start_tunnel(
         )));
     }
 
-    let host = string_field(&profile.payload, "host")?;
-    let username = string_field(&profile.payload, "username")?;
-    let port = profile
-        .payload
-        .get("port")
-        .and_then(Value::as_u64)
-        .unwrap_or(22) as u16;
-    let method = profile
-        .payload
-        .get("auth")
-        .and_then(|auth| auth.get("method"))
-        .and_then(Value::as_str)
-        .unwrap_or("password");
-
-    let auth = if method == "privateKey" {
-        let path = profile
-            .payload
-            .get("auth")
-            .and_then(|auth| auth.get("path"))
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_owned();
-        SshAuthRequest::PrivateKey {
-            path,
-            passphrase: None,
-        }
-    } else {
-        let account = profile
-            .secret_ref
-            .clone()
-            .unwrap_or_else(|| ssh_secret_account(&host, port, &username));
-        let password = secrets
-            .get(&account)?
-            .ok_or(ApiError::SecretMissing { account })?;
-        SshAuthRequest::Password { password }
-    };
-
-    let mut ssh_config = SshConfig::new(host.clone(), port, username, auth.into_auth());
+    let req = crate::commands::store::resolve_saved_ssh_request(&profile, &secrets)?;
+    let host = req.host.clone();
+    let port = req.port;
+    let mut ssh_config = req.into_config();
     if let Some(pinned) = store.host_key(&host, port)? {
         ssh_config = ssh_config.with_known_host_fingerprint(pinned);
     }

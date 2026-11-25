@@ -368,6 +368,35 @@ impl Store {
         })
     }
 
+    /// Updates an existing saved session in place while preserving its id and
+    /// `created_at` timestamp (so linked SSH tunnels remain intact).
+    pub fn update_session(
+        &self,
+        id: &str,
+        draft: NewSavedSession,
+    ) -> Result<Option<SavedSession>, StoreError> {
+        let Some(existing) = self.get(id)? else {
+            return Ok(None);
+        };
+        let now = now_millis();
+        let payload = serde_json::to_string(&draft.payload)?;
+        self.lock()?.execute(
+            "UPDATE saved_sessions
+             SET name = ?2, kind = ?3, payload = ?4, secret_ref = ?5, updated_at = ?6
+             WHERE id = ?1",
+            params![id, draft.name, draft.kind, payload, draft.secret_ref, now],
+        )?;
+        Ok(Some(SavedSession {
+            id: existing.id,
+            name: draft.name,
+            kind: draft.kind,
+            payload: draft.payload,
+            secret_ref: draft.secret_ref,
+            created_at: existing.created_at,
+            updated_at: now,
+        }))
+    }
+
     /// Lists saved sessions, newest first.
     pub fn list(&self) -> Result<Vec<SavedSession>, StoreError> {
         let connection = self.lock()?;

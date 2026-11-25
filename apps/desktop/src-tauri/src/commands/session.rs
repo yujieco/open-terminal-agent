@@ -503,6 +503,142 @@ pub async fn probe_session_latency(
     }
 }
 
+/// Lightweight point-in-time server resource snapshot collected over a
+/// multiplexed SSH `exec` channel (zero extra login, zero remote agent).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerMetrics {
+    pub hostname: String,
+    pub os: String,
+    pub cpu_percent: Option<f32>,
+    pub mem_used_mb: Option<u64>,
+    pub mem_total_mb: Option<u64>,
+    pub disk_used_pct: Option<u8>,
+    pub load_avg: Option<String>,
+    pub net_rx_bytes: Option<u64>,
+    pub net_tx_bytes: Option<u64>,
+}
+
+const SERVER_METRICS_CMD: &str = r#"sh -c '
+echo "HOST=$(hostname 2>/dev/null || uname -n)"
+echo "OS=$(uname -s 2>/dev/null)"
+if [ -r /proc/loadavg ]; then
+  awk "{print \"LOAD=\"\$1\", \"\$2\", \"\$3}" /proc/loadavg
+else
+  echo "LOAD=$(uptime 2>/dev/null | sed "s/.*averages*: //")"
+fi
+if [ -r /proc/stat ]; then
+  c1=$(awk "/^cpu /{print \$2+\$3+\$4+\$6+\$7+\$8, \$5+\$6}" /proc/stat)
+  sleep 0.2
+  c2=$(awk "/^cpu /{print \$2+\$3+\$4+\$6+\$7+\$8, \$5+\$6}" /proc/stat)
+  echo "CPU=$c1 $c2"
+fi
+if [ -r /proc/meminfo ]; then
+  awk "/^MemTotal:|^MemAvailable:|^MemFree:|^Buffers:|^Cached:/{gsub(/:/,\"\",\$1); print \"MEM_\"\$1\"=\"\$2}" /proc/meminfo
+fi
+echo "DISK=$(df -Pk / 2>/dev/null | awk "NR==2{print \$5}")"
+if [ -r /proc/net/dev ]; then
+  awk -F"[: ]+" "NR>2 && \$2!=\"lo\"{rx+=\$3; tx+=\$11} END{print \"NET=\"rx\" \"tx}" /proc/net/dev
+fi
+'"#;
+
+fn parse_server_metrics(raw: &str) -> ServerMetrics {
+    let mut hostname = String::new();
+    let mut os = String::new();
+    let mut cpu_percent = None;
+    let mut mem_total_kb: Option<u64> = None;
+    let mut mem_avail_kb: Option<u64> = None;
+    let mut mem_free_kb: Option<u64> = None;
+    let mut mem_buffers_kb: u64 = 0;
+    let mut mem_cached_kb: u64 = 0;
+    let mut disk_used_pct = None;
+    let mut load_avg = None;
+    let mut net_rx_bytes = None;
+    let mut net_tx_bytes = None;
+
+    for line in raw.lines() {
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        let value = value.trim();
+        match key.trim() {
+            "HOST" => hostname = value.to_owned(),
+            "OS" => os = value.to_owned(),
+            "LOAD" if !value.is_empty() => load_avg = Some(value.to_owned()),
+            "CPU" => {
+                let nums: Vec<u64> = value
+                    .split_whitespace()
+                    .filter_map(|token| token.parse::<u64>().ok())
+                    .collect();
+                if nums.len() == 4 {
+                    let active_delta = nums[2].saturating_sub(nums[0]);
+                    let idle_delta = nums[3].saturating_sub(nums[1]);
+                    let total = active_delta + idle_delta;
+                    if total > 0 {
+                        let pct = (active_delta as f32 / total as f32) * 100.0;
+                        cpu_percent = Some((pct * 10.0).round() / 10.0);
+                    }
+                }
+            }
+            "MEM_MemTotal" => mem_total_kb = value.parse().ok(),
+            "MEM_MemAvailable" => mem_avail_kb = value.parse().ok(),
+            "MEM_MemFree" => mem_free_kb = value.parse().ok(),
+            "MEM_Buffers" => mem_buffers_kb = value.parse().unwrap_or(0),
+            "MEM_Cached" => mem_cached_kb = value.parse().unwrap_or(0),
+            "DISK" => {
+                if let Ok(pct) = value.trim_end_matches('%').parse::<u8>() {
+                    disk_used_pct = Some(pct.min(100));
+                }
+            }
+            "NET" => {
+                let mut parts = value.split_whitespace();
+                net_rx_bytes = parts.next().and_then(|v| v.parse().ok());
+                net_tx_bytes = parts.next().and_then(|v| v.parse().ok());
+            }
+            _ => {}
+        }
+    }
+
+    let (mem_used_mb, mem_total_mb) = match mem_total_kb {
+        Some(total) if total > 0 => {
+            let avail = mem_avail_kb
+                .or_else(|| mem_free_kb.map(|f| f + mem_buffers_kb + mem_cached_kb))
+                .unwrap_or(0);
+            let used = total.saturating_sub(avail);
+            (Some(used / 1024), Some(total / 1024))
+        }
+        _ => (None, None),
+    };
+
+    ServerMetrics {
+        hostname,
+        os,
+        cpu_percent,
+        mem_used_mb,
+        mem_total_mb,
+        disk_used_pct,
+        load_avg,
+        net_rx_bytes,
+        net_tx_bytes,
+    }
+}
+
+/// Collects live CPU/RAM/disk/load/network metrics over an active SSH session's
+/// multiplexed `exec` channel.
+#[tauri::command]
+pub async fn probe_server_metrics(
+    registry: State<'_, SessionRegistry>,
+    session_id: String,
+) -> Result<ServerMetrics, ApiError> {
+    let handle = registry.require(&session_id)?;
+    let Some(output) = handle.transport.exec_aux(SERVER_METRICS_CMD).await? else {
+        return Err(ApiError::InvalidRequest(String::from(
+            "server metrics are only supported on SSH sessions",
+        )));
+    };
+    Ok(parse_server_metrics(&output))
+}
+
 /// Lists serial ports with USB identifiers and descriptions.
 #[tauri::command]
 pub fn serial_ports() -> Result<Vec<term_core::SerialPortDescriptor>, ApiError> {
@@ -840,5 +976,29 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&json_str).expect("valid json");
         assert_eq!(parsed["session"], "prod-ssh");
         assert_eq!(parsed["lineCount"], 2);
+    }
+
+    #[test]
+    fn parses_linux_server_metrics_snapshot() {
+        let sample = "\
+HOST=prod-01
+OS=Linux
+LOAD=0.42, 0.31, 0.25
+CPU=1000 3000 1050 3150
+MEM_MemTotal=16384000
+MEM_MemAvailable=12288000
+DISK=64%
+NET=1048576 524288
+";
+        let m = parse_server_metrics(sample);
+        assert_eq!(m.hostname, "prod-01");
+        assert_eq!(m.os, "Linux");
+        assert_eq!(m.cpu_percent, Some(25.0));
+        assert_eq!(m.mem_total_mb, Some(16000));
+        assert_eq!(m.mem_used_mb, Some(4000));
+        assert_eq!(m.disk_used_pct, Some(64));
+        assert_eq!(m.load_avg.as_deref(), Some("0.42, 0.31, 0.25"));
+        assert_eq!(m.net_rx_bytes, Some(1048576));
+        assert_eq!(m.net_tx_bytes, Some(524288));
     }
 }

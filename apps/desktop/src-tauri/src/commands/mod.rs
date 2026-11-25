@@ -13,7 +13,7 @@ use std::path::PathBuf;
 
 use serde::Deserialize;
 use serde_json::Value;
-use term_core::{SshAuth, SshConfig};
+use term_core::{SshAuth, SshConfig, SshJumpConfig};
 
 use crate::error::ApiError;
 
@@ -63,6 +63,25 @@ impl SshAuthRequest {
     }
 }
 
+/// Bastion / jump-host parameters (`ProxyJump`) passed from the UI or saved profile.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SshJumpRequest {
+    /// Bastion hostname or IP address.
+    pub host: String,
+    /// Bastion TCP port.
+    #[serde(default = "default_ssh_port")]
+    pub port: u16,
+    /// Bastion remote user.
+    pub username: String,
+    /// Bastion authentication choice.
+    pub auth: SshAuthRequest,
+}
+
+fn default_ssh_port() -> u16 {
+    22
+}
+
 /// Arguments for SSH shell and SFTP connection commands.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -84,12 +103,25 @@ pub struct SshConnectRequest {
     /// Fingerprint the user just approved on first contact.
     #[serde(default)]
     pub trust_fingerprint: Option<String>,
+    /// Optional bastion host (`ProxyJump`) to connect through.
+    #[serde(default)]
+    pub jump: Option<SshJumpRequest>,
 }
 
 impl SshConnectRequest {
     pub(crate) fn into_config(self) -> SshConfig {
-        SshConfig::new(self.host, self.port, self.username, self.auth.into_auth())
-            .with_grid(self.cols, self.rows)
+        let mut config = SshConfig::new(self.host, self.port, self.username, self.auth.into_auth())
+            .with_grid(self.cols, self.rows);
+        if let Some(jump) = self.jump {
+            config = config.with_jump(SshJumpConfig {
+                host: jump.host,
+                port: jump.port,
+                username: jump.username,
+                auth: jump.auth.into_auth(),
+                known_host_fingerprint: None,
+            });
+        }
+        config
     }
 }
 

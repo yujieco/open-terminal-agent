@@ -8,7 +8,6 @@ use std::sync::Arc;
 
 use base64::Engine as _;
 use serde::Serialize;
-use serde_json::Value;
 use tauri::{AppHandle, Emitter as _, State};
 use term_core::SftpEntry;
 
@@ -29,11 +28,9 @@ pub struct SftpProgressEvent {
     pub total: Option<u64>,
 }
 
-use crate::commands::{
-    SshAuthRequest, SshConnectRequest, default_cols, default_rows, string_field,
-};
+use crate::commands::SshConnectRequest;
 use crate::error::ApiError;
-use crate::secrets::{SecretStore, ssh_secret_account};
+use crate::secrets::SecretStore;
 use crate::state::SftpRegistry;
 use crate::store::Store;
 
@@ -93,56 +90,8 @@ pub async fn sftp_connect_saved(
         )));
     }
 
-    let host = string_field(&saved.payload, "host")?;
-    let username = string_field(&saved.payload, "username")?;
-    let port = saved
-        .payload
-        .get("port")
-        .and_then(Value::as_u64)
-        .unwrap_or(22) as u16;
-    let method = saved
-        .payload
-        .get("auth")
-        .and_then(|auth| auth.get("method"))
-        .and_then(Value::as_str)
-        .unwrap_or("password");
-
-    let auth = if method == "privateKey" {
-        let path = saved
-            .payload
-            .get("auth")
-            .and_then(|auth| auth.get("path"))
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_owned();
-        SshAuthRequest::PrivateKey {
-            path,
-            passphrase: None,
-        }
-    } else {
-        let account = saved
-            .secret_ref
-            .clone()
-            .unwrap_or_else(|| ssh_secret_account(&host, port, &username));
-        let password = secrets
-            .get(&account)?
-            .ok_or(ApiError::SecretMissing { account })?;
-        SshAuthRequest::Password { password }
-    };
-
-    sftp_connect(
-        registry,
-        SshConnectRequest {
-            host,
-            port,
-            username,
-            auth,
-            cols: default_cols(),
-            rows: default_rows(),
-            trust_fingerprint: None,
-        },
-    )
-    .await
+    let request = crate::commands::store::resolve_saved_ssh_request(&saved, &secrets)?;
+    sftp_connect(registry, request).await
 }
 
 /// Lists one remote directory.

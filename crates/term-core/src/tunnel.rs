@@ -210,6 +210,7 @@ pub struct SshTunnel {
     stats: Arc<TunnelStats>,
     shutdown_tx: watch::Sender<bool>,
     handle: Arc<Handle<SshClientHandler>>,
+    jump_handle: Mutex<Option<Handle<SshClientHandler>>>,
     stopped: AtomicBool,
 }
 
@@ -236,7 +237,7 @@ impl SshTunnel {
                     .map(|addr| addr.port())
                     .unwrap_or(spec.bind_port);
 
-                let (handle, fingerprint) = open_authenticated_session(ssh).await?;
+                let (handle, jump_handle, fingerprint) = open_authenticated_session(ssh).await?;
                 let handle = Arc::new(handle);
 
                 let task_handle = Arc::clone(&handle);
@@ -299,6 +300,7 @@ impl SshTunnel {
                     stats,
                     shutdown_tx,
                     handle,
+                    jump_handle: Mutex::new(jump_handle),
                     stopped: AtomicBool::new(false),
                 })
             }
@@ -308,7 +310,7 @@ impl SshTunnel {
                     local_port: spec.target_port,
                     stats: Arc::clone(&stats),
                 };
-                let (handle, fingerprint) =
+                let (handle, jump_handle, fingerprint) =
                     open_authenticated_session_with_forward(ssh, Some(target)).await?;
 
                 let assigned = handle
@@ -333,6 +335,7 @@ impl SshTunnel {
                     stats,
                     shutdown_tx,
                     handle: Arc::new(handle),
+                    jump_handle: Mutex::new(jump_handle),
                     stopped: AtomicBool::new(false),
                 })
             }
@@ -370,6 +373,14 @@ impl SshTunnel {
             .handle
             .disconnect(Disconnect::ByApplication, "", "en")
             .await;
+        let jump = self
+            .jump_handle
+            .lock()
+            .ok()
+            .and_then(|mut slot| slot.take());
+        if let Some(jump) = jump {
+            let _ = jump.disconnect(Disconnect::ByApplication, "", "en").await;
+        }
     }
 }
 

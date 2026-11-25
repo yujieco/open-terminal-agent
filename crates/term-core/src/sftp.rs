@@ -43,6 +43,7 @@ pub struct SftpEntry {
 pub struct SftpClient {
     session: Arc<SftpSession>,
     handle: Mutex<Option<Handle<SshClientHandler>>>,
+    jump_handle: Mutex<Option<Handle<SshClientHandler>>>,
     host: String,
     username: String,
 }
@@ -50,7 +51,7 @@ pub struct SftpClient {
 impl SftpClient {
     /// Connects and opens the `sftp` subsystem channel.
     pub async fn connect(config: SshConfig) -> Result<Self> {
-        let (handle, _fingerprint) = open_authenticated_session(&config).await?;
+        let (handle, jump_handle, _fingerprint) = open_authenticated_session(&config).await?;
 
         let channel = handle
             .channel_open_session()
@@ -68,6 +69,7 @@ impl SftpClient {
         Ok(Self {
             session: Arc::new(session),
             handle: Mutex::new(Some(handle)),
+            jump_handle: Mutex::new(jump_handle),
             host: config.host,
             username: config.username,
         })
@@ -332,6 +334,16 @@ impl SftpClient {
         if let Some(handle) = handle {
             let _ = handle
                 .disconnect(russh::Disconnect::ByApplication, "sftp closed", "en")
+                .await;
+        }
+        let jump = self
+            .jump_handle
+            .lock()
+            .ok()
+            .and_then(|mut slot| slot.take());
+        if let Some(jump) = jump {
+            let _ = jump
+                .disconnect(russh::Disconnect::ByApplication, "bastion closed", "en")
                 .await;
         }
     }
