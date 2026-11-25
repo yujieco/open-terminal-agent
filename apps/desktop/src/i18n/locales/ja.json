@@ -12,6 +12,7 @@
     "phase2Group": "フェーズ 2",
     "serial": "シリアル接続",
     "sftp": "SFTP ファイル",
+    "tunnels": "SSH トンネル",
     "shells": "利用可能なシェル",
     "ssh": "SSH",
     "laterGroup": "次のスライス",
@@ -352,6 +353,52 @@
       "jsonDesc": "メタデータと行配列を含む解析向け形式",
       "txt": "テキスト (.txt)",
       "txtDesc": "どのエディタでも開ける汎用テキスト"
+    }
+  },
+  "tunnels": {
+    "title": "SSH トンネル・ポートフォワーディング",
+    "subtitle": "ローカル転送 (-L)、リモート転送 (-R)、動的 SOCKS5 プロキシ (-D)",
+    "newRule": "新規トンネル",
+    "editRule": "トンネルを編集",
+    "saveRule": "ルールを保存",
+    "saving": "保存中…",
+    "empty": "保存されたトンネルルールはまだありません。「新規トンネル」から作成してください。",
+    "noSshTitle": "保存済みの SSH サーバーがありません",
+    "noSshHint": "トンネルを作成するには、先に SSH 接続を 1 件以上保存してください。",
+    "addSshFirst": "SSH 接続を追加",
+    "ruleName": "ルール名",
+    "ruleNamePlaceholder": "例：本番 MySQL / 社内プロキシ",
+    "sshServer": "SSH サーバー",
+    "localBindHost": "ローカル待受アドレス",
+    "localBindPort": "ローカルポート",
+    "remoteBindHost": "リモート待受アドレス",
+    "remoteBindPort": "リモートポート",
+    "remoteTargetHost": "転送先ホスト",
+    "remoteTargetPort": "転送先ポート",
+    "localTargetHost": "ローカル転送先ホスト",
+    "localTargetPort": "ローカル転送先ポート",
+    "invalidPort": "有効なポート番号（1–65535）を入力してください",
+    "start": "開始",
+    "stop": "停止",
+    "working": "処理中…",
+    "edit": "編集",
+    "copyAddr": "アドレスをコピー",
+    "copied": "コピーしました",
+    "liveStats": "接続中 {{active}} · ↑ {{tx}}  ↓ {{rx}}",
+    "kinds": {
+      "local": "ローカル (-L)",
+      "remote": "リモート (-R)",
+      "dynamic": "SOCKS5 (-D)"
+    },
+    "badges": {
+      "local": "ローカル -L",
+      "remote": "リモート -R",
+      "dynamic": "SOCKS5 -D"
+    },
+    "kindHints": {
+      "local": "リモート側の MySQL 3306 などのポートをローカルポートにマッピングします。",
+      "remote": "ローカルで稼働中のサービスをリモートサーバー側のポートに公開します。",
+      "dynamic": "ローカルに SOCKS5 プロキシを起動し、SSH 経由で内部ネットワークへ接続します。"
     }
   }
 }

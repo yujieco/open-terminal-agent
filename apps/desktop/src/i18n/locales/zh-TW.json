@@ -12,6 +12,7 @@
     "phase2Group": "第二階段",
     "serial": "序列埠連線",
     "sftp": "SFTP 檔案",
+    "tunnels": "SSH 通道",
     "shells": "可用 Shell",
     "ssh": "SSH 連線",
     "laterGroup": "後續切片",
@@ -352,6 +353,52 @@
       "jsonDesc": "包含中繼資料與逐行陣列，方便腳本分析",
       "txt": "純文字 (.txt)",
       "txtDesc": "通用純文字格式，任意編輯器皆可開啟"
+    }
+  },
+  "tunnels": {
+    "title": "SSH 通道與連接埠轉發",
+    "subtitle": "本機連接埠映射 (-L)、遠端反向穿透 (-R) 與動態 SOCKS5 代理 (-D)",
+    "newRule": "新增通道",
+    "editRule": "編輯通道",
+    "saveRule": "儲存規則",
+    "saving": "儲存中…",
+    "empty": "尚無已儲存的通道規則，點擊上方「新增通道」開始映射連接埠。",
+    "noSshTitle": "尚無已儲存的 SSH 伺服器",
+    "noSshHint": "建立通道前需先儲存至少一個 SSH 伺服器連線。",
+    "addSshFirst": "新增 SSH 連線",
+    "ruleName": "規則名稱",
+    "ruleNamePlaceholder": "例如：正式 MySQL / 內網代理",
+    "sshServer": "SSH 跳板伺服器",
+    "localBindHost": "本機監聽位址",
+    "localBindPort": "本機連接埠",
+    "remoteBindHost": "遠端監聽位址",
+    "remoteBindPort": "遠端連接埠",
+    "remoteTargetHost": "目標內網主機",
+    "remoteTargetPort": "目標連接埠",
+    "localTargetHost": "本機服務位址",
+    "localTargetPort": "本機連接埠",
+    "invalidPort": "請填寫有效的連接埠號（1–65535）",
+    "start": "啟動",
+    "stop": "停止",
+    "working": "處理中…",
+    "edit": "編輯",
+    "copyAddr": "複製位址",
+    "copied": "已複製",
+    "liveStats": "活躍連線 {{active}} · ↑ {{tx}}  ↓ {{rx}}",
+    "kinds": {
+      "local": "本機轉發 (-L)",
+      "remote": "遠端轉發 (-R)",
+      "dynamic": "SOCKS5 (-D)"
+    },
+    "badges": {
+      "local": "本機 -L",
+      "remote": "遠端 -R",
+      "dynamic": "SOCKS5 -D"
+    },
+    "kindHints": {
+      "local": "將遠端可存取的內網服務連接埠（如 MySQL 3306）映射至本機連接埠。",
+      "remote": "將本機服務連接埠反向公開至遠端伺服器連接埠。",
+      "dynamic": "在本機開啟 SOCKS5 代理連接埠，透過此 SSH 伺服器存取遠端內網。"
     }
   }
 }

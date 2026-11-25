@@ -12,6 +12,7 @@
     "phase2Group": "Phase 2",
     "serial": "Serial connection",
     "sftp": "SFTP files",
+    "tunnels": "SSH tunnels",
     "shells": "Available shells",
     "ssh": "SSH",
     "laterGroup": "Later slices",
@@ -352,6 +353,52 @@
       "jsonDesc": "Metadata plus line array for scripts & pipelines",
       "txt": "Plain Text (.txt)",
       "txtDesc": "Universal text format readable anywhere"
+    }
+  },
+  "tunnels": {
+    "title": "SSH Tunnels & Port Forwarding",
+    "subtitle": "Local port forward (-L), remote reverse forward (-R), and dynamic SOCKS5 (-D)",
+    "newRule": "New tunnel",
+    "editRule": "Edit tunnel",
+    "saveRule": "Save rule",
+    "saving": "Saving…",
+    "empty": "No tunnel rules saved yet. Click “New tunnel” to map a port.",
+    "noSshTitle": "No saved SSH servers yet",
+    "noSshHint": "Save at least one SSH server connection first so tunnels can authenticate through it.",
+    "addSshFirst": "New SSH connection",
+    "ruleName": "Rule name",
+    "ruleNamePlaceholder": "e.g. Prod MySQL / Internal Proxy",
+    "sshServer": "SSH server",
+    "localBindHost": "Local listen address",
+    "localBindPort": "Local port",
+    "remoteBindHost": "Remote bind address",
+    "remoteBindPort": "Remote port",
+    "remoteTargetHost": "Target host (remote)",
+    "remoteTargetPort": "Target port",
+    "localTargetHost": "Local service host",
+    "localTargetPort": "Local service port",
+    "invalidPort": "Please enter a valid port number (1–65535)",
+    "start": "Start",
+    "stop": "Stop",
+    "working": "Working…",
+    "edit": "Edit",
+    "copyAddr": "Copy address",
+    "copied": "Copied",
+    "liveStats": "Active {{active}} · ↑ {{tx}}  ↓ {{rx}}",
+    "kinds": {
+      "local": "Local (-L)",
+      "remote": "Remote (-R)",
+      "dynamic": "SOCKS5 (-D)"
+    },
+    "badges": {
+      "local": "Local -L",
+      "remote": "Remote -R",
+      "dynamic": "SOCKS5 -D"
+    },
+    "kindHints": {
+      "local": "Expose a remote/private service (e.g. MySQL 3306, Redis 6379) on a local port.",
+      "remote": "Forward a port on the remote SSH server back to a service running on your machine.",
+      "dynamic": "Run a local SOCKS5 proxy that routes traffic through the SSH server."
     }
   }
 }

@@ -12,6 +12,7 @@
     "phase2Group": "2단계",
     "serial": "시리얼 연결",
     "sftp": "SFTP 파일",
+    "tunnels": "SSH 터널",
     "shells": "사용 가능한 셸",
     "ssh": "SSH",
     "laterGroup": "다음 단계",
@@ -352,6 +353,52 @@
       "jsonDesc": "메타데이터와 줄 배열이 담긴 스크립트용 형식",
       "txt": "일반 텍스트 (.txt)",
       "txtDesc": "어디서나 열 수 있는 범용 텍스트 형식"
+    }
+  },
+  "tunnels": {
+    "title": "SSH 터널 및 포트 포워딩",
+    "subtitle": "로컬 포워딩 (-L), 원격 포워딩 (-R), 동적 SOCKS5 프록시 (-D)",
+    "newRule": "새 터널",
+    "editRule": "터널 편집",
+    "saveRule": "규칙 저장",
+    "saving": "저장 중…",
+    "empty": "저장된 터널 규칙이 없습니다. '새 터널'을 눌러 포트를 매핑하세요.",
+    "noSshTitle": "저장된 SSH 서버가 없습니다",
+    "noSshHint": "터널을 만들려면 먼저 SSH 서버 연결을 하나 이상 저장하세요.",
+    "addSshFirst": "SSH 연결 추가",
+    "ruleName": "규칙 이름",
+    "ruleNamePlaceholder": "예: 운영 MySQL / 사내 프록시",
+    "sshServer": "SSH 서버",
+    "localBindHost": "로컬 수신 주소",
+    "localBindPort": "로컬 포트",
+    "remoteBindHost": "원격 수신 주소",
+    "remoteBindPort": "원격 포트",
+    "remoteTargetHost": "대상 호스트",
+    "remoteTargetPort": "대상 포트",
+    "localTargetHost": "로컬 서비스 주소",
+    "localTargetPort": "로컬 서비스 포트",
+    "invalidPort": "올바른 포트 번호(1–65535)를 입력하세요",
+    "start": "시작",
+    "stop": "중지",
+    "working": "처리 중…",
+    "edit": "편집",
+    "copyAddr": "주소 복사",
+    "copied": "복사됨",
+    "liveStats": "활성 {{active}} · ↑ {{tx}}  ↓ {{rx}}",
+    "kinds": {
+      "local": "로컬 (-L)",
+      "remote": "원격 (-R)",
+      "dynamic": "SOCKS5 (-D)"
+    },
+    "badges": {
+      "local": "로컬 -L",
+      "remote": "원격 -R",
+      "dynamic": "SOCKS5 -D"
+    },
+    "kindHints": {
+      "local": "원격 서버에서 접근 가능한 포트(예: MySQL 3306)를 로컬 포트로 매핑합니다.",
+      "remote": "로컬에서 실행 중인 포트를 원격 SSH 서버 포트로 역방향 노출합니다.",
+      "dynamic": "로컬에 SOCKS5 프록시를 열어 SSH 서버를 통해 내부망에 접근합니다."
     }
   }
 }

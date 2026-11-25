@@ -12,6 +12,7 @@
     "phase2Group": "第二阶段",
     "serial": "串口连接",
     "sftp": "SFTP 文件",
+    "tunnels": "SSH 隧道",
     "shells": "可用 Shell",
     "ssh": "SSH 连接",
     "laterGroup": "后续切片",
@@ -352,6 +353,52 @@
       "jsonDesc": "包含会话元数据与逐行数组，便于脚本分析",
       "txt": "纯文本 (.txt)",
       "txtDesc": "通用纯文本格式，任意编辑器直接打开"
+    }
+  },
+  "tunnels": {
+    "title": "SSH 隧道与端口转发",
+    "subtitle": "本地端口映射 (-L)、远程反向穿透 (-R) 与动态 SOCKS5 代理 (-D)",
+    "newRule": "新建隧道",
+    "editRule": "编辑隧道",
+    "saveRule": "保存规则",
+    "saving": "保存中…",
+    "empty": "还没有保存任何隧道规则，点击上方「新建隧道」开始映射端口。",
+    "noSshTitle": "还没有已保存的 SSH 服务器",
+    "noSshHint": "建立隧道需要先保存至少一个 SSH 服务器连接（密码或私钥安全存在系统凭据库中）。",
+    "addSshFirst": "新建 SSH 连接",
+    "ruleName": "规则名称",
+    "ruleNamePlaceholder": "例如：生产 MySQL / 内网代理",
+    "sshServer": "SSH 跳板服务器",
+    "localBindHost": "本地监听地址",
+    "localBindPort": "本地端口",
+    "remoteBindHost": "远端监听地址",
+    "remoteBindPort": "远端端口",
+    "remoteTargetHost": "目标内网主机",
+    "remoteTargetPort": "目标端口",
+    "localTargetHost": "本机服务地址",
+    "localTargetPort": "本机端口",
+    "invalidPort": "请填写合法端口号（1–65535）",
+    "start": "启动",
+    "stop": "停止",
+    "working": "处理中…",
+    "edit": "编辑",
+    "copyAddr": "复制地址",
+    "copied": "已复制",
+    "liveStats": "活跃连接 {{active}} · ↑ {{tx}}  ↓ {{rx}}",
+    "kinds": {
+      "local": "本地转发 (-L)",
+      "remote": "远程转发 (-R)",
+      "dynamic": "SOCKS5 (-D)"
+    },
+    "badges": {
+      "local": "本地 -L",
+      "remote": "远程 -R",
+      "dynamic": "SOCKS5 -D"
+    },
+    "kindHints": {
+      "local": "把远端服务器可访问的内网端口（如 MySQL 3306、Redis 6379）映射到本机端口。",
+      "remote": "把本机运行的服务端口反向暴露到远端服务器端口上。",
+      "dynamic": "在本机开启 SOCKS5 代理端口，浏览器或客户端可通过该 SSH 服务器访问目标内网。"
     }
   }
 }
