@@ -137,6 +137,12 @@ pub trait TerminalTransport: Send + Sync {
 
     /// Terminates the session and releases its OS resources.
     async fn close(&self) -> Result<()>;
+
+    /// Measures round-trip latency in milliseconds when supported by the
+    /// transport (e.g. SSH in-band keepalive ping/pong).
+    async fn probe_latency(&self) -> Result<Option<u64>> {
+        Ok(None)
+    }
 }
 
 /// Coalesces transport chunks into at most one frame per tick.

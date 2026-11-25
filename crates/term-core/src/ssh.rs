@@ -297,7 +297,7 @@ pub struct SshTransport {
     session_id: SessionId,
     host: String,
     username: String,
-    handle: Mutex<Option<Handle<SshClientHandler>>>,
+    handle: Mutex<Option<Arc<Handle<SshClientHandler>>>>,
     writer: ChannelWriteHalf<client::Msg>,
     output: broadcast::Sender<TerminalOutput>,
     fingerprint: Arc<Mutex<Option<String>>>,
@@ -367,7 +367,7 @@ impl SshTransport {
             session_id,
             host: config.host,
             username: config.username,
-            handle: Mutex::new(Some(handle)),
+            handle: Mutex::new(Some(Arc::new(handle))),
             writer,
             output,
             fingerprint,
@@ -439,6 +439,31 @@ impl TerminalTransport for SshTransport {
                 .await;
         }
         Ok(())
+    }
+
+    async fn probe_latency(&self) -> Result<Option<u64>> {
+        if self.closed.load(Ordering::Relaxed) {
+            return Err(CoreError::SessionClosed(
+                self.session_id.as_str().to_owned(),
+            ));
+        }
+        let handle = self
+            .handle
+            .lock()
+            .ok()
+            .and_then(|slot| slot.as_ref().map(Arc::clone));
+        let Some(handle) = handle else {
+            return Err(CoreError::SessionClosed(
+                self.session_id.as_str().to_owned(),
+            ));
+        };
+
+        let started = std::time::Instant::now();
+        match tokio::time::timeout(Duration::from_secs(4), handle.send_ping()).await {
+            Ok(Ok(())) => Ok(Some(started.elapsed().as_millis().max(1) as u64)),
+            Ok(Err(error)) => Err(CoreError::Ssh(format!("latency probe failed: {error}"))),
+            Err(_) => Err(CoreError::Ssh(String::from("latency probe timed out"))),
+        }
     }
 }
 

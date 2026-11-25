@@ -56,6 +56,7 @@ pub fn run() {
             commands::session::close_session,
             commands::session::list_sessions,
             commands::session::screen_snapshot,
+            commands::session::probe_session_latency,
             commands::session::serial_ports,
             commands::session::system_locale,
             commands::session::shell_profiles,

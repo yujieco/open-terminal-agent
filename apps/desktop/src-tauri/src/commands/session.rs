@@ -461,6 +461,48 @@ pub async fn screen_snapshot(
     Ok(screen.snapshot())
 }
 
+/// Live latency probe result for an active SSH session.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionProbeStatus {
+    /// Measured round-trip latency in milliseconds (`None` if timed out / offline).
+    pub rtt_ms: Option<u64>,
+    /// Derived connection quality tier: `good`, `fair`, `poor`, or `offline`.
+    pub quality: &'static str,
+}
+
+/// Measures in-band SSH round-trip latency for `session_id`.
+#[tauri::command]
+pub async fn probe_session_latency(
+    registry: State<'_, SessionRegistry>,
+    session_id: String,
+) -> Result<SessionProbeStatus, ApiError> {
+    let handle = registry.require(&session_id)?;
+    match handle.transport.probe_latency().await {
+        Ok(Some(ms)) => {
+            let quality = if ms < 80 {
+                "good"
+            } else if ms <= 180 {
+                "fair"
+            } else {
+                "poor"
+            };
+            Ok(SessionProbeStatus {
+                rtt_ms: Some(ms),
+                quality,
+            })
+        }
+        Ok(None) => Ok(SessionProbeStatus {
+            rtt_ms: None,
+            quality: "good",
+        }),
+        Err(_) => Ok(SessionProbeStatus {
+            rtt_ms: None,
+            quality: "offline",
+        }),
+    }
+}
+
 /// Lists serial ports with USB identifiers and descriptions.
 #[tauri::command]
 pub fn serial_ports() -> Result<Vec<term_core::SerialPortDescriptor>, ApiError> {
