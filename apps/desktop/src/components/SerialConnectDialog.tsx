@@ -18,7 +18,10 @@ interface SerialConnectDialogProps {
   busy: boolean;
   error: string | null;
   onClose: () => void;
-  onSubmit: (input: SerialConnectInput) => void;
+  onSubmit: (
+    input: SerialConnectInput,
+    save?: { name: string; groupName?: string } | null,
+  ) => void;
 }
 
 const BAUD_RATES = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600];
@@ -34,6 +37,9 @@ export function SerialConnectDialog({ busy, error, onClose, onSubmit }: SerialCo
   const [parity, setParity] = useState<SerialParity>("none");
   const [flowControl, setFlowControl] = useState<SerialFlowControl>("none");
   const [logPath, setLogPath] = useState("");
+  const [saveProfile, setSaveProfile] = useState(false);
+  const [profileName, setProfileName] = useState("");
+  const [groupName, setGroupName] = useState("");
 
   const refresh = useCallback(async () => {
     if (!isTauri()) {
@@ -210,6 +216,33 @@ export function SerialConnectDialog({ busy, error, onClose, onSubmit }: SerialCo
             />
           </label>
 
+          <label className="flex cursor-pointer items-center gap-2 text-[11px] text-[var(--text-secondary)]">
+            <input
+              type="checkbox"
+              checked={saveProfile}
+              onChange={(event) => setSaveProfile(event.target.checked)}
+              className="h-3.5 w-3.5 accent-[var(--accent)]"
+            />
+            {t("serialPro.saveProfile")}
+          </label>
+
+          {saveProfile ? (
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                className="ota-input"
+                value={profileName}
+                placeholder={`${path || "COM1"} @ ${baudRate}`}
+                onChange={(event) => setProfileName(event.target.value)}
+              />
+              <input
+                className="ota-input"
+                value={groupName}
+                placeholder={t("ssh.groupPlaceholder")}
+                onChange={(event) => setGroupName(event.target.value)}
+              />
+            </div>
+          ) : null}
+
           {error ? (
             <p className="text-[11px]" style={{ color: "var(--status-danger)" }}>
               {error}
@@ -229,15 +262,23 @@ export function SerialConnectDialog({ busy, error, onClose, onSubmit }: SerialCo
             type="button"
             disabled={busy || !ready}
             onClick={() =>
-              onSubmit({
-                path: path.trim(),
-                baudRate: parsedBaud,
-                dataBits: Number.parseInt(dataBits, 10),
-                stopBits,
-                parity,
-                flowControl,
-                logPath: logPath.trim().length > 0 ? logPath.trim() : undefined,
-              })
+              onSubmit(
+                {
+                  path: path.trim(),
+                  baudRate: parsedBaud,
+                  dataBits: Number.parseInt(dataBits, 10),
+                  stopBits,
+                  parity,
+                  flowControl,
+                  logPath: logPath.trim().length > 0 ? logPath.trim() : undefined,
+                },
+                saveProfile
+                  ? {
+                      name: profileName.trim() || `${path.trim()} @ ${parsedBaud}`,
+                      groupName: groupName.trim() || undefined,
+                    }
+                  : null,
+              )
             }
             className="ota-btn-primary rounded-md px-3.5 py-1.5 text-xs"
           >

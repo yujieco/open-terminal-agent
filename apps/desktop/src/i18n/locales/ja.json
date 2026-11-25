@@ -38,7 +38,8 @@
     "rename": "タブ名を変更",
     "renameHint": "ダブルクリックまたは右クリックで名前を変更",
     "splitHorizontal": "右に分割 ({{shortcut}})",
-    "splitVertical": "下に分割 ({{shortcut}})"
+    "splitVertical": "下に分割 ({{shortcut}})",
+    "duplicate": "セッションを複製"
   },
   "terminal": {
     "empty": "左側の「新しいローカルターミナル」から開始してください。",
@@ -465,7 +466,8 @@
     "localEditHint": "高遅延 SSH 向けのゼロ遅延入力：ローカルでコマンドを編集し Enter で一括送信（160ms 超で自動有効化）",
     "localInputPlaceholder": "ローカルで遅延なく入力し Enter で送信（↑↓ で履歴）…",
     "sendCommand": "送信",
-    "interrupt": "リモートへ Ctrl+C 中断を送信"
+    "interrupt": "リモートへ Ctrl+C 中断を送信",
+    "historySearchPlaceholder": "ローカル送信履歴を検索…"
   },
   "highlight": {
     "title": "ログキーワード強調表示",
@@ -534,5 +536,31 @@
     "active": "ブロードキャスト中",
     "off": "同時入力",
     "tooltip": "このタブ内の全分割ペインへ同時にキー入力を送信"
+  },
+  "blocks": {
+    "title": "コマンドブロック",
+    "shortLabel": "ブロック",
+    "tooltip": "終了コード・所要時間・出力をブロック単位で表示し、出力コピーや再実行が可能",
+    "empty": "OSC 133 対応シェルでコマンドを実行すると構造化ブロックが表示されます。",
+    "unnamedCommand": "(コマンド)",
+    "jump": "移動",
+    "copyOutput": "出力コピー",
+    "copied": "コピー済",
+    "rerun": "再実行",
+    "collapse": "折りたたむ",
+    "expand": "展開 ({{count}} 行)"
+  },
+  "serialPro": {
+    "saveProfile": "シリアル設定をサイドバーに保存",
+    "timestamps": "時刻付与",
+    "autoScrollOn": "自動スクロール",
+    "autoScrollPaused": "スクロール固定",
+    "timedSend": "定期送信",
+    "repeating": "定期送信中",
+    "startRepeat": "開始",
+    "stopRepeat": "停止",
+    "addMacro": "カスタムマクロを追加",
+    "macroName": "ボタン名",
+    "resetCounters": "クリックで RX/TX カウンタをリセット"
   }
 }

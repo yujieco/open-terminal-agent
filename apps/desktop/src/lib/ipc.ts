@@ -191,6 +191,17 @@ export interface SaveSshSessionInput {
   jump?: SshJumpInput;
 }
 
+export interface SaveSerialSessionInput {
+  name: string;
+  path: string;
+  baudRate: number;
+  dataBits?: number;
+  stopBits?: SerialStopBits;
+  parity?: SerialParity;
+  flowControl?: SerialFlowControl;
+  groupName?: string;
+}
+
 export interface ImportedSshHost {
   alias: string;
   host: string;
@@ -409,6 +420,10 @@ export const ipc = {
 
   saveSshSession(input: SaveSshSessionInput): Promise<SavedSession> {
     return invoke<SavedSession>("save_ssh_session", { request: input });
+  },
+
+  saveSerialSession(input: SaveSerialSessionInput): Promise<SavedSession> {
+    return invoke<SavedSession>("save_serial_session", { request: input });
   },
 
   listSavedSessions(): Promise<SavedSession[]> {

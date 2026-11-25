@@ -38,7 +38,8 @@
     "rename": "重命名标签",
     "renameHint": "双击或右键重命名",
     "splitHorizontal": "向右分屏 ({{shortcut}})",
-    "splitVertical": "向下分屏 ({{shortcut}})"
+    "splitVertical": "向下分屏 ({{shortcut}})",
+    "duplicate": "复制此会话"
   },
   "terminal": {
     "empty": "点击左侧「新建本地终端」开始。",
@@ -465,7 +466,8 @@
     "localEditHint": "高延迟 SSH 零卡顿模式：先在本地编辑命令，按回车整行推送到服务端执行（延迟超过 160ms 自动开启）",
     "localInputPlaceholder": "本地零延迟输入命令，回车整行发送到远端执行（↑↓ 翻阅历史）…",
     "sendCommand": "发送",
-    "interrupt": "向远端发送 Ctrl+C 中断信号"
+    "interrupt": "向远端发送 Ctrl+C 中断信号",
+    "historySearchPlaceholder": "模糊搜索本地已发送历史命令…"
   },
   "highlight": {
     "title": "日志关键字高亮",
@@ -534,5 +536,31 @@
     "active": "同步输入中",
     "off": "广播输入",
     "tooltip": "开启后，键入的命令将同时发送到当前标签页内所有分屏窗格"
+  },
+  "blocks": {
+    "title": "命令块视图",
+    "shortLabel": "命令块",
+    "tooltip": "按 Warp 风格查看每条命令的退出码、耗时与输出，支持一键复制输出与重跑",
+    "empty": "在支持 OSC 133 的本地 Shell 中执行命令后，这里会自动沉淀每条结构化命令块。",
+    "unnamedCommand": "(命令)",
+    "jump": "定位",
+    "copyOutput": "复制输出",
+    "copied": "已复制",
+    "rerun": "重跑",
+    "collapse": "收起",
+    "expand": "展开（共 {{count}} 行）"
+  },
+  "serialPro": {
+    "saveProfile": "保存串口配置到左侧栏",
+    "timestamps": "时间戳",
+    "autoScrollOn": "自动滚屏",
+    "autoScrollPaused": "已锁定滚屏",
+    "timedSend": "定时发送",
+    "repeating": "循环发送中",
+    "startRepeat": "开始",
+    "stopRepeat": "停止",
+    "addMacro": "新增自定义快捷指令按钮",
+    "macroName": "按钮名",
+    "resetCounters": "点击清零 RX/TX 收发字节计数"
   }
 }

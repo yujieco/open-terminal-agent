@@ -103,9 +103,35 @@ export default function App() {
   const [shells, setShells] = useState<ShellProfile[]>([]);
   const [saved, setSaved] = useState<SavedSession[]>([]);
   const [snippets, setSnippets] = useState<CommandSnippet[]>([]);
-  const [mode, setMode] = useState<PermissionMode>("supervised");
-  const [rightOpen, setRightOpen] = useState(true);
-  const [rightTab, setRightTab] = useState<RightTabKind>("agent");
+  const [mode, setMode] = useState<PermissionMode>(() => {
+    try {
+      const savedMode = window.localStorage.getItem("ota.pref.mode");
+      if (savedMode === "ask" || savedMode === "supervised" || savedMode === "autonomous") {
+        return savedMode;
+      }
+    } catch {
+      // Ignore storage errors.
+    }
+    return "supervised";
+  });
+  const [rightOpen, setRightOpen] = useState(() => {
+    try {
+      const val = window.localStorage.getItem("ota.pref.rightOpen");
+      return val === null ? true : val === "1";
+    } catch {
+      return true;
+    }
+  });
+  const [rightTab, setRightTab] = useState<RightTabKind>(() => {
+    try {
+      const val = window.localStorage.getItem("ota.pref.rightTab");
+      return val === "snippets" ? "snippets" : "agent";
+    } catch {
+      return "agent";
+    }
+  });
+  const [dragTabId, setDragTabId] = useState<string | null>(null);
+  const [dragOverTabId, setDragOverTabId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sftpOpen, setSftpOpen] = useState(false);
   const [tunnelsOpen, setTunnelsOpen] = useState(false);
@@ -147,6 +173,16 @@ export default function App() {
   useEffect(() => {
     tabsRef.current = tabs;
   }, [tabs]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("ota.pref.mode", mode);
+      window.localStorage.setItem("ota.pref.rightOpen", rightOpen ? "1" : "0");
+      window.localStorage.setItem("ota.pref.rightTab", rightTab);
+    } catch {
+      // Ignore storage errors.
+    }
+  }, [mode, rightOpen, rightTab]);
 
   useEffect(() => {
     if (!tabMenu) return;
@@ -450,7 +486,10 @@ export default function App() {
   );
 
   const openSerial = useCallback(
-    async (input: SerialConnectInput) => {
+    async (
+      input: SerialConnectInput,
+      save?: { name: string; groupName?: string } | null,
+    ) => {
       const opened = await openSession({
         kind: "serial",
         cols: DEFAULT_COLS,
@@ -458,11 +497,57 @@ export default function App() {
         ...input,
       });
       if (opened) {
+        if (save && isTauri()) {
+          try {
+            await ipc.saveSerialSession({
+              name: save.name,
+              path: input.path,
+              baudRate: input.baudRate,
+              dataBits: input.dataBits,
+              stopBits: input.stopBits,
+              parity: input.parity,
+              flowControl: input.flowControl,
+              groupName: save.groupName,
+            });
+            await refreshSaved();
+          } catch (cause) {
+            setError(cause instanceof Error ? cause.message : String(cause));
+          }
+        }
         setDialog(null);
         setDialogError(null);
       }
     },
-    [openSession],
+    [openSession, refreshSaved],
+  );
+
+  const reorderTabs = useCallback((sourceTabId: string, targetTabId: string) => {
+    if (sourceTabId === targetTabId) return;
+    setTabs((previous) => {
+      const from = previous.findIndex((t) => t.id === sourceTabId);
+      const to = previous.findIndex((t) => t.id === targetTabId);
+      if (from === -1 || to === -1) return previous;
+      const next = [...previous];
+      const [moved] = next.splice(from, 1);
+      if (!moved) return previous;
+      next.splice(to, 0, moved);
+      return next;
+    });
+  }, []);
+
+  const duplicateSession = useCallback(
+    (sessionId: string) => {
+      const source = sessionsRef.current.find((s) => s.id === sessionId);
+      if (!source) return;
+      if (source.savedId) {
+        void openSaved(source.savedId);
+      } else if (source.reconnectSpec) {
+        void openSession(source.reconnectSpec, source.envTag);
+      } else {
+        void createLocalSession();
+      }
+    },
+    [createLocalSession, openSaved, openSession],
   );
 
   const handleAgentRunning = useCallback((sessionId: string, running: boolean) => {
@@ -757,18 +842,45 @@ export default function App() {
                     allSessionIds: tabIds,
                   });
                 }}
+                draggable={!isEditing}
+                onDragStart={() => setDragTabId(tab.id)}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  if (dragTabId && dragTabId !== tab.id) {
+                    setDragOverTabId(tab.id);
+                  }
+                }}
+                onDragLeave={() => {
+                  if (dragOverTabId === tab.id) setDragOverTabId(null);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  if (dragTabId) reorderTabs(dragTabId, tab.id);
+                  setDragTabId(null);
+                  setDragOverTabId(null);
+                }}
+                onDragEnd={() => {
+                  setDragTabId(null);
+                  setDragOverTabId(null);
+                }}
                 className={`group relative flex h-7 shrink-0 items-center gap-1.5 overflow-hidden rounded-[7px] border px-2.5 transition ${
-                  isActive
-                    ? "border-[var(--border-strong)] bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
-                    : "border-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                  dragOverTabId === tab.id
+                    ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+                    : isActive
+                      ? "border-[var(--border-strong)] bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+                      : "border-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
                 }`}
               >
-                {lead?.envTag === "prod" || lead?.envTag === "staging" ? (
+                {lead?.envTag ? (
                   <span
                     className="pointer-events-none absolute inset-x-0 top-0 h-[2px]"
                     style={{
                       backgroundColor:
-                        lead.envTag === "prod" ? "var(--status-danger)" : "var(--status-warn)",
+                        lead.envTag === "prod"
+                          ? "var(--status-danger)"
+                          : lead.envTag === "staging"
+                            ? "var(--status-warn)"
+                            : "var(--accent)",
                     }}
                   />
                 ) : null}
@@ -1155,6 +1267,22 @@ export default function App() {
             onClick={() => {
               const target = tabMenu.leadSessionId;
               setTabMenu(null);
+              duplicateSession(target);
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--text-primary)] transition hover:bg-[var(--bg-hover)]"
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" fill="none" stroke="currentColor" strokeWidth="1.4">
+              <rect x="5" y="5" width="8" height="8" rx="1.2" />
+              <path d="M11 5V3.5A1.2 1.2 0 009.8 2.3H3.5A1.2 1.2 0 002.3 3.5v6.3A1.2 1.2 0 003.5 11H5" />
+            </svg>
+            <span>{t("tabs.duplicate")}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const target = tabMenu.leadSessionId;
+              setTabMenu(null);
               void splitActive("row", target);
             }}
             className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--text-primary)] transition hover:bg-[var(--bg-hover)]"
@@ -1330,7 +1458,7 @@ export default function App() {
           busy={creating}
           error={dialogError}
           onClose={() => setDialog(null)}
-          onSubmit={(input) => void openSerial(input)}
+          onSubmit={(input, save) => void openSerial(input, save)}
         />
       ) : null}
     </div>

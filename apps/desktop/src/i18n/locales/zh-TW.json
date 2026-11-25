@@ -38,7 +38,8 @@
     "rename": "重新命名分頁",
     "renameHint": "雙擊或右鍵重新命名",
     "splitHorizontal": "向右分割 ({{shortcut}})",
-    "splitVertical": "向下分割 ({{shortcut}})"
+    "splitVertical": "向下分割 ({{shortcut}})",
+    "duplicate": "複製此工作階段"
   },
   "terminal": {
     "empty": "點擊左側「新增本機終端機」開始。",
@@ -465,7 +466,8 @@
     "localEditHint": "高延遲 SSH 零卡頓模式：在本機編輯指令，按 Enter 整行送至遠端執行（延遲超過 160ms 自動啟用）",
     "localInputPlaceholder": "本機零延遲輸入指令，Enter 整行傳送到遠端執行（↑↓ 查閱歷史）…",
     "sendCommand": "送出",
-    "interrupt": "向遠端傳送 Ctrl+C 中斷訊號"
+    "interrupt": "向遠端傳送 Ctrl+C 中斷訊號",
+    "historySearchPlaceholder": "模糊搜尋本機歷史指令…"
   },
   "highlight": {
     "title": "日誌關鍵字醒目提示",
@@ -534,5 +536,31 @@
     "active": "同步輸入中",
     "off": "廣播輸入",
     "tooltip": "啟用後，輸入的指令會同時送往目前分頁內的所有分割窗格"
+  },
+  "blocks": {
+    "title": "指令區塊檢視",
+    "shortLabel": "指令塊",
+    "tooltip": "檢視每條指令的結束碼、耗時與輸出，支援一鍵複製輸出與重新執行",
+    "empty": "在支援 OSC 133 的 Shell 中執行指令後，這裡會自動記錄結構化指令區塊。",
+    "unnamedCommand": "(指令)",
+    "jump": "定位",
+    "copyOutput": "複製輸出",
+    "copied": "已複製",
+    "rerun": "重跑",
+    "collapse": "收合",
+    "expand": "展開（共 {{count}} 行）"
+  },
+  "serialPro": {
+    "saveProfile": "儲存序列埠設定到左側欄",
+    "timestamps": "時間戳記",
+    "autoScrollOn": "自動捲動",
+    "autoScrollPaused": "已鎖定捲動",
+    "timedSend": "定時傳送",
+    "repeating": "循環傳送中",
+    "startRepeat": "開始",
+    "stopRepeat": "停止",
+    "addMacro": "新增自訂快捷指令按鈕",
+    "macroName": "按鈕名稱",
+    "resetCounters": "點擊歸零 RX/TX 位元組計數"
   }
 }

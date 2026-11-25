@@ -29,7 +29,9 @@ import {
   resolveTerminalTheme,
   type TerminalAppearanceConfig,
 } from "../lib/terminalThemes";
+import { CommandBlocksPanel, type CommandBlock } from "./CommandBlocksPanel";
 import { ProdGuardDialog } from "./ProdGuardDialog";
+import { SerialProToolbar } from "./SerialProToolbar";
 
 /**
  * Same stack as the CSS theme token, spelled out because xterm needs a real
@@ -50,6 +52,7 @@ interface TerminalPaneProps {
   highlightEnabled: boolean;
   highlightRules: HighlightRule[];
   searchSignal: number;
+  blocksSignal: number;
   exitedLabel: string;
   onResize: (cols: number, rows: number) => void;
   onExit: () => void;
@@ -81,6 +84,7 @@ export function TerminalPane({
   highlightEnabled,
   highlightRules,
   searchSignal,
+  blocksSignal,
   exitedLabel,
   onResize,
   onExit,
@@ -100,7 +104,25 @@ export function TerminalPane({
   const [hexLog, setHexLog] = useState<string[]>([]);
   const [hexInput, setHexInput] = useState("");
   const [hexError, setHexError] = useState<string | null>(null);
+  const [serialTimestamps, setSerialTimestamps] = useState(false);
+  const [serialAutoScroll, setSerialAutoScroll] = useState(true);
+  const [rxBytes, setRxBytes] = useState(0);
+  const [txBytes, setTxBytes] = useState(0);
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
+
+  // #7 Warp-style OSC 133 command blocks
+  const [blocksOpen, setBlocksOpen] = useState(false);
+  const [blocks, setBlocks] = useState<CommandBlock[]>([]);
+  const activeBlockRef = useRef<{
+    id: number;
+    commandLine: number;
+    outputStartLine: number;
+    startedAt: number;
+  } | null>(null);
+  const blockSeqRef = useRef(1);
+  const serialTimestampsRef = useRef(serialTimestamps);
+  const serialAutoScrollRef = useRef(serialAutoScroll);
+  const lastBlocksSignalRef = useRef(0);
 
   // #2 Terminal in-pane search state
   const [searchOpen, setSearchOpen] = useState(false);
@@ -141,7 +163,25 @@ export function TerminalPane({
     envTagRef.current = envTag;
     broadcastTargetsRef.current = broadcastTargets;
     broadcastHasProdRef.current = broadcastHasProd;
-  }, [onResize, onExit, exitedLabel, envTag, broadcastTargets, broadcastHasProd]);
+    serialTimestampsRef.current = serialTimestamps;
+    serialAutoScrollRef.current = serialAutoScroll;
+  }, [
+    onResize,
+    onExit,
+    exitedLabel,
+    envTag,
+    broadcastTargets,
+    broadcastHasProd,
+    serialTimestamps,
+    serialAutoScroll,
+  ]);
+
+  useEffect(() => {
+    if (blocksSignal > 0 && blocksSignal !== lastBlocksSignalRef.current && focused) {
+      lastBlocksSignalRef.current = blocksSignal;
+      setBlocksOpen((open) => !open);
+    }
+  }, [blocksSignal, focused]);
 
   // Open search bar whenever parent workspace increments searchSignal on focused pane.
   useEffect(() => {
@@ -249,7 +289,9 @@ export function TerminalPane({
   useEffect(() => {
     if (backend.kind !== "serial") return;
     return backend.onRawOutput((bytes) => {
-      const line = toHexLine(bytes);
+      setRxBytes((prev) => prev + bytes.length);
+      const prefix = serialTimestampsRef.current ? `[${formatClockMs()}] ` : "";
+      const line = `${prefix}${toHexLine(bytes)}`;
       setHexLog((previous) => {
         const next = [...previous, line];
         return next.length > 400 ? next.slice(next.length - 400) : next;
@@ -259,6 +301,9 @@ export function TerminalPane({
 
   const writeToTargets = useCallback(
     (data: string) => {
+      if (backend.kind === "serial") {
+        setTxBytes((prev) => prev + new TextEncoder().encode(data).length);
+      }
       const targets = broadcastTargetsRef.current;
       if (targets && targets.length > 0) {
         for (const target of targets) {
@@ -338,9 +383,10 @@ export function TerminalPane({
 
     term.open(container);
 
-    // Subtle left-gutter accent marker on every OSC 133;A prompt line so
-    // commands are immediately scannable in long output without adding clutter.
+    // Subtle left-gutter accent marker on every OSC 133;A prompt line plus
+    // Warp-style structured Command Block capture on A/B/C/D transitions.
     const oscDisposable = term.parser.registerOscHandler(133, (data) => {
+      const absLine = term.buffer.active.baseY + term.buffer.active.cursorY;
       if (data === "A" || data.startsWith("A;")) {
         try {
           const marker = term.registerMarker(0);
@@ -358,8 +404,59 @@ export function TerminalPane({
         } catch {
           // Ignore decoration errors if terminal is disposing.
         }
-      } else if (data.startsWith("D;")) {
-        const code = Number.parseInt(data.slice(2).split(";")[0] ?? "0", 10);
+      } else if (data === "B" || data.startsWith("B;")) {
+        activeBlockRef.current = {
+          id: blockSeqRef.current++,
+          commandLine: absLine,
+          outputStartLine: absLine + 1,
+          startedAt: Date.now(),
+        };
+      } else if (data === "C" || data.startsWith("C;")) {
+        if (!activeBlockRef.current) {
+          activeBlockRef.current = {
+            id: blockSeqRef.current++,
+            commandLine: absLine,
+            outputStartLine: absLine + 1,
+            startedAt: Date.now(),
+          };
+        } else {
+          activeBlockRef.current.outputStartLine = absLine + 1;
+          activeBlockRef.current.startedAt = Date.now();
+        }
+      } else if (data.startsWith("D;") || data === "D") {
+        const code = data.startsWith("D;")
+          ? Number.parseInt(data.slice(2).split(";")[0] ?? "0", 10)
+          : 0;
+        const pending = activeBlockRef.current;
+        activeBlockRef.current = null;
+        if (pending) {
+          const buf = term.buffer.active;
+          const cmdRaw = buf.getLine(pending.commandLine)?.translateToString(true) ?? "";
+          // Strip common shell prompt prefix (`$ `, `% `, `# `, `❯ `, `> `)
+          const cleanedCmd = cmdRaw.replace(/^.*?(?:[%$#❯>]\s+)/, "").trim() || cmdRaw.trim();
+          const outLines: string[] = [];
+          const endLine = Math.min(absLine, buf.length - 1);
+          for (let lineIdx = pending.outputStartLine; lineIdx < endLine; lineIdx += 1) {
+            const text = buf.getLine(lineIdx)?.translateToString(true) ?? "";
+            outLines.push(text);
+          }
+          const outputText = outLines.join("\n").trimEnd();
+          if (cleanedCmd.length > 0 || outputText.length > 0) {
+            const finished: CommandBlock = {
+              id: pending.id,
+              command: cleanedCmd,
+              output: outputText,
+              exitCode: Number.isFinite(code) ? code : 0,
+              startedAt: pending.startedAt,
+              durationMs: Math.max(0, Date.now() - pending.startedAt),
+              bufferLine: pending.commandLine,
+            };
+            setBlocks((prev) => {
+              const next = [...prev, finished];
+              return next.length > 80 ? next.slice(next.length - 80) : next;
+            });
+          }
+        }
         if (Number.isFinite(code) && code > 0 && code !== 130) {
           setDetectedError({
             id: Date.now(),
@@ -397,11 +494,20 @@ export function TerminalPane({
       if (hit) {
         setDetectedError(hit);
       }
-      const decorated =
+      let chunk =
         highlightsRef.current.length > 0
           ? applyKeywordHighlights(data, highlightsRef.current)
           : data;
-      term.write(decorated);
+      if (backend.kind === "serial" && serialTimestampsRef.current) {
+        const stamp = `\x1b[90m[${formatClockMs()}]\x1b[0m `;
+        chunk = chunk.replace(/\r?\n/g, (nl) => `${nl}${stamp}`);
+      }
+      const savedViewportY = term.buffer.active.viewportY;
+      term.write(chunk, () => {
+        if (backend.kind === "serial" && !serialAutoScrollRef.current) {
+          term.scrollToLine(savedViewportY);
+        }
+      });
     });
     const stopExit = backend.onExit(() => {
       term.write(`\r\n\x1b[38;5;244m[${exitedLabelRef.current}]\x1b[0m\r\n`);
@@ -571,10 +677,37 @@ export function TerminalPane({
 
   return (
     <div
-      className="relative h-full w-full transition-colors duration-150"
+      className="relative flex h-full w-full flex-col transition-colors duration-150"
       style={{ backgroundColor: resolvedPalette.background }}
       onContextMenu={handleContextMenu}
     >
+      {/* #8 Serial Pro debug toolbar */}
+      {backend.kind === "serial" ? (
+        <SerialProToolbar
+          hexMode={hexMode}
+          timestamps={serialTimestamps}
+          autoScroll={serialAutoScroll}
+          rxBytes={rxBytes}
+          txBytes={txBytes}
+          onToggleHex={() => setHexMode((mode) => !mode)}
+          onToggleTimestamps={() => setSerialTimestamps((prev) => !prev)}
+          onToggleAutoScroll={() => setSerialAutoScroll((prev) => !prev)}
+          onResetCounters={() => {
+            setRxBytes(0);
+            setTxBytes(0);
+          }}
+          onSendText={(text) => writeToTargets(text)}
+          onSendHex={(rawHex) => {
+            const bytes = parseHexInput(rawHex);
+            if (!bytes) return false;
+            setTxBytes((prev) => prev + bytes.length);
+            backend.writeBytes(bytes);
+            return true;
+          }}
+        />
+      ) : null}
+
+      <div className="relative min-h-0 flex-1">
       {/* #2 Floating terminal search bar (Cmd/Ctrl+F) */}
       {searchOpen && !hexMode ? (
         <div
@@ -659,20 +792,27 @@ export function TerminalPane({
         </div>
       ) : null}
 
-      {backend.kind === "serial" ? (
-        <button
-          type="button"
-          onClick={() => setHexMode((mode) => !mode)}
-          className="absolute top-2 right-3 z-10 rounded-md border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2 py-0.5 font-mono text-[10px] font-medium text-[var(--text-secondary)] transition hover:border-[var(--accent-border)] hover:text-[var(--accent)]"
-        >
-          {hexMode ? t("terminal.utf8Mode") : t("terminal.hexMode")}
-        </button>
-      ) : null}
-
       <div
         ref={containerRef}
         className={`h-full w-full px-3.5 py-2 ${hexMode ? "hidden" : ""}`}
       />
+
+      {/* #7 Warp-style Command Blocks drawer */}
+      {blocksOpen && !hexMode ? (
+        <CommandBlocksPanel
+          blocks={blocks}
+          onJumpToLine={(line) => {
+            terminalRef.current?.scrollToLine(Math.max(0, line));
+            terminalRef.current?.focus();
+          }}
+          onRerun={(command) => {
+            sendWithGuard(`${command}\r`);
+            terminalRef.current?.focus();
+          }}
+          onFavorite={onFavoriteCommand}
+          onClose={() => setBlocksOpen(false)}
+        />
+      ) : null}
 
       {/* #9 Floating Error-Line Instant AI Triage pill */}
       {detectedError && !hexMode ? (
@@ -879,8 +1019,18 @@ export function TerminalPane({
           </button>
         </div>
       ) : null}
+      </div>
     </div>
   );
+}
+
+function formatClockMs(): string {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  const ss = String(now.getSeconds()).padStart(2, "0");
+  const ms = String(now.getMilliseconds()).padStart(3, "0");
+  return `${hh}:${mm}:${ss}.${ms}`;
 }
 
 function toHexLine(bytes: Uint8Array): string {

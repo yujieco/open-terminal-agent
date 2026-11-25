@@ -154,6 +154,56 @@ pub fn save_ssh_session(
     Ok(store.save(draft)?)
 }
 
+/// Arguments for [`save_serial_session`].
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveSerialSessionRequest {
+    pub name: String,
+    pub path: String,
+    pub baud_rate: u32,
+    #[serde(default = "default_data_bits")]
+    pub data_bits: u8,
+    #[serde(default = "default_stop_bits")]
+    pub stop_bits: term_core::SerialStopBits,
+    #[serde(default = "default_parity")]
+    pub parity: term_core::SerialParity,
+    #[serde(default = "default_flow_control")]
+    pub flow_control: term_core::SerialFlowControl,
+    #[serde(default)]
+    pub group_name: Option<String>,
+}
+
+/// Persists a serial port profile in the sidebar saved sessions table.
+#[tauri::command]
+pub fn save_serial_session(
+    store: State<'_, Store>,
+    request: SaveSerialSessionRequest,
+) -> Result<SavedSession, ApiError> {
+    let mut payload = json!({
+        "path": request.path,
+        "baudRate": request.baud_rate,
+        "dataBits": request.data_bits,
+        "stopBits": request.stop_bits,
+        "parity": request.parity,
+        "flowControl": request.flow_control,
+    });
+    if let Some(group) = request
+        .group_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        && let Some(object) = payload.as_object_mut()
+    {
+        object.insert(String::from("groupName"), json!(group));
+    }
+    Ok(store.save(NewSavedSession {
+        name: request.name,
+        kind: String::from("serial"),
+        payload,
+        secret_ref: None,
+    })?)
+}
+
 /// Resolves a stored SSH profile (including keyring secrets and optional
 /// bastion `ProxyJump`) into an [`SshConnectRequest`].
 pub(crate) fn resolve_saved_ssh_request(

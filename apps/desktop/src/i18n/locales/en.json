@@ -38,7 +38,8 @@
     "rename": "Rename tab",
     "renameHint": "Double-click or right-click to rename",
     "splitHorizontal": "Split right ({{shortcut}})",
-    "splitVertical": "Split down ({{shortcut}})"
+    "splitVertical": "Split down ({{shortcut}})",
+    "duplicate": "Duplicate session"
   },
   "terminal": {
     "empty": "Start a local terminal from the sidebar to begin.",
@@ -465,7 +466,8 @@
     "localEditHint": "Zero-lag input for high-latency SSH: compose commands locally and push on Enter (auto-enabled above 160 ms)",
     "localInputPlaceholder": "Type locally with zero lag, press Enter to push to remote (↑↓ history)…",
     "sendCommand": "Send",
-    "interrupt": "Send Ctrl+C interrupt to remote shell"
+    "interrupt": "Send Ctrl+C interrupt to remote shell",
+    "historySearchPlaceholder": "Search local command history…"
   },
   "highlight": {
     "title": "Log keyword highlights",
@@ -534,5 +536,31 @@
     "active": "Broadcast ON",
     "off": "Broadcast",
     "tooltip": "Broadcast typing across all split panes in this tab simultaneously"
+  },
+  "blocks": {
+    "title": "Command Blocks",
+    "shortLabel": "Blocks",
+    "tooltip": "View structured command blocks (exit code, duration, copy output, rerun)",
+    "empty": "Run commands in a shell with OSC 133 integration to see structured command blocks here.",
+    "unnamedCommand": "(command)",
+    "jump": "Jump",
+    "copyOutput": "Copy output",
+    "copied": "Copied",
+    "rerun": "Re-run",
+    "collapse": "Collapse",
+    "expand": "Expand ({{count}} lines)"
+  },
+  "serialPro": {
+    "saveProfile": "Save serial port profile to sidebar",
+    "timestamps": "Timestamps",
+    "autoScrollOn": "Auto-scroll",
+    "autoScrollPaused": "Scroll locked",
+    "timedSend": "Timed send",
+    "repeating": "Repeating…",
+    "startRepeat": "Start",
+    "stopRepeat": "Stop",
+    "addMacro": "Add custom macro button",
+    "macroName": "Button name",
+    "resetCounters": "Click to reset RX/TX byte counters"
   }
 }

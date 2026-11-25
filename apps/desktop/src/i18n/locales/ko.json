@@ -38,7 +38,8 @@
     "rename": "탭 이름 변경",
     "renameHint": "더블 클릭 또는 우클릭으로 이름 변경",
     "splitHorizontal": "오른쪽 분할 ({{shortcut}})",
-    "splitVertical": "아래쪽 분할 ({{shortcut}})"
+    "splitVertical": "아래쪽 분할 ({{shortcut}})",
+    "duplicate": "세션 복제"
   },
   "terminal": {
     "empty": "왼쪽의 '새 로컬 터미널'에서 시작하세요.",
@@ -465,7 +466,8 @@
     "localEditHint": "고지연 SSH 무지연 입력: 로컬에서 명령을 작성하고 Enter로 한 번에 전송 (160ms 초과 시 자동 활성화)",
     "localInputPlaceholder": "로컬에서 지연 없이 입력 후 Enter로 원격 전송 (↑↓ 기록)…",
     "sendCommand": "전송",
-    "interrupt": "원격 셸로 Ctrl+C 중단 신호 전송"
+    "interrupt": "원격 셸로 Ctrl+C 중단 신호 전송",
+    "historySearchPlaceholder": "로컬 명령 기록 검색…"
   },
   "highlight": {
     "title": "로그 키워드 강조",
@@ -534,5 +536,31 @@
     "active": "브로드캐스트 켜짐",
     "off": "동시 입력",
     "tooltip": "현재 탭의 모든 분할 창에 키 입력을 동시에 전송합니다"
+  },
+  "blocks": {
+    "title": "명령 블록",
+    "shortLabel": "블록",
+    "tooltip": "명령별 종료 코드, 소요 시간, 출력을 블록 단위로 확인하고 복사/재실행",
+    "empty": "OSC 133 지원 셸에서 명령을 실행하면 구조화된 명령 블록이 표시됩니다.",
+    "unnamedCommand": "(명령)",
+    "jump": "이동",
+    "copyOutput": "출력 복사",
+    "copied": "복사됨",
+    "rerun": "재실행",
+    "collapse": "접기",
+    "expand": "펼치기 ({{count}}줄)"
+  },
+  "serialPro": {
+    "saveProfile": "시리얼 프로필을 사이드바에 저장",
+    "timestamps": "타임스탬프",
+    "autoScrollOn": "자동 스크롤",
+    "autoScrollPaused": "스크롤 잠금",
+    "timedSend": "주기 전송",
+    "repeating": "반복 전송 중",
+    "startRepeat": "시작",
+    "stopRepeat": "정지",
+    "addMacro": "사용자 정의 매크로 추가",
+    "macroName": "버튼 이름",
+    "resetCounters": "클릭하여 RX/TX 바이트 카운터 초기화"
   }
 }

@@ -84,6 +84,9 @@ export function TerminalWorkspace({
   const [highlightRules, setHighlightRules] = useState<HighlightRule[]>(() => loadHighlightRules());
   const [highlightMenuOpen, setHighlightMenuOpen] = useState(false);
   const [searchSignal, setSearchSignal] = useState(0);
+  const [blocksSignal, setBlocksSignal] = useState(0);
+  const [historySearchOpen, setHistorySearchOpen] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState("");
   const [localGuardPending, setLocalGuardPending] = useState<{
     match: DangerousCommandMatch;
     raw: string;
@@ -123,6 +126,23 @@ export function TerminalWorkspace({
     }, 5000);
     return () => window.clearInterval(timer);
   }, [activeSessionId, runProbe, sshAlive]);
+
+  // #15 Cmd/Ctrl+Shift+L toggles local-buffered SSH editing on the active SSH session.
+  useEffect(() => {
+    if (!isSsh || !activeSessionId) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "l") {
+        event.preventDefault();
+        manualToggleRef.current[activeSessionId] = true;
+        setLocalEditMap((previous) => ({
+          ...previous,
+          [activeSessionId]: !previous[activeSessionId],
+        }));
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeSessionId, isSsh]);
 
   if (tabs.length === 0) {
     return (
@@ -351,6 +371,15 @@ export function TerminalWorkspace({
 
           <button
             type="button"
+            title={t("blocks.tooltip")}
+            onClick={() => setBlocksSignal((n) => n + 1)}
+            className="inline-flex h-6 items-center gap-1 rounded-md border border-transparent px-1.5 text-[10.5px] font-medium text-[var(--text-muted)] transition hover:border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
+          >
+            <span>{t("blocks.shortLabel")}</span>
+          </button>
+
+          <button
+            type="button"
             title={t("terminal.search.tooltip", { shortcut: formatShortcut("F") })}
             onClick={() => setSearchSignal((n) => n + 1)}
             className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-[var(--text-muted)] transition hover:border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
@@ -471,6 +500,7 @@ export function TerminalWorkspace({
                 highlightEnabled={highlightEnabled}
                 highlightRules={highlightRules}
                 searchSignal={searchSignal}
+                blocksSignal={blocksSignal}
                 exitedLabel={exitedLabel}
                 onSelect={onSelect}
                 onResize={onResize}
@@ -500,18 +530,76 @@ export function TerminalWorkspace({
         />
       ) : null}
 
-      {/* 0ms local-buffered SSH command composer (eliminates high-latency typing lag) */}
+      {/* #15 0ms local-buffered SSH command composer (multi-line + Ctrl+R history search) */}
       {localEditEnabled && activeSession ? (
-        <div className="shrink-0 border-t border-[var(--border-subtle)] bg-[var(--bg-chrome)] px-4 py-2">
-          <div className="flex items-center gap-1.5 rounded-[10px] border border-[var(--border-strong)] bg-[var(--bg-surface)] p-1.5 pl-3 transition focus-within:border-[var(--accent-border)] focus-within:shadow-[0_0_0_3px_var(--accent-soft)]">
+        <div className="relative shrink-0 border-t border-[var(--border-subtle)] bg-[var(--bg-chrome)] px-4 py-2">
+          {historySearchOpen ? (
+            <div className="mb-2 overflow-hidden rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] shadow-xl">
+              <div className="flex items-center gap-2 border-b border-[var(--border-subtle)] px-2.5 py-1.5">
+                <span className="font-mono text-[10.5px] text-[var(--accent)]">Ctrl+R</span>
+                <input
+                  autoFocus
+                  value={historyFilter}
+                  onChange={(event) => setHistoryFilter(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      setHistorySearchOpen(false);
+                    } else if (event.key === "Enter") {
+                      const matches = cmdHistory
+                        .filter((item) =>
+                          item.toLowerCase().includes(historyFilter.trim().toLowerCase()),
+                        )
+                        .reverse();
+                      if (matches[0]) {
+                        setLocalCmd(matches[0]);
+                      }
+                      setHistorySearchOpen(false);
+                    }
+                  }}
+                  placeholder={t("sshProbe.historySearchPlaceholder")}
+                  className="h-6 flex-1 bg-transparent font-mono text-xs text-[var(--text-primary)] outline-none placeholder:font-sans placeholder:text-[var(--text-muted)]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setHistorySearchOpen(false)}
+                  className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="max-h-36 overflow-y-auto p-1">
+                {cmdHistory
+                  .filter((item) =>
+                    item.toLowerCase().includes(historyFilter.trim().toLowerCase()),
+                  )
+                  .reverse()
+                  .slice(0, 12)
+                  .map((item, idx) => (
+                    <button
+                      key={`${idx}-${item}`}
+                      type="button"
+                      onClick={() => {
+                        setLocalCmd(item);
+                        setHistorySearchOpen(false);
+                      }}
+                      className="block w-full truncate rounded px-2.5 py-1 text-left font-mono text-[11.5px] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                    >
+                      {item}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="flex items-end gap-1.5 rounded-[10px] border border-[var(--border-strong)] bg-[var(--bg-surface)] p-1.5 pl-3 transition focus-within:border-[var(--accent-border)] focus-within:shadow-[0_0_0_3px_var(--accent-soft)]">
             <span
-              className="shrink-0 select-none font-mono text-[12px] font-semibold"
+              className="mb-1 shrink-0 select-none font-mono text-[12px] font-semibold"
               style={{ color: "var(--accent)" }}
             >
               $
             </span>
-            <input
-              type="text"
+            <textarea
+              rows={Math.min(5, Math.max(1, localCmd.split("\n").length))}
               value={localCmd}
               disabled={activeSession.exited}
               onChange={(event) => {
@@ -519,12 +607,23 @@ export function TerminalWorkspace({
                 setHistoryIdx(-1);
               }}
               onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
+                if (event.ctrlKey && event.key.toLowerCase() === "r") {
+                  event.preventDefault();
+                  setHistoryFilter("");
+                  setHistorySearchOpen((open) => !open);
+                  return;
+                }
+                if (
+                  event.key === "Enter" &&
+                  ((!event.shiftKey && !localCmd.includes("\n")) ||
+                    event.metaKey ||
+                    event.ctrlKey)
+                ) {
                   event.preventDefault();
                   sendLocalCommand();
                   return;
                 }
-                if (event.key === "ArrowUp" && cmdHistory.length > 0) {
+                if (event.key === "ArrowUp" && !localCmd.includes("\n") && cmdHistory.length > 0) {
                   event.preventDefault();
                   const nextIdx =
                     historyIdx === -1 ? cmdHistory.length - 1 : Math.max(0, historyIdx - 1);
@@ -532,7 +631,7 @@ export function TerminalWorkspace({
                   setLocalCmd(cmdHistory[nextIdx] ?? "");
                   return;
                 }
-                if (event.key === "ArrowDown" && historyIdx !== -1) {
+                if (event.key === "ArrowDown" && !localCmd.includes("\n") && historyIdx !== -1) {
                   event.preventDefault();
                   if (historyIdx + 1 >= cmdHistory.length) {
                     setHistoryIdx(-1);
@@ -545,8 +644,21 @@ export function TerminalWorkspace({
                 }
               }}
               placeholder={t("sshProbe.localInputPlaceholder")}
-              className="h-7 min-w-0 flex-1 bg-transparent font-mono text-[12.5px] text-[var(--text-primary)] outline-none placeholder:font-sans placeholder:text-[var(--text-muted)] disabled:opacity-50"
+              className="min-h-7 min-w-0 flex-1 resize-none bg-transparent py-1 font-mono text-[12.5px] leading-snug text-[var(--text-primary)] outline-none placeholder:font-sans placeholder:text-[var(--text-muted)] disabled:opacity-50"
             />
+            {cmdHistory.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setHistoryFilter("");
+                  setHistorySearchOpen((open) => !open);
+                }}
+                title="Ctrl+R"
+                className="ota-ctrl font-mono text-[10.5px]"
+              >
+                Hist
+              </button>
+            ) : null}
             <button
               type="button"
               disabled={activeSession.exited}

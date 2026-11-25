@@ -130,6 +130,7 @@ pub fn run() {
             commands::tunnel::start_tunnel,
             commands::tunnel::stop_tunnel,
             commands::store::save_ssh_session,
+            commands::store::save_serial_session,
             commands::store::list_saved_sessions,
             commands::store::delete_saved_session,
             commands::store::connect_saved_session,

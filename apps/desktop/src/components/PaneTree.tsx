@@ -19,6 +19,7 @@ interface PaneTreeProps {
   highlightEnabled: boolean;
   highlightRules: HighlightRule[];
   searchSignal: number;
+  blocksSignal: number;
   isSplit?: boolean;
   exitedLabel: string;
   onSelect: (sessionId: string) => void;
@@ -44,6 +45,7 @@ export function PaneTree({
   highlightEnabled,
   highlightRules,
   searchSignal,
+  blocksSignal,
   isSplit = false,
   exitedLabel,
   onSelect,
@@ -86,6 +88,7 @@ export function PaneTree({
           highlightEnabled={highlightEnabled}
           highlightRules={highlightRules}
           searchSignal={focused ? searchSignal : 0}
+          blocksSignal={focused ? blocksSignal : 0}
           exitedLabel={exitedLabel}
           onResize={(cols, rows) => onResize(session.id, cols, rows)}
           onExit={() => onExit(session.id)}
@@ -115,6 +118,7 @@ export function PaneTree({
           highlightEnabled={highlightEnabled}
           highlightRules={highlightRules}
           searchSignal={searchSignal}
+          blocksSignal={blocksSignal}
           isSplit
           exitedLabel={exitedLabel}
           onSelect={onSelect}
@@ -141,6 +145,7 @@ export function PaneTree({
           highlightEnabled={highlightEnabled}
           highlightRules={highlightRules}
           searchSignal={searchSignal}
+          blocksSignal={blocksSignal}
           isSplit
           exitedLabel={exitedLabel}
           onSelect={onSelect}
